@@ -80,6 +80,24 @@ export default function Methodology() {
             </tbody>
           </table>
         </div>
+        <h3>Scoring and dot-ball zones</h3>
+        <p className="sub">{meta.zones_about_runs ?? 'Scoring zones spread each scoring outcome over the lengths and lines it usually comes from.'}</p>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr><th scope="col">Outcome</th><th scope="col">Confidence</th>{z.lengths.map((l: string) => <th key={l} scope="col">{l}</th>)}<th scope="col">Main line</th></tr></thead>
+            <tbody>
+              {Object.entries<any>(z.outcomes ?? {}).map(([k, c]) => (
+                <tr key={k}>
+                  <td>{c.label}</td><td>{pct(c.confidence, 0)}</td>
+                  {c.length.map((v: number, i: number) => <td key={i} style={{ background: `rgba(226, 80, 143, ${Math.min(0.85, v * 1.6)})`, color: 'var(--text)' }}>{pct(v, 0)}</td>)}
+                  <td className="txt">{z.lines[c.line.indexOf(Math.max(...c.line))]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="sub">Bowling maps work the same way from the other end: a bowler's wickets, runs conceded and dot balls are compared with the average bowler of the same
+          type (pace or spin) against the same batting hand and in the same phase. Every pitch map can be filtered by phase, and by bowler type (batting) or batter hand (bowling).</p>
         <p className="sub">A batter's map compares their dismissal mix with the average batter in the same format against the same bowler type (pace or spin). "Within their own game"
           divides by the batter's overall dismissal rate, so it shows where their wickets cluster even if they rarely get out. Caught-behind needs the wicketkeeper, who isn't
           marked in the data: we take the fielder who made a stumping in that match, or the side's regular stumper that season.</p>
@@ -91,6 +109,8 @@ export default function Methodology() {
             <li>First-class coverage is limited to what Cricsheet has: County Championship, Sheffield Shield, Plunket Shield, Sri Lanka's Major League and Tests. No Ranji Trophy yet.</li>
             <li>Rain-affected (DLS) matches use the revised target but are left out when fitting the win model.</li>
             <li>Win probability is not modelled for multi-day cricket yet.</li>
+            <li>Test cricket has ball-by-ball records from December 2001. Older Tests are not included, so all-time records here mean "since 2001".</li>
+            <li>In the Test lab, the home side is the team that plays most international cricket at that ground, so neutral venues (such as the UAE for Pakistan) count as home.</li>
             <li>Super overs are excluded from player stats.</li>
           </ul>
         </Panel>

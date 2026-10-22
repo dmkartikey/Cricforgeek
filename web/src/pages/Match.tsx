@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { d1, dateShort, n0, overs, signed } from '../lib/fmt';
-import { ErrorBox, Legend, Loader, Panel, Seg, SERIES } from '../components/ui';
+import { ErrorBox, Legend, Loader, Mini, Panel, Seg, SERIES } from '../components/ui';
 import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 
@@ -16,6 +16,10 @@ export default function Match() {
   const { id } = useParams();
   const { data: m, error } = useData<any>(`matches/${id}.json`);
   const [inn, setInn] = useState('1');
+  const [wm, setWm] = useState<'cum' | 'rr'>('cum');
+  const [wpSide, setWpSide] = useState<'1' | '2'>('1');
+  const [tpInn, setTpInn] = useState('all');
+  const [tpType, setTpType] = useState<'all' | 'w' | 'r'>('all');
   if (error) return <ErrorBox error={error} />;
   if (!m) return <Loader text="Loading match" />;
   const i = m.info, nm = (p: string) => m.names[p] ?? p;
@@ -57,15 +61,20 @@ export default function Match() {
         </div>
       </section>
       <div className="grid g2">
-        <Panel title="Worm" sub="Cumulative runs by over.">
+        <Panel title="Worm" sub={wm === 'cum' ? 'Cumulative runs by over.' : 'Run rate so far, by over.'}
+          tools={<Mini label="Show" value={wm} onChange={setWm} options={[['cum', 'Runs'], ['rr', 'Run rate']]} />}>
           <Legend items={innings.slice(0, 4).map((k, n) => ({ label: `${team(k)}${innings.length > 2 ? ` (${k})` : ''}`, color: SERIES[n] }))} />
-          <LineChart aria="Cumulative runs by over" labels={Array.from({ length: maxOv }, (_, n) => String(n + 1))} fmt={n0}
-            series={innings.slice(0, 4).map((k, n) => ({ name: team(k), color: SERIES[n], values: Array.from({ length: maxOv }, (_, o) => ovs.find((x) => x[0] === k && x[1] === o)?.[4] ?? null) }))} />
+          <LineChart key={wm} aria="Runs by over" labels={Array.from({ length: maxOv }, (_, n) => String(n + 1))} fmt={wm === 'cum' ? n0 : d1}
+            series={innings.slice(0, 4).map((k, n) => ({ name: team(k), color: SERIES[n], values: Array.from({ length: maxOv }, (_, o) => {
+              const sc = ovs.find((x) => x[0] === k && x[1] === o)?.[4];
+              return sc == null ? null : wm === 'cum' ? sc : sc / (o + 1); }) }))} />
         </Panel>
         {limited && wpSeries.length > 0 ? (
-          <Panel title="Win probability" sub={`${i.team1 === team(1) ? i.team1 : team(1)}'s chance of winning, end of each over.`}>
-            <LineChart aria="Win probability by over" labels={wpLabels} yMin={0} yMax={100} refLine={50} fmt={(v) => `${Math.round(v)}%`}
-              xFmt={(l) => l.split('over ')[1]} series={[{ name: `${team(1)} win %`, color: 'var(--s1)', wash: true, values: wpSeries }]} />
+          <Panel title="Win probability" sub={`${team(+wpSide)}'s chance of winning, end of each over.`}
+            tools={<Mini label="For" value={wpSide} onChange={setWpSide} options={[['1', team(1)], ['2', team(2)]]} />}>
+            <LineChart key={wpSide} aria="Win probability by over" labels={wpLabels} yMin={0} yMax={100} refLine={50} fmt={(v) => `${Math.round(v)}%`}
+              xFmt={(l) => l.split('over ')[1]} series={[{ name: `${team(+wpSide)} win %`, color: wpSide === '1' ? 'var(--s1)' : 'var(--s2)', wash: true,
+                values: wpSide === '1' ? wpSeries : wpSeries.map((v) => (v == null ? null : 100 - v)) }]} />
           </Panel>
         ) : <Panel title="Win probability" sub="Not modelled for multi-day cricket yet (draws make it a three-way outcome)." />}
       </div>
@@ -96,8 +105,12 @@ export default function Match() {
         </div>
       </Panel>
       {m.moments.length > 0 && (
-        <Panel title="Turning points" sub="The balls that moved the win probability most." flush>
-          <Table rows={m.moments} sort="sw" cols={[
+        <Panel title="Turning points" sub="The balls that moved the win probability most." flush
+          tools={<>
+            <Mini label="Innings" value={tpInn} onChange={setTpInn} options={[['all', 'Both'], ...innings.slice(0, 2).map((k) => [String(k), team(k)] as [string, string])]} />
+            <Mini label="Type" value={tpType} onChange={setTpType} options={[['all', 'All'], ['w', 'Wickets'], ['r', 'Runs']]} />
+          </>}>
+          <Table rows={m.moments.filter((x: any) => (tpInn === 'all' || String(x[0]) === tpInn) && (tpType === 'all' || (tpType === 'w' ? !!x[6] : !x[6])))} sort="sw" empty="No turning points with these filters." cols={[
             { key: 'b', label: 'Ball', left: true, get: (x: any) => `${x[0]}.${x[1]}.${x[2]}`, fmt: (_, x: any) => `Inns ${x[0]} · ${x[1]}.${x[2] % 6 || 6}`, sortable: false },
             { key: 'w', label: 'What happened', left: true, sortable: false, get: (x: any) => x[3],
               fmt: (_, x: any) => <><Link to={`/player/${x[3]}`}>{nm(x[3])}</Link> v <Link to={`/player/${x[4]}`}>{nm(x[4])}</Link>: {x[6] ? <b>wicket ({x[6]})</b> : `${x[5]} run${x[5] === 1 ? '' : 's'}`}</> },

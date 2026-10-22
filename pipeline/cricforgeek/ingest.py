@@ -5,6 +5,7 @@ Tables written to <work>/:
   matches.parquet      one row per match
   appearances.parquet  one row per player per match
   players.parquet      one row per player (id, name, styles)
+  innings.parquet      one row per innings (declared, forfeited, follow-on order, target)
 """
 from __future__ import annotations
 
@@ -64,7 +65,7 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
     schema = pa.schema(BALL_COLS)
     writer = pq.ParquetWriter(work / "balls.parquet", schema, compression="zstd")
     cols = _new_cols()
-    matches, apps = [], []
+    matches, apps, inns = [], [], []
     names: dict[str, str] = {}
     n = 0
 
@@ -125,6 +126,9 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
                 tgt = inn.get("target") or {}
                 t_runs = tgt.get("runs")
                 t_balls = int(round(float(tgt["overs"]) * bpo)) if tgt.get("overs") else None
+                inns.append({"match_id": mid, "inn": ii, "team": bat, "super_over": sup,
+                             "declared": bool(inn.get("declared")), "forfeited": bool(inn.get("forfeited")),
+                             "target": t_runs})
                 score = wk = legal = seq = 0
                 for ov in inn.get("overs", []):
                     for d in ov["deliveries"]:
@@ -164,6 +168,7 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
 
     pq.write_table(pa.Table.from_pylist(matches), work / "matches.parquet", compression="zstd")
     pq.write_table(pa.Table.from_pylist(apps), work / "appearances.parquet", compression="zstd")
+    pq.write_table(pa.Table.from_pylist(inns), work / "innings.parquet", compression="zstd")
 
     # Players: Cricsheet register name + optional style seed
     full = {}

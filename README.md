@@ -3,7 +3,8 @@
 Cricket stats for geeks. Ball-by-ball analytics for every format: impact, win probability, matchups, phase splits and inferred pitch-zone weaknesses, rebuilt every night from [Cricsheet](https://cricsheet.org) and published as a free static site.
 
 - **Home**: headline insights and leaderboards (impact, SR+, Average+, Economy+, WPA, clutch, death overs, pace vs spin, vulnerability).
-- **Player**: percentiles, competition and year trends, phase and bowling-type splits, inferred pitch map, matchups, entry point, recent form.
+- **Player**: percentiles, competition and year trends, phase and bowling-type splits, batting and bowling pitch maps (inferred), matchups, entry point, recent form. Every card has its own filters.
+- **Tests**: the Test match lab: results by year, innings by innings, fourth-innings chases by target, follow-ons, the toss, home advantage, the ageing ball, conditions by country and innings specialists.
 - **Team**: competitions, win % by season, batting first vs chasing, phase run rates, top players, head to head.
 - **League**: scoring trends, tables with net run rate, leaders by season, venues, records, every match.
 - **Match**: worm, win-probability chart, Manhattan, scorecards with impact and WPA, turning points.
@@ -34,7 +35,7 @@ No server or database to run. A GitHub Action (`.github/workflows/nightly.yml`) 
 - **Impact**: runs added above an average player, counting the run value of wickets (from a run-expectancy table in limited overs, runs per wicket in multi-day).
 - **WPA**: win probability added. Each ball's change in win chance, credited to batter and bowler.
 - **Clutch**: impact on high-leverage balls only (where win chance typically swings ≥1.5× normal).
-- **Inferred pitch zones**: free data has no ball-tracking, so zones are inferred from how a batter gets out (bowled, LBW, caught behind, stumped…) against the format's baseline, with a confidence score. Weights live in `seeds/zones.json`.
+- **Inferred pitch zones**: free data has no ball-tracking, so zones are inferred from how a batter gets out (bowled, LBW, caught behind, stumped…) and how they score (dots, ones to threes, fours, sixes) against the format's baseline, with a confidence score. Bowlers get the same maps for wickets, runs leaked and dot balls. The pipeline exports raw counts; the site builds the maps, so they can be filtered by phase, bowler type and batter hand. Weights live in `seeds/zones.json`.
 
 ## Run it locally
 

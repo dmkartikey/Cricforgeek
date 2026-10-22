@@ -38,7 +38,7 @@ def main():
     con.execute(f"set memory_limit = '{os.environ.get('CFG_MEMORY', '6GB')}'")
     con.execute("set preserve_insertion_order = false")
     con.execute(f"set temp_directory = '{a.work / 'tmp'}'")
-    for t in ("balls", "matches", "appearances", "players"):
+    for t in ("balls", "matches", "appearances", "players", "innings"):
         con.execute(f"create or replace view {t} as select * from '{a.work / (t + '.parquet')}'")
     rep_file = a.work / "report.json"
     if a.skip_models:

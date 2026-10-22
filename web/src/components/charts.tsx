@@ -90,8 +90,9 @@ export function LineChart({ labels, series, fmt = (v) => compact(v), height = 22
           const last = [...pts].reverse().find((p) => ok(p[1]));
           return (
             <g key={s.name}>
-              {s.wash && <path d={ar(pts) ?? ''} fill={s.color} opacity={0.1} />}
-              <path d={gen(pts) ?? ''} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+              {s.wash && <path className="wash" d={ar(pts) ?? ''} fill={s.color} opacity={0.12} />}
+              <path key={s.values.join(',')} className={s.dashed ? undefined : 'draw'} pathLength={s.dashed ? undefined : 1}
+                d={gen(pts) ?? ''} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
                 strokeDasharray={s.dashed ? '5 4' : undefined} />
               {last && !s.dashed && <circle cx={x(last[0])} cy={y(last[1] as number)} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />}
             </g>
@@ -155,7 +156,8 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
             : `M${cx - bw / 2},${y0} V${yv - r} Q${cx - bw / 2},${yv} ${cx - bw / 2 + r},${yv} H${cx + bw / 2 - r} Q${cx + bw / 2},${yv} ${cx + bw / 2},${yv - r} V${y0} Z`;
           return (
             <g key={i}>
-              {ok(v) && h > 0 && <path d={path} fill={d.color ?? color} opacity={hi == null || hi === i ? 1 : 0.55} />}
+              {ok(v) && h > 0 && <path key={`${v}`} className={up ? 'grow' : 'grow-down'} style={{ animationDelay: `${Math.min(i * 18, 500)}ms` }}
+                d={path} fill={d.color ?? color} opacity={hi == null || hi === i ? 1 : 0.55} />}
               {marks && ok(marks[i]) && (marks[i] as number) > 0 && (
                 <g>{Array.from({ length: marks[i] as number }).map((_, k) => (
                   <circle key={k} cx={cx} cy={yv - 8 - k * 9} r={4} fill="var(--s2)" stroke="var(--surface)" strokeWidth={2} />
@@ -195,7 +197,7 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
           <div className="lab">{r.label}{r.note && <small>{r.note}</small>}</div>
           <div className="pct-track" style={{ ['--ref' as string]: `${(refV / max) * 100}%` }}>
             <div style={{ position: 'absolute', left: `${(refV / max) * 100}%`, top: -4, bottom: -4, width: 1, background: 'var(--text-2)', opacity: 0.6 }} />
-            {ok(r.value) && <div className="pct-fill" style={{ width: `${Math.max(1, Math.min(100, (r.value / max) * 100))}%`,
+            {ok(r.value) && <div className="pct-fill sweep" style={{ width: `${Math.max(1, Math.min(100, (r.value / max) * 100))}%`,
               background: r.value >= refV ? 'var(--s1)' : 'var(--div-mid)' }} />}
           </div>
           <div className="pct-val">{ok(r.value) ? fmt(r.value) : '–'}</div>
@@ -216,7 +218,7 @@ export function PctBars({ items }: { items: { label: string; pct: number | null 
         <div className="pct-row" key={i.label} title={i.tip}>
           <div className="lab">{i.label}<small>{i.value}</small></div>
           <div className="pct-track">
-            {i.pct != null && <div className="pct-fill" style={{ width: `${Math.max(2, i.pct)}%`, background: color(i.pct),
+            {i.pct != null && <div className="pct-fill sweep" style={{ width: `${Math.max(2, i.pct)}%`, background: color(i.pct),
               boxShadow: i.pct >= 90 ? '0 0 14px rgba(94,231,255,.45)' : undefined }} />}
           </div>
           <div className="pct-val">{i.pct ?? '–'}</div>
@@ -234,6 +236,14 @@ export function divColor(v: number) {
   const neg = [12, 156, 203], mid = [56, 58, 69], pos = [226, 80, 143];
   const c = t < 0 ? mix(mid, neg, -t) : mix(mid, pos, t);
   return `rgb(${c.join(',')})`;
+}
+
+// sequential cyan scale for shares (0 = surface, 1 = brightest)
+export function seqColor(t: number) {
+  const k = Math.max(0, Math.min(1, t));
+  const a = [22, 28, 46], b = [12, 156, 203], c = [140, 236, 255];
+  const mix = (x: number[], y: number[], f: number) => x.map((v, i) => Math.round(v + (y[i] - v) * f));
+  return `rgb(${(k < 0.7 ? mix(a, b, k / 0.7) : mix(b, c, (k - 0.7) / 0.3)).join(',')})`;
 }
 
 export function ChartBox({ children, legend, foot }: { children: ReactNode; legend?: ReactNode; foot?: ReactNode }) {

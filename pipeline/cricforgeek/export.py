@@ -83,6 +83,15 @@ BALL_BOWL = """count(*) filter (where is_legal) b, sum(bowl_runs) r, count(*) fi
   count(*) filter (where six) s6, round(sum(xbowl_r),1) xr, round(sum(xbowl_w),2) xw,
   round(sum(bowl_val),1) imp, round(sum(bowl_wpa),3) wpa"""
 
+ZONE_COLS = ["b", "z_bowled", "z_lbw", "z_keeper", "z_stumped", "z_cab", "z_field", "z_hitwicket", "z_dot", "z_r13", "z_four", "z_six", "z_runs"]
+ZONE_VEC = """count(*) b,
+  count(*) filter (where striker_out and dcat = 'bowled') z_bowled, count(*) filter (where striker_out and dcat = 'lbw') z_lbw,
+  count(*) filter (where striker_out and dcat = 'keeper') z_keeper, count(*) filter (where striker_out and dcat = 'stumped') z_stumped,
+  count(*) filter (where striker_out and dcat = 'cab') z_cab, count(*) filter (where striker_out and dcat = 'field') z_field,
+  count(*) filter (where striker_out and dcat = 'hitwicket') z_hitwicket,
+  count(*) filter (where r_bat = 0) z_dot, count(*) filter (where r_bat in (1, 2, 3, 5)) z_r13,
+  count(*) filter (where r_bat = 4) z_four, count(*) filter (where r_bat = 6) z_six, sum(r_bat) z_runs"""
+
 
 def _clean(d: dict, drop=()):
     return {k: r(v, 3) for k, v in d.items() if k not in drop and v is not None}
@@ -204,6 +213,23 @@ def export_all(con, out: Path, report: dict):
     _export_explorer(con, w)
     _export_search(con, w, comps)
 
+    # baselines: batting keyed "btype|phase", bowling keyed "bowler btype|batter hand|phase" ("all" = any)
+    zbase = {}
+    for x in rows(con, f"""select fam, gender, grouping(btype) gb, btype, grouping(bat_hand) gh, bat_hand,
+          case when grouping(phase) = 1 then 'all' else phase::varchar end ph, {ZONE_VEC}
+        from BXE where faced group by fam, gender, cube(btype, bat_hand, phase)"""):
+        if (x["gb"] == 0 and x["btype"] is None) or (x["gh"] == 0 and x["bat_hand"] is None):
+            continue
+        bt = "all" if x["gb"] else x["btype"]
+        hd = "all" if x["gh"] else x["bat_hand"]
+        d = zbase.setdefault(f"{x['fam']}-{x['gender']}", {"bat": {}, "bowl": {}})
+        vec = [x[c] for c in ZONE_COLS]
+        if hd == "all":
+            d["bat"][f"{bt}|{x['ph']}"] = vec
+        d["bowl"][f"{bt}|{hd}|{x['ph']}"] = vec
+    w.write("zbase.json", zbase)
+    _export_tests(con, w, names)
+
     meta = {
         "built": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"),
         "data_to": max_date, "comps": comps,
@@ -211,7 +237,7 @@ def export_all(con, out: Path, report: dict):
                             "(select count(*) from P) players from matches")[0],
         "style_coverage": r(con.execute("select count(*) filter (where bgrp is not null)/count(*) from BXE").fetchone()[0], 3),
         "zones": {k: v for k, v in cfg.items() if not k.startswith("_")},
-        "zones_about": cfg["_about"],
+        "zones_about": cfg["_about"], "zones_about_runs": cfg.get("_about_runs"),
         "models": report,
     }
     w.write("meta.json", meta)
@@ -220,7 +246,7 @@ def export_all(con, out: Path, report: dict):
 
 def _export_players(con, w, cfg, comp_label, names):
     prof = defaultdict(lambda: {"comps": [], "summary": {}, "seasons": defaultdict(list), "splits": {},
-                                "zones": {}, "matchups": {}, "recent": {}, "pct": {}, "entry": {}})
+                                "zc": {}, "matchups": {}, "recent": {}, "pct": {}, "entry": {}})
     # styles + teams
     for p in rows(con, "select player, bat_style, bowl_style, bgrp, btype from P"):
         d = prof[p["player"]]
@@ -250,20 +276,23 @@ def _export_players(con, w, cfg, comp_label, names):
     # seasons per competition (compact arrays)
     for x in rows(con, """
       with a as (select player, comp, season, sum(runs) r, sum(balls) b, count(*) filter (where is_out) o,
-                        round(sum(imp),1) imp, round(sum(wpa),2) wpa from BI group by all),
+                        round(sum(imp),1) imp, round(sum(wpa),2) wpa, round(sum(xr),1) xr, round(sum(xo),2) xo from BI group by all),
            c as (select player, comp, season, sum(wkts) w, sum(balls) b, sum(runs) r, round(sum(imp),1) imp,
-                        round(sum(wpa),2) wpa from BW group by all)
+                        round(sum(wpa),2) wpa, round(sum(xr),1) xr, round(sum(xw),2) xw from BW group by all)
       select coalesce(a.player, c.player) player, coalesce(a.comp, c.comp) comp, coalesce(a.season, c.season) season,
-             a.r, a.b, a.o, a.imp, a.wpa, c.w, c.b bb, c.r br, c.imp bimp, c.wpa bwpa
+             a.r, a.b, a.o, a.imp, a.wpa, c.w, c.b bb, c.r br, c.imp bimp, c.wpa bwpa, a.xr, a.xo, c.xr bxr, c.xw bxw
       from a full outer join c on a.player = c.player and a.comp = c.comp and a.season = c.season
       order by season"""):
         prof[x["player"]]["seasons"][x["comp"]].append(
-            [x["season"], x["r"], x["b"], x["o"], x["imp"], x["wpa"], x["w"], x["bb"], x["br"], x["bimp"], x["bwpa"]])
+            [x["season"], x["r"], x["b"], x["o"], x["imp"], x["wpa"], x["w"], x["bb"], x["br"], x["bimp"], x["bwpa"],
+             x["xr"], x["xo"], x["bxr"], x["bxw"]])
 
     # splits per family (batting)
     bat_dims = {
         "phase": "phase::varchar", "vs": "coalesce(bgrp, 'unknown')", "type": "coalesce(btype, 'unknown')",
         "inn": "inn_grp::varchar", "lev": "lev", "year": "year::varchar",
+        "pt": "phase::varchar || '|' || coalesce(btype, 'unknown')",
+        "pv": "phase::varchar || '|' || coalesce(bgrp, 'unknown')",
     }
     for dim, expr in bat_dims.items():
         for x in rows(con, f"""select batter player, fam, gender, {expr} k, {BALL_BAT}
@@ -272,7 +301,7 @@ def _export_players(con, w, cfg, comp_label, names):
             sp = prof[x["player"]]["splits"].setdefault(f"{x['fam']}-{x['gender']}", {"bat": {}, "bowl": {}})
             sp["bat"].setdefault(dim, []).append([x["k"]] + [r(x[c], 3) for c in ("b", "r", "o", "f4", "s6", "d", "xr", "xo", "imp", "wpa")])
     bowl_dims = {"phase": "phase::varchar", "hand": "coalesce(bat_hand, 'unknown')", "inn": "inn_grp::varchar",
-                 "lev": "lev", "year": "year::varchar"}
+                 "lev": "lev", "year": "year::varchar", "ph": "phase::varchar || '|' || coalesce(bat_hand, 'unknown')"}
     for dim, expr in bowl_dims.items():
         for x in rows(con, f"""select bowler player, fam, gender, {expr} k, {BALL_BOWL}
                               from BXE {"where lev is not null" if dim == "lev" else ""} group by all"""):
@@ -310,38 +339,26 @@ def _export_players(con, w, cfg, comp_label, names):
             mu[kind].append([x["opp"], names.get(x["opp"], (x["opp"],))[0]] +
                             [r(x[c], 2) for c in ("b", "r", "o", "d", "f4", "s6", "xr", "imp")])
 
-    # zones (batting): vs all, pace, spin
-    base = defaultdict(dict)
-    for x in rows(con, """select fam, gender, case when grouping(btype) = 1 then 'all' else coalesce(btype, 'unknown') end t, dcat, count(*) n from BXE
-                          where striker_out and dcat in ('bowled','lbw','keeper','stumped','cab','field','hitwicket')
-                          group by grouping sets ((fam, gender, dcat), (fam, gender, btype, dcat))"""):
-        base[(x["fam"], x["gender"], x["t"])][x["dcat"]] = x["n"]
-    balls_base = {(x["fam"], x["gender"], x["t"]): x["b"] for x in rows(con, """
-        select fam, gender, case when grouping(btype) = 1 then 'all' else coalesce(btype, 'unknown') end t, count(*) filter (where faced) b from BXE
-        group by grouping sets ((fam, gender), (fam, gender, btype))""")}
-    rate = {k: {c: n / balls_base[k] for c, n in v.items()} for k, v in base.items() if balls_base.get(k)}
-    obs = defaultdict(lambda: defaultdict(dict))
-    bf = defaultdict(dict)
-    for x in rows(con, """select batter, fam, gender, case when grouping(btype) = 1 then 'all' else coalesce(btype, 'unknown') end t, dcat, count(*) n from BXE
-                          where striker_out and dcat is not null group by grouping sets ((batter, fam, gender, dcat), (batter, fam, gender, btype, dcat))"""):
-        obs[x["batter"]][(x["fam"], x["gender"], x["t"])][x["dcat"]] = x["n"]
-    for x in rows(con, """select batter, fam, gender, case when grouping(btype) = 1 then 'all' else coalesce(btype, 'unknown') end t, count(*) filter (where faced) b from BXE
-                          group by grouping sets ((batter, fam, gender), (batter, fam, gender, btype))"""):
-        if x["b"] >= 60:
-            bf[x["batter"]][(x["fam"], x["gender"], x["t"])] = x["b"]
-    for p, keys in bf.items():
-        for (fam, g, t), b in keys.items():
-            if t == "unknown" or (fam, g, t) not in rate:
+    # zone counts (batting by bowler type x phase, bowling by batter hand x phase); maps are built in the browser
+    for kind, who, dim in (("bat", "batter", "btype"), ("bowl", "bowler", "bat_hand")):
+        for x in rows(con, f"""select {who} player, fam, gender,
+              case when grouping({dim}) = 1 then 'all' else {dim} end t,
+              case when grouping(phase) = 1 then 'all' else phase::varchar end ph, {ZONE_VEC}
+            from BXE where faced and {who} is not null
+            group by grouping sets (({who}, fam, gender), ({who}, fam, gender, {dim}), ({who}, fam, gender, phase),
+                                    ({who}, fam, gender, {dim}, phase))
+            having count(*) >= 30"""):
+            if x["t"] is None:
                 continue
-            z = zone_profile(obs[p].get((fam, g, t), {}), b, rate[(fam, g, t)], cfg)
-            prof[p]["zones"].setdefault(f"{fam}-{g}", {})[t] = z
+            zc = prof[x["player"]]["zc"].setdefault(f"{x['fam']}-{x['gender']}", {"bat": {}, "bowl": {}})
+            zc[kind][f"{x['t']}|{x['ph']}"] = [x[c] for c in ZONE_COLS]
 
     # recent innings
-    for x in rows(con, """select * from (select BI.*, row_number() over (partition by player order by date desc, match_id desc) rn
+    for x in rows(con, """select * from (select BI.*, row_number() over (partition by player, fam, gender order by date desc, match_id desc) rn
                           from BI) where rn <= 25 order by date"""):
         prof[x["player"]]["recent"].setdefault("bat", []).append(
             [x["date"], x["comp"], x["opp"], x["runs"], x["balls"], x["is_out"], r(x["imp"], 1), r(x["wpa"], 3), x["match_id"], x["pos"]])
-    for x in rows(con, """select * from (select BW.*, row_number() over (partition by player order by date desc, match_id desc) rn
+    for x in rows(con, """select * from (select BW.*, row_number() over (partition by player, fam, gender order by date desc, match_id desc) rn
                           from BW) where rn <= 25 order by date"""):
         prof[x["player"]]["recent"].setdefault("bowl", []).append(
             [x["date"], x["comp"], x["opp"], x["balls"], x["runs"], x["wkts"], r(x["imp"], 1), r(x["wpa"], 3), x["match_id"]])
@@ -467,6 +484,8 @@ def _export_comps(con, w, comps, names):
                    sum(r_tot) filter (where phase=0) r0, count(*) filter (where is_legal and phase=0) b0,
                    sum(r_tot) filter (where phase=1) r1, count(*) filter (where is_legal and phase=1) b1,
                    sum(r_tot) filter (where phase=2) r2, count(*) filter (where is_legal and phase=2) b2,
+                   sum(n_wkts) filter (where phase=0) w0, sum(n_wkts) filter (where phase=1) w1, sum(n_wkts) filter (where phase=2) w2,
+                   count(*) filter (where faced and r_bat in (4, 6)) bnd,
                    count(*) filter (where faced and r_bat = 0) dots, count(*) filter (where faced) faced
                  from BXE group by all),
            f as (select comp, season, avg(runs) filter (where inn = 1) avg1 from IT group by all),
@@ -604,13 +623,14 @@ def _export_home(con, w, cfg, cut365, max_date, names, comp_label):
         where = swhere + (f" and date >= '{cut365}'" if window == "365" else "") + (f" and {extra_where}" if extra_where else "")
         agg = BALL_BAT if kind == "bat" else BALL_BOWL
         who = "batter" if kind == "bat" else "bowler"
-        res = rows(con, f"""select {who} player, {agg}, {sql_metric} v from BXE where {where} group by 1
+        team = "bat_team" if kind == "bat" else "bowl_team"
+        res = rows(con, f"""select {who} player, {agg}, {sql_metric} v, mode({team}) team from BXE where {where} group by 1
                             having count(*) filter (where {'faced' if kind == 'bat' else 'is_legal'}) >= {min_b}
-                            order by v {order} nulls last limit 15""")
+                            order by v {order} nulls last limit 40""")
         boards.append({"key": f"{key}:{skey}:{window}", "metric": key, "title": title, "desc": desc, "scope": skey,
                        "scope_label": slabel, "window": window, "kind": kind, "unit": unit, "min_balls": min_b,
                        "rows": [[x["player"], names.get(x["player"], (x["player"],))[0], r(x["v"], 3),
-                                 {k: r(x[k], 2) for k in ("b", "r", "o", "w", "imp", "wpa", "xr") if k in x}] for x in res]})
+                                 {**{k: r(x[k], 2) for k in ("b", "r", "o", "w", "imp", "wpa", "xr") if k in x}, "t": x["team"]}] for x in res]})
 
     for scope in SCOPES:
         fam = scope[3]
@@ -651,23 +671,40 @@ def _export_home(con, w, cfg, cut365, max_date, names, comp_label):
             board("hardest_out", "Hardest to dismiss", "Balls per dismissal compared with expected. 100 = average.",
                   scope, window, "bat", "100*(sum(xbat_out) filter (where faced) + 3)/(count(*) filter (where striker_out) + 3)", min_b=mb)
 
-    # biggest moments in the last year
-    moments = rows(con, f"""select match_id, comp, date, inn, over, legal_no, batter, bowler, r_tot, wkt_kind, dwp, wp_before,
-                                   bat_team, bowl_team
-                            from BXE where dwp is not null and date >= '{cut365}' order by abs(dwp) desc limit 20""")
-    for m in moments:
-        m["batter_name"] = names.get(m["batter"], (m["batter"],))[0]
-        m["bowler_name"] = names.get(m["bowler"], (m["bowler"],))[0]
-        m["comp_label"] = comp_label.get(m["comp"])
+    # breakouts: biggest rise in impact per 100 balls, last 365 days vs the two years before
+    cut1095 = (dt.date.fromisoformat(cut365) - dt.timedelta(days=730)).isoformat()
+    breakouts = {}
+    for skey, slabel, swhere, fam in SCOPES:
+        out = {}
+        for kind, who, val, balls, team in (("bat", "batter", "bat_val", "faced", "bat_team"), ("bowl", "bowler", "bowl_val", "is_legal", "bowl_team")):
+            q = (QB if kind == "bat" else QW)[fam] // 2
+            res = rows(con, f"""
+              with x as (select {who} player, date >= '{cut365}' as now, {val} v, {balls} as bl, {team} team
+                         from BXE where {swhere} and date >= '{cut1095}')
+              select player, mode(team) filter (where now) team,
+                     100 * sum(v) filter (where now) / count(*) filter (where now and bl) a,
+                     100 * sum(v) filter (where not now) / count(*) filter (where not now and bl) bb,
+                     count(*) filter (where now and bl) na, count(*) filter (where not now and bl) nb
+              from x group by 1
+              having count(*) filter (where now and bl) >= {q} and count(*) filter (where not now and bl) >= {q}
+              order by a - bb desc limit 15""")
+            out[kind] = [[x["player"], names.get(x["player"], (x["player"],))[0], r(x["a"], 2), r(x["bb"], 2),
+                          r(x["a"] - x["bb"], 2), x["na"], x["nb"], x["team"]] for x in res]
+        breakouts[skey] = out
     # scoring trend per big league
     trend = rows(con, """select comp, year, round(6.0*sum(r_tot)/count(*) filter (where is_legal), 3) rpo,
-                                round(count(*) filter (where six)*1.0/count(distinct match_id), 2) six_pm
-                         from BXE where comp in ('ipl','bbl','psl','t20-blast','cpl','men-t20i','sa20','hundred-men')
+                                round(count(*) filter (where six)*1.0/count(distinct match_id), 2) six_pm,
+                                round(count(*) filter (where four)*1.0/count(distinct match_id), 2) four_pm,
+                                round(100.0*count(*) filter (where faced and r_bat = 0)/count(*) filter (where faced), 2) dot_pct,
+                                round(count(*) filter (where is_legal)*1.0/greatest(sum(n_wkts), 1), 2) bpw
+                         from BXE where comp in ('ipl','bbl','psl','t20-blast','cpl','men-t20i','sa20','hundred-men',
+                                                 'wpl','wbbl','women-t20i','smat','bpl','lpl','ilt20','mlc','super-smash')
                          group by all order by comp, year""")
-    chase = rows(con, """select m.comp, count(*) filter (where i.bat = m.winner) * 1.0 / count(*) chase_win, count(*) n
+    chase = rows(con, """select m.comp, any_value(m.comp_label) label, any_value(m.family) fam, any_value(m.gender) gender,
+                                count(*) filter (where i.bat = m.winner) * 1.0 / count(*) chase_win, count(*) n
                          from matches m join IT i on i.match_id = m.match_id and i.inn = 2
-                         where m.result = 'win' and m.family <> 'MD' group by 1 having count(*) >= 80 order by chase_win desc""")
-    home = {"boards": boards, "moments": moments, "trend": trend, "chase": chase, "cut365": cut365, "data_to": max_date,
+                         where m.result = 'win' and m.family <> 'MD' group by 1 having count(*) >= 40 order by chase_win desc""")
+    home = {"boards": boards, "breakouts": breakouts, "trend": trend, "chase": chase, "cut365": cut365, "data_to": max_date,
             "scopes": [[s[0], s[1], s[3]] for s in SCOPES]}
     w.write("home.json", home)
     return home
@@ -709,3 +746,93 @@ def _export_search(con, w, comps):
       group by all order by n desc""").fetchall()
     w.write("search.json", {"players": players, "teams": teams,
                             "comps": [[c["key"], c["label"], c["country"], c["matches"]] for c in comps]})
+
+
+def _export_tests(con, w, names):
+    """Test-match hub: results, innings by innings, 4th-innings chases, follow-ons, declarations, toss, home and away,
+    ball age and conditions by host country. Host = the team that plays most international cricket at the venue."""
+    con.execute("""
+    create or replace table VHOST as
+    select venue_key, arg_max(team, n) host from (
+      select venue_key, team, count(*) n from (
+        select venue_key, team1 team from matches where team_type = 'international'
+        union all select venue_key, team2 from matches where team_type = 'international') group by all)
+    group by 1""")
+    for gender, comp in (("male", "men-test"), ("female", "women-test")):
+        if not con.execute("select count(*) from matches where comp = ?", [comp]).fetchone()[0]:
+            continue
+        p = [comp]
+        M = """(select m.*, h.host, (m.winner = h.host) home_win, (m.winner is not null and m.winner <> h.host) away_win
+                from matches m left join VHOST h using (venue_key) where m.comp = ?)"""
+        yearly = rows(con, f"""
+          select year, count(*) p, count(*) filter (where result = 'win') dec, count(*) filter (where result = 'draw') d,
+                 count(*) filter (where result = 'tie') t, count(*) filter (where home_win) hw, count(*) filter (where away_win) aw
+          from {M} group by 1 order by 1""", p)
+        ball_year = {x["year"]: x for x in rows(con, """
+          select year, round(sum(r_tot)::double / greatest(sum(n_wkts), 1), 2) rpw, round(6.0 * sum(r_tot) / count(*) filter (where is_legal), 3) rpo,
+                 round(count(*) filter (where bowler_wkt and btype = 'pace') * 1.0 / greatest(count(*) filter (where bowler_wkt and btype is not null), 1), 3) pace_share,
+                 round(100.0 * count(*) filter (where faced and r_bat = 0) / count(*) filter (where faced), 2) dot_pct
+          from BXE where comp = ? group by 1""", p)}
+        for y in yearly:
+            y.update({k: v for k, v in ball_year.get(y["year"], {}).items() if k != "year"})
+        inns = rows(con, """
+          select m.year, i.inn, count(*) n, round(avg(i.runs), 1) runs, round(avg(i.balls) / 6, 1) overs,
+                 count(*) filter (where i.wkts >= 10) allout, count(*) filter (where n.declared) decl
+          from IT i join matches m using (match_id) left join innings n on n.match_id = i.match_id and n.inn = i.inn
+          where m.comp = ? and i.inn <= 4 group by all order by 1, 2""", p)
+        chases = rows(con, """
+          with t as (select i4.match_id, i4.bat team, i4.bowl opp, i4.runs scored, i4.wkts,
+                       (select sum(runs) from IT x where x.match_id = i4.match_id and x.bat <> i4.bat)
+                     - (select coalesce(sum(runs), 0) from IT x where x.match_id = i4.match_id and x.bat = i4.bat and x.inn < 4) + 1 target
+                     from IT i4 where i4.inn = 4)
+          select t.*, m.year, m.date, m.venue, case when m.winner = t.team then 'won' when m.result = 'win' then 'lost'
+                 else m.result end res
+          from t join matches m using (match_id) where m.comp = ? and t.target > 0 order by m.date""", p)
+        follow = rows(con, """
+          select m.year, m.match_id, i1.bat enforcer, i2.bat followed, m.winner, m.result
+          from matches m join IT i1 on i1.match_id = m.match_id and i1.inn = 1
+          join IT i2 on i2.match_id = m.match_id and i2.inn = 2
+          join IT i3 on i3.match_id = m.match_id and i3.inn = 3
+          where m.comp = ? and i3.bat = i2.bat""", p)
+        toss = rows(con, f"""
+          select year, count(*) filter (where toss_decision = 'bat') bat, count(*) filter (where toss_decision = 'field') field,
+                 count(*) filter (where winner = toss_winner) tw, count(*) filter (where result = 'win' and winner <> toss_winner) tl,
+                 count(*) p from {M} group by 1 order by 1""", p)
+        home = rows(con, f"""
+          with t as (select team1 team, * from {M} union all select team2 team, * from {M})
+          select team, count(*) filter (where team = host) hp, count(*) filter (where team = host and winner = team) hw,
+                 count(*) filter (where team = host and result = 'win' and winner <> team) hl,
+                 count(*) filter (where team <> host) ap, count(*) filter (where team <> host and winner = team) aw,
+                 count(*) filter (where team <> host and result = 'win' and winner <> team) al
+          from t group by 1 having count(*) >= 10 order by hp + ap desc""", p + p)
+        age = rows(con, """
+          select least(over // 10, 13) bucket, round(6.0 * sum(r_tot) / count(*) filter (where is_legal), 3) rpo,
+                 round(count(*) filter (where is_legal) * 1.0 / greatest(sum(n_wkts), 1), 1) bpw,
+                 round(count(*) filter (where bowler_wkt and btype = 'pace') * 1.0 / greatest(count(*) filter (where bowler_wkt and btype is not null), 1), 3) pace_share,
+                 count(*) filter (where is_legal) balls
+          from BXE where comp = ? group by 1 order by 1""", p)
+        hosts = rows(con, """
+          select h.host, count(distinct b.match_id) m, round(sum(b.r_tot)::double / greatest(sum(b.n_wkts), 1), 2) rpw,
+                 round(count(*) filter (where b.bowler_wkt and b.btype = 'pace') * 1.0 / greatest(count(*) filter (where b.bowler_wkt and b.btype is not null), 1), 3) pace_share,
+                 round(6.0 * sum(b.r_tot) / count(*) filter (where b.is_legal), 3) rpo
+          from BXE b join VHOST h using (venue_key) where b.comp = ? group by 1 having count(distinct b.match_id) >= 5 order by m desc""", p)
+        res_host = {x["host"]: x for x in rows(con, f"""
+          select host, count(*) filter (where result = 'draw') d, count(*) filter (where home_win) hw, count(*) filter (where away_win) aw,
+                 round(avg(i.runs), 1) avg1 from {M} m left join IT i on i.match_id = m.match_id and i.inn = 1 group by 1""", p)}
+        for h in hosts:
+            h.update({k: v for k, v in res_host.get(h["host"], {}).items() if k != "host"})
+        leaders = {}
+        for kind, tab, sql in (("bat", "BI", "sum(runs) r, sum(balls) b, count(*) filter (where is_out) o, round(sum(imp), 1) imp, count(*) i"),
+                               ("bowl", "BW", "sum(wkts) w, sum(balls) b, sum(runs) r, round(sum(imp), 1) imp, count(*) i")):
+            for x in rows(con, f"""select * from (select least(inn, 4) inn, player, {sql},
+                                     row_number() over (partition by least(inn, 4) order by sum(imp) desc) rn
+                                   from {tab} where comp = ? group by least(inn, 4), player) where rn <= 12 order by inn, rn""", p):
+                vals = {k: x[k] for k in ("r", "b", "o", "w", "imp", "i") if k in x}
+                leaders.setdefault(kind, {}).setdefault(str(x["inn"]), []).append(
+                    [x["player"], names.get(x["player"], (x["player"],))[0], vals])
+        w.write(f"tests/{gender}.json", {
+            "comp": comp, "yearly": yearly, "innings": inns, "toss": toss, "home": home, "age": age, "hosts": hosts,
+            "leaders": leaders,
+            "chases": [[c["match_id"], c["year"], c["team"], c["opp"], c["target"], c["scored"], c["wkts"], c["res"], c["venue"]] for c in chases],
+            "follow": [[f["match_id"], f["year"], f["enforcer"], f["followed"], f["winner"], f["result"]] for f in follow],
+        })
