@@ -1,0 +1,15 @@
+# generated data and builds
+web/public/data
+web/dist
+work/
+*.zip
+people.csv
+# tooling
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.duckdb
+*.duckdb.wal
+.DS_Store
+*.tsbuildinfo

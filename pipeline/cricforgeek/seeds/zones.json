@@ -1,0 +1,31 @@
+{
+  "_about": "How each dismissal type maps onto a pitch grid. Free ball-by-ball data has no ball-tracking, so these are INFERRED zones: each dismissal spreads weight over the lengths and lines where that kind of dismissal usually happens. 'confidence' scales how much a dismissal type tells us about where the ball pitched. Edit these numbers to change the model.",
+  "lengths": ["Yorker", "Full", "Good", "Back of length", "Short"],
+  "lines": ["Wide outside off", "Off-stump corridor", "Stumps", "Leg side"],
+  "categories": {
+    "bowled":   {"label": "Bowled", "confidence": 1.0,
+                 "length": [0.15, 0.35, 0.38, 0.10, 0.02], "line": [0.03, 0.27, 0.65, 0.05]},
+    "lbw":      {"label": "LBW", "confidence": 1.0,
+                 "length": [0.14, 0.46, 0.33, 0.07, 0.00], "line": [0.02, 0.10, 0.78, 0.10]},
+    "keeper":   {"label": "Caught behind", "confidence": 0.8,
+                 "length": [0.00, 0.17, 0.50, 0.28, 0.05], "line": [0.22, 0.70, 0.08, 0.00]},
+    "stumped":  {"label": "Stumped", "confidence": 0.9,
+                 "length": [0.05, 0.60, 0.30, 0.05, 0.00], "line": [0.30, 0.45, 0.15, 0.10]},
+    "cab":      {"label": "Caught & bowled", "confidence": 0.6,
+                 "length": [0.08, 0.42, 0.38, 0.12, 0.00], "line": [0.05, 0.35, 0.45, 0.15]},
+    "field":    {"label": "Caught in the field", "confidence": 0.3,
+                 "length": [0.08, 0.25, 0.27, 0.22, 0.18], "line": [0.20, 0.35, 0.25, 0.20]},
+    "hitwicket":{"label": "Hit wicket", "confidence": 0.6,
+                 "length": [0.00, 0.05, 0.25, 0.40, 0.30], "line": [0.05, 0.30, 0.55, 0.10]}
+  },
+  "bowler_groups": {
+    "RF":  {"label": "Right-arm fast", "type": "pace", "styles": ["rf", "rfm"]},
+    "RM":  {"label": "Right-arm medium", "type": "pace", "styles": ["rmf", "rm", "rsm"]},
+    "LF":  {"label": "Left-arm fast", "type": "pace", "styles": ["lf", "lfm"]},
+    "LM":  {"label": "Left-arm medium", "type": "pace", "styles": ["lmf", "lm"]},
+    "OB":  {"label": "Off-spin", "type": "spin", "styles": ["ob", "rs"]},
+    "LB":  {"label": "Leg-spin", "type": "spin", "styles": ["lb", "lbg"]},
+    "SLA": {"label": "Left-arm orthodox", "type": "spin", "styles": ["sla", "ls"]},
+    "LWS": {"label": "Left-arm wrist-spin", "type": "spin", "styles": ["lws"]}
+  }
+}
