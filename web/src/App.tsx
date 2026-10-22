@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation, Link } from 'react-router-dom';
 import { Search } from './components/Search';
+import { PREVIEW } from './lib/data';
 import Home from './pages/Home';
 import Player from './pages/Player';
 import Team from './pages/Team';
@@ -49,6 +50,7 @@ export default function App() {
       <footer className="footer">
         Ball-by-ball data from <a href="https://cricsheet.org" target="_blank" rel="noopener noreferrer">Cricsheet</a> (ODC-By licence).
         All models and inferred zones are cricforgeek's own and explained on the <Link to="/methodology">methodology</Link> page.
+        {PREVIEW && ' Preview edition: match pages cover 2022 onwards.'}
       </footer>
     </>
   );

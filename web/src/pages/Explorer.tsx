@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useData } from '../lib/data';
+import { PREVIEW, useData } from '../lib/data';
 import { bat, bowl } from '../lib/stats';
 import { d1, d2, n0, pct, plus, signed } from '../lib/fmt';
 import { famKeyLabel } from '../lib/labels';
@@ -124,7 +124,7 @@ export default function Explorer() {
           <label className="field">Min balls
             <input className="input" type="number" min={0} step={50} value={minB} onChange={(e) => setMinB(Math.max(0, +e.target.value || 0))} style={{ width: 100 }} />
           </label>
-          <button className="btn" onClick={download} disabled={!rows.length}>Download CSV</button>
+          {!PREVIEW && <button className="btn" onClick={download} disabled={!rows.length}>Download CSV</button>}
         </div>
         <div className="chips" role="group" aria-label="Competitions">
           <button className="chip" aria-pressed={!comps.length} onClick={() => setComps([])}>All competitions</button>

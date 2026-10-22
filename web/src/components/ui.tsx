@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { PREVIEW } from '../lib/data';
 
 export function Panel({ title, sub, right, children, flush, className = '', eyebrow }: {
   title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; flush?: boolean; className?: string; eyebrow?: ReactNode;
@@ -63,7 +64,8 @@ export function Loader({ text = 'Loading' }: { text?: string }) {
 }
 
 export function ErrorBox({ error }: { error: string }) {
-  return <div className="notice">{error === 'Not found' ? 'Nothing here. The link may be out of date.' : error}</div>;
+  const nf = PREVIEW ? 'This page is not in the preview edition (it includes match pages from 2022 onwards).' : 'Nothing here. The link may be out of date.';
+  return <div className="notice">{error === 'Not found' ? nf : error}</div>;
 }
 
 export function Legend({ items }: { items: { label: string; color?: string; kind?: 'line' | 'box' | 'dash' }[] }) {

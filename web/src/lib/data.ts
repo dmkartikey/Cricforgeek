@@ -3,7 +3,29 @@ import { useEffect, useState } from 'react';
 const BASE = import.meta.env.BASE_URL + 'data/';
 const cache = new Map<string, Promise<unknown>>();
 
+// Preview builds (VITE_PREVIEW=1) read bundled "shard" files instead of one file per page,
+// for hosts that cap the number of files. Shard = string hash of the key, mod the shard count.
+export const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
+const SHARDS: Record<string, number> = { players: 160, teams: 32, matches: 96, comps: 16 };
+export const shardOf = (key: string, n: number) => {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) >>> 0;
+  return h % n;
+};
+
 export function load<T = unknown>(path: string): Promise<T> {
+  const m = PREVIEW ? path.match(/^(players|teams|matches|comps)\/(.+)\.json$/) : null;
+  if (m && m[2] !== 'index') {
+    const [, kind, key] = m;
+    return loadRaw<Record<string, T>>(`shards/${kind}/s${shardOf(key, SHARDS[kind])}.json`).then((o) => {
+      if (!(key in o)) throw new Error('Not found');
+      return o[key];
+    });
+  }
+  return loadRaw<T>(path);
+}
+
+function loadRaw<T>(path: string): Promise<T> {
   let p = cache.get(path);
   if (!p) {
     p = fetch(BASE + path).then((r) => {
