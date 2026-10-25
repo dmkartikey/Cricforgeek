@@ -18,6 +18,7 @@ type Done = { id: string; name: string; fmt: string; gender: string; teams: [str
 const CRIC = 'https://api.cricapi.com/v1';
 const ODDS = 'https://api.the-odds-api.com/v4';
 const HOUR = 3600_000;
+const SEARCH_V = 2;
 
 const winnerOf = (m: LiveMatch) => {
   const s = m.status.toLowerCase();
@@ -207,10 +208,13 @@ export async function tick(env: Env, now = new Date()) {
   //    and fetch any finished match not yet stored (1 call each, at most 12 a run). Skipped when calls run low.
   if (env.CRICDATA_KEY) {
     const left = () => b.hitsLimit - b.hitsToday;
-    if (now.getTime() - (b.lastSeriesSearch ?? 0) >= 72 * HOUR && left() > 55 && (liveNow.length === 0 || left() > 75)) {
+    // SEARCH_V bumps force a fresh search after the search terms change
+    if ((b.searchV !== SEARCH_V || now.getTime() - (b.lastSeriesSearch ?? 0) >= 72 * HOUR) && left() > 55 && (liveNow.length === 0 || left() > 75)) {
+      b.searchV = SEARCH_V;
       b.lastSeriesSearch = now.getTime(); budgetChanged = true;
       const found: Record<string, { id: string; name: string; s: number; e: number }> = {};
-      for (const team of FULL_MEMBERS) {
+      // team names, plus 'Tri' for tri-series named after the host (e.g. 'ODI Tri-Nation Series in UAE')
+      for (const team of [...FULL_MEMBERS, 'Tri']) {
         const res = await getJson(`${CRIC}/series?apikey=${env.CRICDATA_KEY}&offset=0&search=${encodeURIComponent(team)}`, 'series search', b);
         if (res?.body?.status !== 'success') continue;
         if (Number.isFinite(res.body.info?.hitsToday)) b.hitsToday = res.body.info.hitsToday;
@@ -223,7 +227,8 @@ export async function tick(env: Env, now = new Date()) {
       }
       await env.LIVE.put('series', JSON.stringify(Object.values(found)));
     }
-    if (now.getTime() - (b.lastSeriesScan ?? 0) >= 12 * HOUR && left() > 40 && (liveNow.length === 0 || left() > 60)) {
+    // a scan that stopped at its limit picks up again 20 minutes later; otherwise twice a day
+    if (now.getTime() - (b.lastSeriesScan ?? 0) >= (b.seriesMore ? 20 * 60_000 : 12 * HOUR) && left() > 40 && (liveNow.length === 0 || left() > 60)) {
       b.lastSeriesScan = now.getTime(); budgetChanged = true;
       const series: { id: string; name: string; s: number; e: number }[] = (await env.LIVE.get('series', 'json')) ?? [];
       const done: Done[] = (await env.LIVE.get('done', 'json')) ?? [];
@@ -231,8 +236,9 @@ export async function tick(env: Env, now = new Date()) {
       const teams = await knownTeams(env);
       const add: Done[] = [];
       let budget = 12;
+      b.seriesMore = false;
       for (const sr of series.filter((x) => (x.s <= now.getTime() && x.e >= now.getTime() - 3 * 864e5) || !b.backfilledSeries?.includes(x.id))) {
-        if (left() <= 30 || budget <= 0) break;
+        if (left() <= 30 || budget <= 0) { b.seriesMore = true; break; }
         const res = await getJson(`${CRIC}/series_info?apikey=${env.CRICDATA_KEY}&id=${encodeURIComponent(sr.id)}`, 'series info', b);
         if (res?.body?.status !== 'success') continue;
         if (Number.isFinite(res.body.info?.hitsToday)) b.hitsToday = res.body.info.hitsToday;
@@ -241,7 +247,7 @@ export async function tick(env: Env, now = new Date()) {
           const age = now.getTime() - Date.parse(String(m.dateTimeGMT ?? m.date ?? '') + (String(m.dateTimeGMT ?? '').endsWith('Z') ? '' : 'Z'));
           if (have.has(String(m.id)) || !isResult(String(m.status ?? '')) || !(age > 0 && age < 40 * 864e5)) continue;
           if (!isInternational(String(m.name ?? ''), m.teams ?? [], m.matchType, teams)) continue;
-          if (budget-- <= 0 || left() <= 30) break;
+          if (budget-- <= 0 || left() <= 30) { b.seriesMore = true; break; }
           const mi = await getJson(`${CRIC}/match_info?apikey=${env.CRICDATA_KEY}&id=${encodeURIComponent(String(m.id))}`, 'match info', b);
           if (mi?.body?.status !== 'success') continue;
           if (Number.isFinite(mi.body.info?.hitsToday)) b.hitsToday = mi.body.info.hitsToday;
