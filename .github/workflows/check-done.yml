@@ -22,7 +22,7 @@ jobs:
           # series lookups: raw responses trimmed, a handful of calls
           set +e
           C="https://api.cricapi.com/v1"
-          curl -sS -m 30 "$C/series?apikey=$KEY&offset=0" > series.json
+          curl -sS -m 30 "$C/series?apikey=$KEY&offset=0&search=India" > series.json
           SID=$(jq -r '.data[]? | select(.name | test("India.*New Zealand|New Zealand.*India")) | .id' series.json | head -n1)
           echo "SID=$SID" > ids.txt
           curl -sS -m 30 "$C/series_info?apikey=$KEY&id=$SID" > series_info.json
