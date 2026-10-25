@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
+import PlayerCard, { usePlayerCard } from '../components/PlayerCard';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
@@ -72,6 +73,7 @@ export default function Player() {
     setRole((s.bowl?.b ?? 0) > (s.bat?.b ?? 0) * 1.2 ? 'bowl' : 'bat');
   }, [p, fks]);
 
+  const card = usePlayerCard(p, fk);
   if (error) return <ErrorBox error={error} />;
   if (!p || !fk) return <Loader text="Loading player" />;
   const s = p.summary[fk] ?? {};
@@ -81,7 +83,7 @@ export default function Player() {
   const teams: any[] = p.teams ?? [];
   const ctx = { p, fk, fam, cfg: meta?.zones, zb: zbase?.[fk] };
 
-  return (
+  const body = (
     <>
       <section className="player-head fade-in">
         <div className="row" style={{ gap: 18, alignItems: 'center' }}>
@@ -107,6 +109,19 @@ export default function Player() {
       </section>
       {r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}
     </>
+  );
+  // With a card, it sits top-left and stays in view while the stats scroll past on the right.
+  if (!card) return body;
+  return (
+    <div className="player-layout">
+      <aside className="player-card-col">
+        <PlayerCard card={card} />
+        <div className="row" style={{ justifyContent: 'center', gap: 8 }}>
+          <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
+        </div>
+      </aside>
+      <div className="player-main">{body}</div>
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-const BASE = import.meta.env.BASE_URL + 'data/';
+export const BASE_URL = import.meta.env.BASE_URL + 'data/';
+const BASE = BASE_URL;
 const cache = new Map<string, Promise<unknown>>();
 
 // Preview builds (VITE_PREVIEW=1) read bundled "shard" files instead of one file per page,
