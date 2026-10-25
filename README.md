@@ -13,6 +13,15 @@ The sidebar sets the context for every page: **format** (Test, ODI, T20, first-c
 - **My pinboard**: pin any leaderboard or breakdown; boards are saved in your browser.
 - **Methodology**: every model explained, with live calibration charts.
 
+## Search engines and security
+
+- Every player, team, competition and match has its own address (for example `/player/ba607b88`) and a prerendered HTML page
+  written by `web/scripts/prerender.mjs` after each build: title, description, canonical link, social tags, schema.org data and a
+  readable summary with links. The app takes over once JavaScript loads. Old `/#/...` links redirect to the new addresses.
+- `sitemap.xml` (an index of five sitemaps) and `robots.txt` are generated with the pages.
+- Security: a Content Security Policy, frame protection, escaped data, pinned dependencies with `npm audit` in the build,
+  Dependabot, least-privilege workflow permissions and actions pinned to commits. See `SECURITY.md`.
+
 ## How it works
 
 ```

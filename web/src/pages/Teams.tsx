@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
@@ -11,6 +12,7 @@ type Row = [string, string, string, Record<string, [number, number]>];
 const FULL = ['Afghanistan', 'Australia', 'Bangladesh', 'England', 'India', 'Ireland', 'New Zealand', 'Pakistan', 'South Africa', 'Sri Lanka', 'West Indies', 'Zimbabwe'];
 
 export default function Teams() {
+  usePageMeta('Teams');
   const s = useSettings();
   const { data, error } = useData<Row[]>('teams/index.json');
   const [q, setQ] = useState('');

@@ -1,9 +1,34 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// BASE_PATH is set by the deploy workflow (e.g. "/cricforgeek/" on GitHub Pages).
+// Security policy for the built site. GitHub Pages cannot send custom headers, so it goes in a <meta> tag.
+// Only our own scripts run; styles and fonts may also come from Google Fonts; data is fetched only from this site.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  'upgrade-insecure-requests',
+].join('; ');
+
+const securityMeta = {
+  name: 'security-meta',
+  apply: 'build' as const,
+  transformIndexHtml: (html: string) => html.replace('<meta charset="utf-8" />', `<meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="${CSP}" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />`),
+};
+
+// The live site is served from the domain root with real paths (/player/abc), so assets load from "/".
+// Preview builds (VITE_PREVIEW=1) use hash routing and relative paths instead.
 export default defineConfig({
-  plugins: [react()],
-  base: process.env.BASE_PATH || './',
+  plugins: [react(), securityMeta],
+  base: process.env.VITE_PREVIEW === '1' ? './' : process.env.BASE_PATH || '/',
   build: { outDir: 'dist', chunkSizeWarningLimit: 800 },
 });

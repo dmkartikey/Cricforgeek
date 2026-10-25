@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { PREVIEW, useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
@@ -12,6 +13,7 @@ const FKS = ['TEST-male', 'TEST-female', 'ODI-male', 'ODI-female', 'T20-male', '
 const yearOf = (s: string) => +String(s).slice(0, 4);
 
 export default function Explorer() {
+  usePageMeta('Explorer');
   const st = useSettings();
   const [fk, setFk] = useState(FKS.includes(`${st.fmt}-${st.gender}`) ? `${st.fmt}-${st.gender}` : 'T20-male');
   const [disc, setDisc] = useState<'bat' | 'bowl'>('bat');

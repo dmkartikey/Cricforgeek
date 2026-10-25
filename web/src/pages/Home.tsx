@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { FMTS, LEVELS, useSettings } from '../lib/settings';
@@ -107,6 +108,7 @@ function delta(now: number, prev: number, fmt: (v: number) => string, invert?: b
 }
 
 export default function Home() {
+  usePageMeta('cricforgeek: ball-by-ball cricket stats for geeks', true);
   const s = useSettings();
   const idx = useData<HomeIdx>('home.json');
   const scopes = idx.data?.scopes ?? [];

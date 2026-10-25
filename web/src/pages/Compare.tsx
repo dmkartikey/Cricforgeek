@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link, useSearchParams } from 'react-router-dom';
 import { load, useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
@@ -42,6 +43,7 @@ function Picker({ onPick, exclude }: { onPick: (id: string) => void; exclude: st
 }
 
 export default function Compare() {
+  usePageMeta('Compare players');
   const s = useSettings();
   const [sp, setSp] = useSearchParams();
   const ids = (sp.get('p') ?? '').split(',').filter(Boolean).slice(0, 4);

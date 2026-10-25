@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { n0 } from '../lib/fmt';
@@ -6,6 +7,7 @@ import { TIER } from '../lib/labels';
 import { Chips, ErrorBox, Loader, Panel } from '../components/ui';
 
 export default function Leagues() {
+  usePageMeta('Competitions');
   const { data, error } = useData<any[]>('comps/index.json');
   const [tier, setTier] = useState('all');
   const [g, setG] = useState('all');

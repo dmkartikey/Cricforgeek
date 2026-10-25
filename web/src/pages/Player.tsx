@@ -6,6 +6,8 @@ import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../li
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
 import { useSettings } from '../lib/settings';
+import { usePageMeta } from '../lib/meta';
+
 import { BAT_METRICS, BOWL_METRICS, Drill, DrillMetric } from '../components/Drill';
 import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
@@ -50,6 +52,7 @@ export default function Player() {
   const { id } = useParams();
   const { data: p, error } = useData<any>(`players/${id}.json`);
   const st = useSettings();
+  usePageMeta(p ? `${p.name} stats` : null);
   const meta = useData<any>('meta.json').data;
   const zbase = useData<any>('zbase.json').data;
   const [fk, setFk] = useState<string>('');

@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { usePageMeta } from '../lib/meta';
+
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
@@ -14,7 +17,9 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 export default function Players() {
   const s = useSettings();
   const { data, error } = useData<{ players: Row[] }>('search.json');
-  const [q, setQ] = useState('');
+  const [sp] = useSearchParams();
+  const [q, setQ] = useState(sp.get('q') ?? '');
+  usePageMeta('Players');
   const [scope, setScope] = useState<'fmt' | 'any'>('fmt');
   const [active, setActive] = useState<'all' | 'now'>('now');
   const rows = useMemo(() => {

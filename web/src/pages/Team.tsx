@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
+import { usePageMeta } from '../lib/meta';
+
 import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
 import { BGRP, DCAT, FAM_LABEL, MULTI, PHASES, POS } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg } from '../components/ui';
@@ -17,6 +19,7 @@ export default function Team() {
   const st = useSettings();
   const { data: t, error } = useData<any>(`teams/${key}.json`);
   const meta = useData<any>('meta.json').data;
+  usePageMeta(t ? `${t.name}${t.gender === 'female' ? ' (women)' : ''} cricket team stats` : null);
   const compFam = useMemo(() => new Map<string, string>((meta?.comps ?? []).map((c: any) => [c.key, c.fam])), [meta]);
   const fams = useMemo(() => (t ? Object.keys(t.fams).sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)) : []), [t]);
   const [fam, setFam] = useState('');

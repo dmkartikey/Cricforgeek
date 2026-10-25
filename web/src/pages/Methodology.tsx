@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { useData } from '../lib/data';
 import { dateShort, n0, pct } from '../lib/fmt';
 import { ErrorBox, Legend, Loader, Panel, Seg } from '../components/ui';
 import { LineChart } from '../components/charts';
 
 export default function Methodology() {
+  usePageMeta('Methodology');
   const { data: meta, error } = useData<any>('meta.json');
   const [cal, setCal] = useState('T20-male');
   if (error) return <ErrorBox error={error} />;

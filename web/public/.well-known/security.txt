@@ -1,0 +1,6 @@
+# Report security problems privately through GitHub. Please don't open a public issue.
+Contact: https://github.com/dmkartikey/Cricforgeek/security/advisories/new
+Expires: 2027-10-25T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://cricforgeek.site/.well-known/security.txt
+Policy: https://github.com/dmkartikey/Cricforgeek/blob/main/SECURITY.md

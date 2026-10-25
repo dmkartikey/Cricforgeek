@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
+import { usePageMeta } from '../lib/meta';
+
 import { d1, d2, dateShort, n0, overs, signed } from '../lib/fmt';
 import { FAM_LABEL, MULTI } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, Panel, SectionHead, SERIES } from '../components/ui';
@@ -34,6 +36,7 @@ export default function Match() {
   const { id } = useParams();
   const { data: m, error } = useData<any>(`matches/${id}.json`);
   const [inn, setInn] = useState(1);
+  usePageMeta(m ? `${m.info.team1} v ${m.info.team2}, ${m.comp_label ?? ''} ${m.info.season ?? ''}`.trim() : null);
   const [wm, setWm] = useState<'cum' | 'rr'>('cum');
   const [wpSide, setWpSide] = useState<'1' | '2'>('1');
   const [tpType, setTpType] = useState<'all' | 'w' | 'r'>('all');

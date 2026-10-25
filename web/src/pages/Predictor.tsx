@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { load, useData } from '../lib/data';
 import { FMTS, Fmt, useSettings } from '../lib/settings';
@@ -144,6 +145,7 @@ function Group({ title, children, note }: { title: string; children: ReactNode; 
 
 // ---------- page ----------
 export default function Predictor() {
+  usePageMeta('Situation predictor');
   const st = useSettings();
   const [fmt, setFmt] = useState<Fmt>(st.fmt);
   const [gender, setGender] = useState(st.gender);

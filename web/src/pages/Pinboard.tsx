@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { Board, readBoards, removePin, useBoards, writeBoards } from '../lib/pins';
 import { Panel } from '../components/ui';
 
 export default function Pinboard() {
+  usePageMeta('My pinboard');
   const boards = useBoards();
   const [cur, setCur] = useState(boards[0]?.id ?? 'main');
   const [cols, setCols] = useState<'2' | '3'>('2');

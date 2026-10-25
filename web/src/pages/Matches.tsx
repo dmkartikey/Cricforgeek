@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
@@ -10,6 +11,7 @@ import { ErrorBox, Loader, MiniSearch, MiniSelect, Panel } from '../components/u
 type Row = [string, string, string, string, string, string, string | null, string, number | null, number | null, string, boolean, boolean, [string, number, number, number][]];
 
 export default function Matches() {
+  usePageMeta('Matches');
   const s = useSettings();
   const { data, error } = useData<Row[]>(`matches/index-${s.fmt}-${s.gender}.json`);
   const [q, setQ] = useState('');

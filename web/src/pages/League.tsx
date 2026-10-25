@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePageMeta } from '../lib/meta';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
@@ -16,6 +17,7 @@ const LEADERS: [string, string, (v: any) => string][] = [
 export default function League() {
   const { key } = useParams();
   const { data: c, error } = useData<any>(`comps/${key}.json`);
+  usePageMeta(c ? `${c.meta.label} stats and records` : null);
   const [season, setSeason] = useState('all');
   const [tab, setTab] = useState<'overview' | 'records' | 'matches'>('overview');
   const [phm, setPhm] = useState<'rpo' | 'bpw'>('rpo');

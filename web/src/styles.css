@@ -749,3 +749,12 @@ button.sb-cell:hover .sb-label { color: var(--board-gold); }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (max-width: 640px) { .pf-gap { display: none; } .pf-pair { flex-wrap: wrap; } }
 .tbl td.wrap { white-space: normal; min-width: 120px; }
+
+/* readable summary in the prerendered HTML, replaced once the app loads */    
+.ssr { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; font: 15px/1.55 'IBM Plex Sans', system-ui, sans-serif; color: #13202B; background: #F2EFE7; }
+.ssr a { color: #0F6B4F; }
+.ssr h1 { font-size: 30px; margin: 16px 0 8px; } .ssr h2 { font-size: 18px; margin: 24px 0 8px; }
+.ssr table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; } .ssr th, .ssr td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #E4DDCD; }
+.ssr-nav { font-size: 13px; }
+@media (prefers-color-scheme: dark) { .ssr { background: #0A100D; color: #E8EADF; } .ssr a { color: #3BBF8C; } }
+    
