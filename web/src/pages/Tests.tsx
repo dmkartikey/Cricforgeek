@@ -84,7 +84,7 @@ export default function Tests({ gender: g }: { gender: 'male' | 'female' }) {
 
   return (
     <>
-      <SectionHead title="The Test match lab" sub={`Every ${g === 'male' ? "men's" : "women's"} Test with ball-by-ball records since ${t.yearly[0]?.year}: fourth-innings chases, follow-ons,
+      <SectionHead id="testlab" title="The Test match lab" sub={`Every ${g === 'male' ? "men's" : "women's"} Test with ball-by-ball records since ${t.yearly[0]?.year}: fourth-innings chases, follow-ons,
             declarations, the toss, home advantage, the ageing ball and how conditions change from country to country.`} />
 
       <Panel tools={<Mini label="Era" value={era} onChange={setEra} options={eraOpts} />} title="At a glance" sub={`${sum.first}–${sum.last}`}>
@@ -129,7 +129,7 @@ export default function Tests({ gender: g }: { gender: 'male' | 'female' }) {
               value: am === 'bpw' ? a.bpw : am === 'rpo' ? a.rpo : 100 * a.pace_share,
               color: a.bucket === 8 ? 'var(--s2)' : undefined,
               extra: [{ label: 'Runs / over', value: d1(a.rpo) }, { label: 'Balls / wicket', value: d1(a.bpw) }, { label: 'Pace share', value: pct(a.pace_share, 0) }] }))} />
-          <div className="muted" style={{ fontSize: 12 }}>Pink bar = overs 80–89, when most teams take the second new ball.</div>
+          <div className="muted" style={{ fontSize: 12 }}>Amber bar = overs 80–89, when most teams take the second new ball.</div>
         </Panel>
       </div>
 

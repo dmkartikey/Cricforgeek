@@ -110,3 +110,7 @@ export function quickWin(d: LimData | MdData, m: LiveMatch, n = 500): Record<str
   }
   return null;
 }
+
+// The 12 ICC full members. "Full members + major leagues" shows only their international matches.
+export const FULL_MEMBERS = new Set(['India', 'Australia', 'England', 'South Africa', 'New Zealand', 'Pakistan', 'Sri Lanka', 'West Indies', 'Bangladesh', 'Zimbabwe', 'Afghanistan', 'Ireland']);
+export const isFullMember = (t: string) => FULL_MEMBERS.has(baseTeam(t));

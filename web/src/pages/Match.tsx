@@ -234,9 +234,10 @@ export default function Match() {
               return sc == null ? null : wm === 'cum' ? sc : sc / (o + 1); }) }))} />
         </Panel>
         {!multi && wpSeries.length > 0 ? (
-          <Panel title="Win probability" sub={`${team(+wpSide)}'s chance of winning at the end of each over.`}
+          <Panel title="Win probability" sub={`${team(+wpSide)}'s chance of winning at the end of each over. Over numbers restart in the second innings.`}
             tools={<Mini label="For" value={wpSide} onChange={setWpSide} options={[['1', team(1)], ['2', team(2)]]} />}>
             <LineChart key={wpSide} aria="Win probability by over" labels={wpLabels} yMin={0} yMax={100} refLine={50} fmt={(v) => `${Math.round(v)}%`}
+              breaks={wpLabels.findIndex((l) => l.startsWith('Inns 2')) > 0 ? [{ at: wpLabels.findIndex((l) => l.startsWith('Inns 2')) - 0.5, label: '2nd innings' }] : undefined}
               xFmt={(l) => l.split('over ')[1]} series={[{ name: `${team(+wpSide)} win %`, color: colorOf(team(+wpSide)), wash: true,
                 values: wpSide === '1' ? wpSeries : wpSeries.map((v) => (v == null ? null : 100 - v)) }]} />
           </Panel>

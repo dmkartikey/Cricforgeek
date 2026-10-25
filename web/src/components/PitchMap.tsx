@@ -109,7 +109,8 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype, compact }: {
         : ['fewer dots', 'average', 'more dots'];
   const phases = PHASES[fam] ?? PHASES.T20;
   const lineName = (j: number) => cfg.lines[j];
-  const valFmt = (v: number) => (mode === 'share' ? `${(v * 100).toFixed(0)}%` : `${v.toFixed(2)}×`);
+  // relative to average, in plain percent: +18% = 18% more than an average batter would show here
+  const valFmt = (v: number) => (mode === 'share' ? `${(v * 100).toFixed(0)}%` : `${v >= 1 ? '+' : '−'}${Math.abs((v - 1) * 100).toFixed(0)}%`);
 
   return (
     <div className="stack" style={{ gap: 16 }}>
@@ -144,7 +145,7 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype, compact }: {
                 <g key={`${c.i}-${c.j}`} className="cell" style={{ animationDelay: `${c.i * 70 + c.c * 30}ms` }}
                   onPointerEnter={() => setHov(`${c.i}-${c.j}`)} onPointerLeave={() => setHov(null)}
                   onPointerMove={(e) => show({ x: e.clientX, y: e.clientY, title: `${cfg.lengths[c.i]} · ${lineName(c.j)}`, rows: [
-                    { label: mode === 'share' ? 'Share' : 'Index vs average', value: valFmt(c.v) },
+                    { label: mode === 'share' ? 'Share' : 'vs average', value: valFmt(c.v) },
                     ...(mode !== 'share' ? [{ label: bat ? 'Share of dismissals' : 'Share of wickets', value: `${(c.s * 100).toFixed(1)}%` }] : []),
                   ] })}>
                   <polygon className="fill" points={c.pts} fill={color(c.v)} stroke="var(--surface)" strokeWidth={2} strokeLinejoin="round" />
@@ -215,12 +216,12 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype, compact }: {
           {(mode === 'danger' || mode === 'share') ? (
             <div className="tbl-wrap">
               <table className="tbl">
-                <thead><tr><th scope="col">{bat ? 'How out' : 'How taken'}</th><th scope="col">{bat ? 'Outs' : 'Wkts'}</th><th scope="col">Expected</th><th scope="col">Index</th></tr></thead>
+                <thead><tr><th scope="col">{bat ? 'How out' : 'How taken'}</th><th scope="col">{bat ? 'Outs' : 'Wkts'}</th><th scope="col">Expected</th><th scope="col">vs expected</th></tr></thead>
                 <tbody>
                   {g.cats.filter((x) => x.o > 0 || x.e >= 1).map((x) => {
                     const ix = (x.o + 0.6) / (x.e + 0.6);
                     const good = bat ? ix <= 0.8 : ix >= 1.25, bad = bat ? ix >= 1.25 : ix <= 0.8;
-                    return <tr key={x.c}><td>{DCAT[x.c] ?? x.c}</td><td>{x.o}</td><td>{x.e.toFixed(1)}</td><td className={good ? 'pos' : bad ? 'neg' : ''}>{ix.toFixed(2)}×</td></tr>;
+                    return <tr key={x.c}><td>{DCAT[x.c] ?? x.c}</td><td>{x.o}</td><td>{x.e.toFixed(1)}</td><td className={good ? 'pos' : bad ? 'neg' : ''}>{ix >= 1 ? '+' : '−'}{Math.abs((ix - 1) * 100).toFixed(0)}%</td></tr>;
                   })}
                 </tbody>
               </table>

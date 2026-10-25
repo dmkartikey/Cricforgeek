@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
+import { isFullMember, useLive, type LiveDoc } from '../lib/live';
 import { useData } from '../lib/data';
 import { FMTS, LEVELS, useSettings } from '../lib/settings';
 import { MULTI, PHASES } from '../lib/labels';
 import { d1, d2, dateShort, n0, signed } from '../lib/fmt';
-import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, SERIES } from '../components/ui';
+import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, SERIES, ScrollTabs, JumpLinks } from '../components/ui';
 import { HBars, LineChart, WagonMix } from '../components/charts';
 import { Table } from '../components/Table';
 import Tests from './Tests';
@@ -70,9 +71,9 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
     <Panel flush title={kind === 'bat' ? 'Batting leaders' : 'Bowling leaders'} sub={b.desc}
       pin={{ id: `board:${scopeLabel}:${b.key}`, title: `${b.title}`, ctx: scopeLabel, href: '/', rows: rows.slice(0, 5).map((r) => ({ l: r[1], v: fmtBoard(b, r[2]),
         w: barVal(b, r[2], rows[0][2]) / Math.max(1e-9, barVal(b, rows[0][2], rows[0][2])), href: `/player/${r[0]}` })) }}>
-      <div className="tabs" role="tablist" style={{ padding: '0 14px' }}>
+      <ScrollTabs style={{ padding: '0 14px' }}>
         {avail.map((k) => <button key={k} role="tab" aria-selected={k === b.key.split(':')[0]} onClick={() => { setTab(k); setTeam('all'); }}>{SHORT[k] ?? k}</button>)}
-      </div>
+      </ScrollTabs>
       <div className="mini-bar" role="toolbar" style={{ padding: '14px 22px' }}>
         <Mini label="Show" value={top} onChange={setTop} options={[['10', '10'], ['25', '25'], ['50', '50']]} />
         {b.min_balls > 0 && <Mini label="Min balls" value={mult} onChange={setMult} options={[['1', n0(b.min_balls)], ['2', n0(b.min_balls * 2)], ['4', n0(b.min_balls * 4)]]} />}
@@ -94,7 +95,7 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
                  { key: 'avg', label: 'Avg', get: (r: Row) => r[3].r / Math.max(r[3].w ?? 0, 1), fmt: d1 }]),
             { key: 'imp', label: 'Impact', get: (r: Row) => r[3].imp, fmt: (v) => signed(v, 0) },
           ]} />}
-      <div className="panel-foot">{b.min_balls > 0 ? `Minimum ${n0(minB)} balls. ` : ''}{unitText(b)}.</div>
+      {b.min_balls > 0 && <div className="panel-foot">Minimum {n0(minB)} balls.</div>}
     </Panel>
   );
 }
@@ -105,6 +106,25 @@ function delta(now: number, prev: number, fmt: (v: number) => string, invert?: b
   const d = now - prev, up = d > 0;
   const tone = Math.abs(d / prev) < 0.01 ? 'flat' : (up !== !!invert ? 'up' : 'down');
   return [`${up ? '▲' : d < 0 ? '▼' : '■'} ${fmt(Math.abs(d))} on last year`, tone];
+}
+
+// Live internationals right now, and a pointer to results newer than the ball-by-ball data.
+function LiveStrip({ level }: { level: string }) {
+  const { data } = useLive<LiveDoc>('/live', 120_000);
+  const live = (data?.matches ?? []).filter((m) => m.started && !m.ended && (level !== 'top' || m.teams.every(isFullMember)));
+  if (!live.length) return null;
+  return (
+    <div className="live-strip">
+      <span className="eyebrow"><span className="live-dot" aria-hidden="true" /> Live now</span>
+      {live.slice(0, 4).map((m) => (
+        <Link key={m.id} className="live-chip" to={`/live?m=${encodeURIComponent(m.id)}`}>
+          <b>{m.teams[0]} v {m.teams[1]}</b>
+          <span className="muted">{m.innings.length ? m.innings.map((i) => `${i.r}/${i.w}`).join(' · ') : m.status}</span>
+        </Link>
+      ))}
+      <Link className="link" to="/live">All live predictions →</Link>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -179,7 +199,7 @@ export default function Home() {
           ['Runs / wkt', d1(P.now.rpw), delta(P.now.rpw, P.prev.rpw, d1)],
           ['Dot balls', `${d1(P.now.dot)}%`, delta(P.now.dot, P.prev.dot, (v) => d1(v) + ' pts', true)],
           multi ? ['Balls / wkt', d1(P.now.bpw), delta(P.now.bpw, P.prev.bpw, d1)] : ['Sixes / match', d1(P.now.six_pm), delta(P.now.six_pm, P.prev.six_pm, d1)],
-          ['Wkts to pace', `${d1(P.now.pace_share)}%`, delta(P.now.pace_share, P.prev.pace_share, (v) => d1(v) + ' pts')],
+          ['Wickets to pace', `${d1(P.now.pace_share)}%`, delta(P.now.pace_share, P.prev.pace_share, (v) => d1(v) + ' pts')],
         ];
         return (
           <Scoreboard key={fallback.key} plate={`${fl.l} · ${s.gender === 'male' ? 'Men' : 'Women'} · last 365 days`}>
@@ -190,13 +210,16 @@ export default function Home() {
         );
       })()}
 
-      <SectionHead title="Leaders" sub={`${win === '365' ? 'Last 365 days' : 'All time'}. Every number is adjusted for the situation it came in. Tap a name for the full profile.`} />
+      <LiveStrip level={s.level} />
+      <JumpLinks items={[['leaders', 'Leaders'], ['movers', 'Movers'], ['game', "How it's played"], ...(s.fmt === 'T20' && s.gender === 'male' ? [['trends', 'League trends'] as [string, string]] : []), ...(s.fmt === 'TEST' ? [['testlab', 'Test match lab'] as [string, string]] : [])]} />
+
+      <SectionHead id="leaders" title="Leaders" sub={`${win === '365' ? 'Last 365 days' : 'All time'}. Every number is adjusted for the situation it came in. Tap a name for the full profile.`} />
       <div className="grid g2">
         <Leaders key={`bat-${win}-${fallback.key}`} boards={boards} keys={multi ? BAT_MD : BAT_LIM} kind="bat" scopeLabel={scopeLabel} />
         <Leaders key={`bowl-${win}-${fallback.key}`} boards={boards} keys={multi ? BOWL_MD : BOWL_LIM} kind="bowl" scopeLabel={scopeLabel} />
       </div>
 
-      <SectionHead title="Movers and pressure" sub="Who is improving fastest, and who delivers when the result is on the line." />
+      <SectionHead id="movers" title="Movers and pressure" sub="Who is improving fastest, and who delivers when the result is on the line." />
       <div className="grid g2">
         <Panel flush title="Breakouts" sub="Impact per 100 balls: the last 365 days against the two years before."
           tools={<Mini label="Role" value={boKind} onChange={setBoKind} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
@@ -216,14 +239,14 @@ export default function Home() {
               value: r[2], sub: `${signed(r[3].wpa, 2)} wins`, href: `/player/${r[0]}` }))} />
           </Panel>
         ) : zb ? (
-          <Panel flush title="Vulnerability" sub="Dismissals inferred from type (bowled, LBW, caught behind), per 1,000 balls. Higher = easier to get out this way."
+          <Panel flush title="Vulnerability" sub={zone === 'full_straight' ? 'How often they are bowled or LBW (inferred zones). Shorter gap between dismissals = easier to beat on the stumps.' : 'How often they nick off in the corridor outside off (inferred zones). Shorter gap = more vulnerable.'}
             tools={<Mini label="Zone" value={zone} onChange={setZone} options={[['full_straight', 'Full & straight'], ['corridor', 'Corridor']]} />}>
-            <Lollipop fmt={d1} rows={zb.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} balls`, value: r[2], href: `/player/${r[0]}` }))} />
+            <Lollipop fmt={(v) => `1 in ${n0(1000 / v)} balls`} rows={zb.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} balls`, value: r[2], href: `/player/${r[0]}` }))} />
           </Panel>
         ) : null}
       </div>
 
-      <SectionHead title="How the game is played" sub={`${g} ${fl.l} cricket, ball by ball.`} />
+      <SectionHead id="game" title="How the game is played" sub={`${g} ${fl.l} cricket, ball by ball.`} />
       <div className="grid g2">
         <Panel title="Scoring mix" sub="What happens to each ball faced in the last 365 days. Small numbers show the change from the year before.">
           <WagonMix aria="Scoring mix of balls faced" compare={prevShare} parts={[
@@ -254,7 +277,7 @@ export default function Home() {
             <HBars base={0.5} refLabel="even" fmt={(v) => `${(v * 100).toFixed(0)}%`} max={0.75}
               rows={chase.slice(0, 12).map((c) => ({ label: c.label, value: c.chase_win, note: `${n0(c.n)} matches` }))} />
           </Panel>
-        ) : (
+        ) : data.comps.length <= 1 ? null : (
           <Panel flush title="Competitions in this view" sub="Where these matches come from.">
             {data.comps.slice(0, 10).map((c) => (
               <Link key={c.comp} className="list-row" to={`/league/${c.comp}`}>
@@ -266,7 +289,7 @@ export default function Home() {
       </div>
 
       {s.fmt === 'T20' && s.gender === 'male' && (
-        <Panel title="League trends" sub="Pick up to four leagues and a metric."
+        <Panel id="trends" title="League trends" sub="Pick up to four leagues and a metric."
           tools={<Mini label="Metric" value={tm} onChange={setTm} options={Object.entries(TM).map(([k, v]) => [k as typeof tm, v[0]])} />}>
           <div className="chips">{trendComps.map((c) => (
             <button key={c} className="chip" aria-pressed={leagues.includes(c)}
@@ -279,12 +302,6 @@ export default function Home() {
         </Panel>
       )}
 
-      {multi && zb && (
-        <Panel flush title="Vulnerability: full and straight" sub="Bowled and LBW dismissals per 1,000 balls (inferred zones). Higher = more likely to be beaten on the stumps."
-          tools={<Mini label="Zone" value={zone} onChange={setZone} options={[['full_straight', 'Full & straight'], ['corridor', 'Corridor']]} />}>
-          <Lollipop fmt={d1} rows={zb.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} balls`, value: r[2], href: `/player/${r[0]}` }))} />
-        </Panel>
-      )}
 
       {s.fmt === 'TEST' && <Tests key={s.gender} gender={s.gender} />}
     </>

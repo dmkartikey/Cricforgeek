@@ -129,6 +129,7 @@ export default function App() {
             <Route path="/match/:id" element={<Match />} />
             <Route path="/tests" element={<Navigate to="/" replace />} />
             <Route path="/explore" element={<Explorer />} />
+            <Route path="/explorer" element={<Navigate to="/explore" replace />} />
             <Route path="/pinboard" element={<Pinboard />} />
             <Route path="/methodology" element={<Methodology />} />
             <Route path="*" element={<div className="empty">Page not found. <Link className="link" to="/">Go to the overview</Link></div>} />

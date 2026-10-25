@@ -707,9 +707,9 @@ def _export_matches(con, w, comp_label, names):
             "names": {p: names.get(p, (p.lstrip("~"),))[0] for p in ids},
         })
     # recent-match lists per format and gender, for the Matches page
+    # The Matches page opens on the latest 600 per format and gender, and loads any year on demand.
     lists = defaultdict(list)
-    for x in rows(con, """select * from (select *, row_number() over (partition by fmt, gender order by date desc, match_id desc) rn
-                          from matches) where rn <= 600 order by date desc"""):
+    for x in rows(con, """select * from matches order by date desc, match_id desc"""):
         sc = []
         for k, e in sorted(extras.get(x["match_id"], {}).items()):
             team = next((row[10] for row in bat.get(x["match_id"], []) if row[0] == k), None)
@@ -718,7 +718,13 @@ def _export_matches(con, w, comp_label, names):
                                                    x["winner"], x["result"], x["by_runs"], x["by_wkts"], x["venue"], bool(x["lvl_top"]),
                                                    bool(x["lvl_intl"]), sc])
     for k, v in lists.items():
-        w.write(f"matches/index-{k}.json", v)
+        w.write(f"matches/index-{k}.json", v[:600])
+        years = defaultdict(list)
+        for r in v:
+            years[r[1][:4]].append(r)
+        for y, rs in years.items():
+            w.write(f"matches/index-{k}-{y}.json", rs)
+        w.write(f"matches/index-{k}-years.json", sorted(([y, len(rs)] for y, rs in years.items()), reverse=True))
 
 
 FMT_LABEL = {"TEST": "Tests", "FC": "First-class", "ODI": "ODIs", "LA": "List A", "T20": "T20", "HUN": "The Hundred"}
@@ -877,7 +883,9 @@ def _export_explorer(con, w):
 
 def _export_search(con, w, comps):
     players = con.execute("""
-      select a.player, p.name, p.unique_name, any_value(m.gender), mode(a.team), min(m.year), max(m.year), count(*) n,
+      select a.player, p.name, p.unique_name, any_value(m.gender),
+             -- the national side when they have one, so a county pro still reads as England or India
+             coalesce(mode(a.team) filter (where m.team_type = 'international'), mode(a.team)), min(m.year), max(m.year), count(*) n,
              string_agg(distinct m.fmt, ',')
       from appearances a join matches m using (match_id) join P p on p.player = a.player
       group by a.player, p.name, p.unique_name order by n desc""").fetchall()

@@ -187,6 +187,10 @@ function MatchView({ id }: { id: string }) {
           <span className="muted" style={{ fontSize: 12 }}>Player detail: {m.card ? `scorecard ${ago(m.card.fetchedAt)}` : 'not fetched yet'}</span>
         </div>
       </section>
+      {m.ended && (
+        <div className="notice info"><b>Finished: {m.status}.</b> The numbers below are the model's view at the last score check. Every finished international feeds the
+          {' '}<Link className="link" to="/live">track record</Link>, which shows how often the model's favourite won.</div>
+      )}
       {model.data && (model.data as LimData).kind === 'limited' && st?.kind === 'limited'
         ? <LimitedView m={m} st={st} d={model.data as LimData} hist={data.history} card={card} fx={fx} dism={pidx?.dismissals?.[dataKey(m)]} sched={sched} setSched={setSched} />
         : model.data && st?.kind === 'multi'

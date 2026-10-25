@@ -103,7 +103,9 @@ export default function Compare() {
   const lines = has.map((x) => {
     const m = new Map(yearRows(x.p).map((r) => [String(r[0]), role === 'bat' ? batSplit(r) : bowlSplit(r)]));
     let run = 0;
-    return { name: x.p.name, color: x.color, values: yearsAll.map((y) => {
+    // a year with few balls is drawn as a hollow ring: too small a sample to read as a trend
+    const weak = yearsAll.map((y) => { const v: any = m.get(y); return !!v && (role === 'bat' ? (v.b ?? 0) < 150 : (v.b ?? 0) < 120); });
+    return { name: x.p.name, color: x.color, weak: cum === 'cum' ? undefined : weak, values: yearsAll.map((y) => {
       const v = m.get(y); const val = v ? LM[lmKey][2](v) : null;
       if (cum === 'cum' && (lmKey === 'r' || lmKey === 'w' || lmKey === 'imp')) { run += (v ? (LM[lmKey][2](v) ?? 0) : 0); return run; }
       return val;
@@ -199,6 +201,7 @@ export default function Compare() {
             </>}>
             <Legend items={lines.map((l) => ({ label: l.name, color: l.color }))} />
             <LineChart key={lmKey + cum + role + mode} aria="Comparison by year" labels={yearsAll} series={lines} fmt={LM[lmKey][1]} height={280} />
+            {cum !== 'cum' && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Hollow rings mark years with too few balls to rely on.</div>}
           </Panel>
 
           <div className="grid g2">
@@ -208,8 +211,8 @@ export default function Compare() {
                 rows={['0', '1', '2'].map((k) => ({ label: phN[+k].split(' (')[0], note: phN[+k].match(/\((.*)\)/)?.[1], values: has.map((x) => phaseVal(x.p, k)) }))} />
             </Panel>
             {role === 'bat' ? (
-              <Panel title="Pace v spin" sub="Strike rate against each. Top right = scores quickly against both.">
-                <Scatter aria="Strike rate against pace and spin" xLabel="Strike rate v pace" yLabel="Strike rate v spin" fmtX={d1} fmtY={d1}
+              <Panel title="Pace v spin" sub="Strike rate against each. Above the dashed line = quicker against spin; below = quicker against pace.">
+                <Scatter aria="Strike rate against pace and spin" xLabel="Strike rate v pace" yLabel="Strike rate v spin" fmtX={n0} fmtY={n0} minSpan={30} diagonal="Same against both"
                   points={has.map((x) => ({ label: x.p.name, x: typeVal(x.p, 'pace'), y: typeVal(x.p, 'spin'), color: x.color }))} />
               </Panel>
             ) : (

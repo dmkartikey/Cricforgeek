@@ -40,11 +40,12 @@ export function useWidth(fallback = 640) {
 const niceDomain = (lo: number, hi: number) => scaleLinear().domain([lo, hi]).nice(4).domain() as [number, number];
 
 // ---------- line chart with crosshair ----------
-export type Series = { name: string; color: string; values: (number | null)[]; dashed?: boolean; wash?: boolean };
+export type Series = { name: string; color: string; values: (number | null)[]; dashed?: boolean; wash?: boolean; weak?: boolean[] };
 
-export function LineChart({ labels, series, fmt = (v) => compact(v), height = 220, yMin, yMax, refLine, refLabel, aria, xFmt }: {
+export function LineChart({ labels, series, fmt = (v) => compact(v), height = 220, yMin, yMax, refLine, refLabel, aria, xFmt, breaks }: {
   labels: string[]; series: Series[]; fmt?: (v: number) => string; height?: number; yMin?: number; yMax?: number;
   refLine?: number; refLabel?: string; aria: string; xFmt?: (l: string, i: number) => string;
+  breaks?: { at: number; label: string }[]; // vertical dividers, e.g. the innings break
 }) {
   const { ref: box, w: W } = useWidth();
   const H = height, L = 44, R = 14, T = 14, B = 26;
@@ -90,14 +91,25 @@ export function LineChart({ labels, series, fmt = (v) => compact(v), height = 22
           const last = [...pts].reverse().find((p) => ok(p[1]));
           return (
             <g key={s.name}>
-              {s.wash && <path className="wash" d={ar(pts) ?? ''} fill={s.color} opacity={0.12} />}
+              {/* a filled area only makes sense when the axis starts at zero */}
+              {s.wash && lo <= 0 && <path className="wash" d={ar(pts) ?? ''} fill={s.color} fillOpacity={0.12} />}
               <path key={s.values.join(',')} className={s.dashed ? undefined : 'draw'} pathLength={s.dashed ? undefined : 1}
                 d={gen(pts) ?? ''} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
                 strokeDasharray={s.dashed ? '5 4' : undefined} />
               {last && !s.dashed && <circle cx={x(last[0])} cy={y(last[1] as number)} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />}
+              {/* small samples: hollow rings so a spike from a handful of balls doesn't read as a trend */}
+              {s.weak && pts.map(([i, v]) => s.weak![i] && ok(v) && (
+                <circle key={`w${i}`} cx={x(i)} cy={y(v as number)} r={3.5} fill="var(--surface)" stroke={s.color} strokeWidth={1.5} />
+              ))}
             </g>
           );
         })}
+        {breaks?.map((b) => (
+          <g key={b.at}>
+            <line x1={x(b.at)} x2={x(b.at)} y1={T} y2={H - B} stroke="var(--muted)" strokeDasharray="3 3" />
+            <text x={x(b.at) + 5} y={T + 10} className="label-strong">{b.label}</text>
+          </g>
+        ))}
         {hover != null && (
           <g>
             <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} stroke="var(--text-2)" strokeWidth={1} opacity={0.5} />
@@ -160,10 +172,11 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
                 d={path} fill={d.color ?? color} opacity={hi == null || hi === i ? 1 : 0.55} />}
               {marks && ok(marks[i]) && (marks[i] as number) > 0 && (
                 <g>{Array.from({ length: marks[i] as number }).map((_, k) => (
-                  <g key={k} className="bails" style={{ animationDelay: `${300 + Math.min(i * 18, 500) + k * 60}ms` }} transform={`translate(${cx - 5}, ${yv - 14 - k * 13})`}>
+                  // position on the outer group, animation on the inner one: a CSS transform would replace the SVG one
+                  <g key={k} transform={`translate(${cx - 5}, ${yv - 14 - k * 13})`}><g className="bails" style={{ animationDelay: `${300 + Math.min(i * 18, 500) + k * 60}ms` }}>
                     <rect x={0} y={3} width={1.8} height={8} fill="var(--red)" /><rect x={4.1} y={3} width={1.8} height={8} fill="var(--red)" /><rect x={8.2} y={3} width={1.8} height={8} fill="var(--red)" />
                     <rect x={-0.5} y={0.5} width={5.5} height={1.6} rx={0.8} fill="var(--red)" transform="rotate(-14 2 1)" /><rect x={5} y={0.5} width={5.5} height={1.6} rx={0.8} fill="var(--red)" transform="rotate(12 8 1)" />
-                  </g>
+                  </g></g>
                 ))}</g>
               )}
               {(i === maxI || i === data.length - 1) && ok(v) && !marks && (
@@ -308,19 +321,27 @@ export function MultiBars({ rows, series, fmt, base, baseLabel }: {
 }
 
 // ---------- scatter ----------
-export function Scatter({ points, xLabel, yLabel, fmtX, fmtY, refX, refY, aria, height = 300 }: {
+export function Scatter({ points, xLabel, yLabel, fmtX, fmtY, refX, refY, aria, height = 300, minSpan = 0, diagonal }: {
   points: { label: string; x: number; y: number; color: string; r?: number; href?: string }[];
   xLabel: string; yLabel: string; fmtX: (v: number) => string; fmtY: (v: number) => string; refX?: number; refY?: number; aria: string; height?: number;
+  minSpan?: number; // smallest axis range, so two close points don't sit on a zoomed-in axis with odd ticks
+  diagonal?: string; // draw the x = y line with this label
 }) {
   const { ref: box, w: W } = useWidth();
   const { tip, show, hide } = useTip();
-  const H = height, L = 48, R = 16, T = 14, B = 40;
+  const H = height, L = 64, R = 16, T = 14, B = 40;
   const pts = points.filter((p) => ok(p.x) && ok(p.y));
   if (!pts.length) return <div className="empty">Not enough balls to plot.</div>;
   const xs = pts.map((p) => p.x).concat(refX ?? []), ys = pts.map((p) => p.y).concat(refY ?? []);
-  const pad = (lo: number, hi: number) => { const d = (hi - lo) || Math.abs(hi) * 0.2 || 1; return [lo - d * 0.18, hi + d * 0.18]; };
-  const [x0, x1] = niceDomain(...(pad(Math.min(...xs), Math.max(...xs)) as [number, number]));
-  const [y0, y1] = niceDomain(...(pad(Math.min(...ys), Math.max(...ys)) as [number, number]));
+  const pad = (lo: number, hi: number) => {
+    const d = (hi - lo) || Math.abs(hi) * 0.2 || 1;
+    let a = lo - d * 0.18, b = hi + d * 0.18;
+    if (b - a < minSpan) { const m = (a + b) / 2; a = m - minSpan / 2; b = m + minSpan / 2; }
+    return [a, b];
+  };
+  let [x0, x1] = niceDomain(...(pad(Math.min(...xs), Math.max(...xs)) as [number, number]));
+  let [y0, y1] = niceDomain(...(pad(Math.min(...ys), Math.max(...ys)) as [number, number]));
+  if (diagonal) { const lo = Math.min(x0, y0), hi = Math.max(x1, y1); x0 = y0 = lo; x1 = y1 = hi; } // same scale on both axes
   const x = scaleLinear().domain([x0, x1]).range([L, W - R]);
   const y = scaleLinear().domain([y0, y1]).range([H - B, T]);
   return (
@@ -330,6 +351,8 @@ export function Scatter({ points, xLabel, yLabel, fmtX, fmtY, refX, refY, aria, 
         {x.ticks(5).map((t) => <text key={t} x={x(t)} y={H - B + 16} textAnchor="middle">{fmtX(t)}</text>)}
         {refX != null && <line x1={x(refX)} x2={x(refX)} y1={T} y2={H - B} stroke="var(--muted)" strokeDasharray="4 4" />}
         {refY != null && <line x1={L} x2={W - R} y1={y(refY)} y2={y(refY)} stroke="var(--muted)" strokeDasharray="4 4" />}
+        {diagonal && <g><line x1={x(x0)} y1={y(x0)} x2={x(x1)} y2={y(x1)} stroke="var(--muted)" strokeDasharray="4 4" />
+          <text x={x(x1) - 6} y={y(x1) + 14} textAnchor="end" className="muted" style={{ fontSize: 11 }}>{diagonal}</text></g>}
         <line className="axis" x1={L} x2={W - R} y1={H - B} y2={H - B} />
         <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" className="label-ink">{xLabel}</text>
         <text x={12} y={(T + H - B) / 2} textAnchor="middle" className="label-ink" transform={`rotate(-90 12 ${(T + H - B) / 2})`}>{yLabel}</text>
@@ -346,40 +369,33 @@ export function Scatter({ points, xLabel, yLabel, fmtX, fmtY, refX, refY, aria, 
 }
 
 // ---------- wagon wheel: scoring mix as spokes around a field ----------
+// What happens in every 100 balls: a 10 x 10 grid, one square per ball, easier to compare than pie slices.
 export function WagonMix({ parts, compare, aria }: {
   parts: { label: string; value: number; color: string }[]; compare?: number[]; aria: string;
 }) {
   const tot = parts.reduce((a, p) => a + p.value, 0) || 1;
-  const S = 260, c = S / 2, R = 108;
-  let a0 = -Math.PI / 2;
-  const arcs = parts.map((p, i) => {
-    const share = p.value / tot, a1 = a0 + share * Math.PI * 2;
-    const mid = (a0 + a1) / 2;
-    const large = a1 - a0 > Math.PI ? 1 : 0;
-    const rr = R * (0.55 + 0.45 * Math.sqrt(share / Math.max(...parts.map((q) => q.value / tot))));
-    const pt = (a: number, r: number) => `${(c + r * Math.cos(a)).toFixed(1)},${(c + r * Math.sin(a)).toFixed(1)}`;
-    const d = `M${c},${c} L${pt(a0, rr)} A${rr},${rr} 0 ${large} 1 ${pt(a1, rr)} Z`;
-    const out = { ...p, d, share, mid, rr, i, prev: compare?.[i] };
-    a0 = a1;
-    return out;
-  });
+  const shares = parts.map((p) => (p.value / tot) * 100);
+  // largest-remainder rounding so the squares add up to exactly 100
+  const cells = shares.map(Math.floor);
+  const order = shares.map((v, i) => [v - Math.floor(v), i]).sort((x, y) => y[0] - x[0]);
+  for (let k = 0; cells.reduce((a, v) => a + v, 0) < 100; k++) cells[order[k % order.length][1]]++;
+  const grid: number[] = cells.flatMap((n, i) => Array(n).fill(i));
+  const S = 10, G = 2.2;
   return (
     <div className="row" style={{ gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-      <svg className="chart wagon" viewBox={`0 0 ${S} ${S}`} role="img" aria-label={aria} style={{ maxWidth: 240, flex: '0 0 auto' }}>
-        <circle cx={c} cy={c} r={R + 10} fill="var(--turf)" stroke="var(--line)" />
-        <circle cx={c} cy={c} r={R * 0.5} fill="none" stroke="var(--line)" strokeDasharray="3 4" />
-        {arcs.map((a) => <path key={a.label} className="fade-in" d={a.d} fill={a.color} opacity={0.92} stroke="var(--surface)" strokeWidth={2} style={{ animationDelay: `${a.i * 90}ms` }} />)}
-        {arcs.map((a) => (
-          <line key={'s' + a.label} className="spoke" pathLength={1} strokeDasharray="1" x1={c} y1={c} x2={c + (R + 8) * Math.cos(a.mid)} y2={c + (R + 8) * Math.sin(a.mid)}
-            stroke="var(--surface)" strokeWidth={1} opacity={0.6} style={{ animationDelay: `${a.i * 90}ms` }} />
+      <svg className="chart ball-grid" viewBox={`0 0 ${10 * (S + G)} ${10 * (S + G)}`} role="img" aria-label={`${aria}: ${parts.map((p, i) => `${p.label} ${shares[i].toFixed(1)}%`).join(', ')}`}
+        style={{ width: 200, maxWidth: '100%', flex: '0 0 auto' }}>
+        {grid.map((pi, n) => (
+          <rect key={n} className="fade-in" x={(n % 10) * (S + G)} y={Math.floor(n / 10) * (S + G)} width={S} height={S} rx={2.2}
+            fill={parts[pi].color} style={{ animationDelay: `${Math.min(n * 6, 600)}ms` }} />
         ))}
-        <rect x={c - 4} y={c - 14} width={8} height={28} rx={2} fill="var(--strip)" stroke="var(--line-2)" />
       </svg>
       <div className="stack" style={{ gap: 8, flex: '1 1 160px', minWidth: 160 }}>
-        {arcs.map((a) => (
-          <div key={a.label} className="kv">
-            <span className="row" style={{ gap: 8 }}><i className="key-box" style={{ background: a.color }} />{a.label}</span>
-            <b>{(a.share * 100).toFixed(1)}%{ok(a.prev) && <small className="muted" style={{ fontWeight: 400, marginLeft: 6 }}>{a.share * 100 - (a.prev as number) >= 0 ? '+' : '−'}{Math.abs(a.share * 100 - (a.prev as number)).toFixed(1)}</small>}</b>
+        <span className="muted" style={{ fontSize: 12 }}>Every 100 balls</span>
+        {parts.map((p, i) => (
+          <div key={p.label} className="kv">
+            <span className="row" style={{ gap: 8 }}><i className="key-box" style={{ background: p.color }} />{p.label}</span>
+            <b>{shares[i].toFixed(1)}%{ok(compare?.[i]) && <small className="muted" style={{ fontWeight: 400, marginLeft: 6 }}>{shares[i] - (compare![i] as number) >= 0 ? '+' : '−'}{Math.abs(shares[i] - (compare![i] as number)).toFixed(1)}</small>}</b>
           </div>
         ))}
       </div>

@@ -1,21 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
-import { useData } from '../lib/data';
+import { load, useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
 import { dateShort, n0, overs } from '../lib/fmt';
 import { ErrorBox, Loader, MiniSearch, MiniSelect, Panel } from '../components/ui';
-import { useLive, type LiveMatch } from '../lib/live';
+import { isFullMember, useLive, type LiveMatch } from '../lib/live';
 
 type Done = { id: string; name: string; fmt: LiveMatch['fmt']; gender: string; teams: [string, string]; start: string; status: string; winner: string | null; innings: LiveMatch['innings'] };
 
 // Internationals that finished after the last ball-by-ball update, from the live feed.
-function LatestResults({ fmt, gender }: { fmt: string; gender: string }) {
+function LatestResults({ fmt, gender, level }: { fmt: string; gender: string; level: string }) {
   const meta = useData<{ data_to: string }>('meta.json');
   const { data } = useLive<Done[]>(['T20', 'ODI', 'TEST'].includes(fmt) ? '/done' : null, 300_000);
   const since = meta.data?.data_to ?? '';
-  const rows = (data ?? []).filter((d) => d.fmt === fmt && d.gender === gender && d.start.slice(0, 10) > since);
+  const rows = (data ?? []).filter((d) => d.fmt === fmt && d.gender === gender && d.start.slice(0, 10) > since && (level !== 'top' || d.teams.every(isFullMember)));
   if (!since || !rows.length) return null;
   const line = (d: Done, t: string) => d.innings.filter((i) => i.team === t).map((i) => `${i.r}${i.w < 10 ? `/${i.w}` : ''}`).join(' & ');
   const ovs = (d: Done, t: string) => { const x = d.innings.filter((i) => i.team === t); return x.length === 1 ? ` (${x[0].o})` : ''; };
@@ -39,11 +39,37 @@ function LatestResults({ fmt, gender }: { fmt: string; gender: string }) {
 // [id, date, comp, comp label, team1, team2, winner, result, by runs, by wkts, venue, top level, international, [[team, runs, wkts, balls]...]]
 type Row = [string, string, string, string, string, string, string | null, string, number | null, number | null, string, boolean, boolean, [string, number, number, number][]];
 
+const ALIAS: Record<string, string> = { ind: 'india', nz: 'new zealand', aus: 'australia', eng: 'england', sa: 'south africa', pak: 'pakistan', sl: 'sri lanka', wi: 'west indies', ban: 'bangladesh', afg: 'afghanistan', zim: 'zimbabwe', ire: 'ireland', vs: '', v: '' };
+// Every word must appear somewhere in the teams, venue or competition. Short country codes work too.
+function matchesQuery(r: Row, q: string) {
+  const hay = `${r[4]} ${r[5]} ${r[10]} ${r[3] ?? ''}`.toLowerCase();
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean).map((w) => (w in ALIAS ? ALIAS[w] : w)).filter(Boolean);
+  return words.every((w) => hay.includes(w));
+}
+
 export default function Matches() {
   usePageMeta('Matches');
   const s = useSettings();
-  const { data, error } = useData<Row[]>(`matches/index-${s.fmt}-${s.gender}.json`);
+  const [year, setYear] = useState('latest');
   const [q, setQ] = useState('');
+  const fk = `${s.fmt}-${s.gender}`;
+  const years = useData<[string, number][]>(`matches/index-${fk}-years.json`);
+  // A search looks through every year, so older matches (e.g. a series from last January) are found too.
+  const want = q.trim().length >= 3 && year === 'latest' ? 'all' : year;
+  const [state, setState] = useState<{ key: string; data: Row[] | null; error: string | null }>({ key: '', data: null, error: null });
+  useEffect(() => {
+    const key = `${fk}:${want}`;
+    let live = true;
+    const ys = want === 'all' ? (years.data ?? []).map((y) => y[0]) : [];
+    if (want === 'all' && !years.data) return;
+    const p = want === 'latest' ? load<Row[]>(`matches/index-${fk}.json`)
+      : want === 'all' ? Promise.all(ys.map((y) => load<Row[]>(`matches/index-${fk}-${y}.json`))).then((a) => a.flat())
+      : load<Row[]>(`matches/index-${fk}-${want}.json`);
+    p.then((d) => live && setState({ key, data: d, error: null })).catch((e: Error) => live && setState({ key, data: null, error: e.message }));
+    return () => { live = false; };
+  }, [fk, want, years.data]);
+  useEffect(() => { setYear('latest'); }, [fk]);
+  const data = state.data, error = state.error;
   const [comp, setComp] = useState('all');
   const [shown, setShown] = useState(40);
   const comps = useMemo(() => {
@@ -52,7 +78,7 @@ export default function Matches() {
     return [...m.entries()].sort((a, b) => b[1][1] - a[1][1]);
   }, [data]);
   const rows = useMemo(() => (data ?? []).filter((r) => (s.level === 'all' || (s.level === 'top' ? r[11] : r[12]))
-    && (comp === 'all' || r[2] === comp) && (!q || (r[4] + ' ' + r[5] + ' ' + r[10]).toLowerCase().includes(q.toLowerCase()))), [data, s.level, comp, q]);
+    && (comp === 'all' || r[2] === comp) && matchesQuery(r, q)), [data, s.level, comp, q]);
   if (error) return <ErrorBox error={error === 'Not found' ? `No ${FAM_LABEL[s.fmt]} matches for this selection.` : error} />;
   if (!data) return <Loader text="Loading matches" />;
   const res = (r: Row) => (r[6] ? `${r[6]} won${r[8] ? ` by ${r[8]} runs` : r[9] ? ` by ${r[9]} wkts` : ''}` : r[7] === 'draw' ? 'Drawn' : r[7] === 'tie' ? 'Tied' : 'No result');
@@ -65,12 +91,13 @@ export default function Matches() {
         <div className="stack">
           <div className="eyebrow">Results · {FAM_LABEL[s.fmt]} · {s.gender === 'male' ? 'Men' : 'Women'}</div>
           <h1>Matches</h1>
-          <p className="lede">The latest {n0(data.length)} {FAM_LABEL[s.fmt]} matches with ball-by-ball records. Open any match for the full scorecard, worm, win probability and turning points.</p>
+          <p className="lede">{year === 'latest' && want === 'latest' ? `The latest ${n0(data.length)}` : n0(data.length)} {FAM_LABEL[s.fmt]} matches with ball-by-ball records{year !== 'latest' && year !== 'all' ? ` in ${year}` : ''}. Search finds any match from any year. Open any match for the full scorecard, worm, win probability and turning points.</p>
         </div>
       </section>
-      <LatestResults fmt={s.fmt} gender={s.gender} />
+      <LatestResults fmt={s.fmt} gender={s.gender} level={s.level} />
       <Panel flush tools={<>
         <MiniSearch value={q} onChange={setQ} placeholder="Team or venue" />
+        <MiniSelect label="Season" value={year} onChange={(v) => { setYear(v); setShown(40); }} options={[['latest', 'Latest'], ['all', 'All years'], ...(years.data ?? []).map(([y, n]) => [y, `${y} (${n})`] as [string, string])]} />
         <MiniSelect label="Competition" value={comp} onChange={setComp} options={[['all', 'All'], ...comps.map(([k, v]) => [k, `${v[0]} (${v[1]})`] as [string, string])]} />
       </>}>
         <div style={{ height: 14 }} />

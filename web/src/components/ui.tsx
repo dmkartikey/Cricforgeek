@@ -6,12 +6,12 @@ import { ok } from '../lib/stats';
 
 type PinSpec = Omit<Pin, 'at'> | null | undefined;
 
-export function Panel({ title, sub, right, children, flush, className = '', eyebrow, tools, foot, pin }: {
+export function Panel({ title, sub, right, children, flush, className = '', eyebrow, tools, foot, pin, id }: {
   title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; flush?: boolean; className?: string;
-  eyebrow?: ReactNode; tools?: ReactNode; foot?: ReactNode; pin?: PinSpec;
+  eyebrow?: ReactNode; tools?: ReactNode; foot?: ReactNode; pin?: PinSpec; id?: string;
 }) {
   return (
-    <section className={`panel fade-in ${flush ? 'flush' : ''} ${className}`}>
+    <section id={id} className={`panel fade-in ${flush ? 'flush' : ''} ${className}`}>
       {(title || right || eyebrow || pin) && (
         <div className="panel-head">
           <div className="panel-title">
@@ -229,13 +229,20 @@ export function Dumbbell({ rows, fmt, thenLabel, nowLabel }: {
   fmt: (v: number) => string; thenLabel: string; nowLabel: string;
 }) {
   if (!rows.length) return <div className="empty">Nobody has enough balls in both periods.</div>;
-  const lo = Math.min(0, ...rows.flatMap((r) => [r.then, r.now])), hi = Math.max(0, ...rows.flatMap((r) => [r.then, r.now]));
+  const rawLo = Math.min(0, ...rows.flatMap((r) => [r.then, r.now])), rawHi = Math.max(0, ...rows.flatMap((r) => [r.then, r.now]));
+  // round the ends out to a tidy step so the axis reads −60 · 0 · +60, not −55.9 · 0 · 54.4
+  const span = rawHi - rawLo || 1, step = span > 200 ? 50 : span > 80 ? 20 : span > 30 ? 10 : span > 8 ? 5 : 1;
+  const lo = Math.floor(rawLo / step) * step, hi = Math.ceil(rawHi / step) * step;
   const pos = (v: number) => ((v - lo) / (hi - lo || 1)) * 100;
   return (
     <div>
       <div className="db-axis" aria-hidden="true">
         <span />
-        <span className="db-scale row" style={{ justifyContent: 'space-between' }}><span>{fmt(lo)}</span><span>0</span><span>{fmt(hi)}</span></span>
+        <span className="db-scale" style={{ position: 'relative', height: 14 }}>
+          <span style={{ position: 'absolute', left: 0 }}>{lo < 0 ? fmt(lo) : ''}</span>
+          <span style={{ position: 'absolute', left: `${pos(0)}%`, transform: 'translateX(-50%)' }}>0</span>
+          <span style={{ position: 'absolute', right: 0 }}>{fmt(hi)}</span>
+        </span>
         <span style={{ textAlign: 'right' }}>change</span>
       </div>
       {rows.map((r) => {
@@ -303,9 +310,9 @@ export function Drawer({ title, sub, onClose, children }: { title: ReactNode; su
 }
 
 // Section heading used between groups of panels
-export function SectionHead({ title, sub, right }: { title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+export function SectionHead({ title, sub, right, id }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; id?: string }) {
   return (
-    <div className="section-h">
+    <div className="section-h" id={id}>
       <div className="stack" style={{ gap: 4 }}><h2>{title}</h2>{sub && <div className="sub">{sub}</div>}</div>
       {right}
     </div>
@@ -313,3 +320,40 @@ export function SectionHead({ title, sub, right }: { title: ReactNode; sub?: Rea
 }
 
 export const nz = (v: unknown, d = 0) => (ok(v) ? v : d);
+
+// A tab row that scrolls sideways when it doesn't fit, with a fade and an arrow so hidden tabs are discoverable.
+export function ScrollTabs({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ l: false, r: false });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const upd = () => setMore({ l: el.scrollLeft > 4, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    upd();
+    el.addEventListener('scroll', upd, { passive: true });
+    const ro = new ResizeObserver(upd); ro.observe(el);
+    // keep the selected tab in view, without scrolling the page itself
+    const sel = el.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (sel && sel.offsetLeft + sel.offsetWidth > el.clientWidth) { el.scrollLeft = sel.offsetLeft - 40; upd(); }
+    return () => { el.removeEventListener('scroll', upd); ro.disconnect(); };
+  }, []);
+  const nudge = (d: number) => ref.current?.scrollBy({ left: d * 160, behavior: 'smooth' });
+  return (
+    <div className={`tabs-wrap${more.l ? ' more-l' : ''}${more.r ? ' more-r' : ''}`}>
+      <div ref={ref} className="tabs" role="tablist" style={style}>{children}</div>
+      {more.l && <button className="tabs-arrow l" aria-label="Show earlier tabs" onClick={() => nudge(-1)}>‹</button>}
+      {more.r && <button className="tabs-arrow r" aria-label="Show more tabs" onClick={() => nudge(1)}>›</button>}
+    </div>
+  );
+}
+
+// In-page jump links for long pages. Scrolls without touching the URL (the router owns it).
+export function JumpLinks({ items }: { items: [string, string][] }) {
+  return (
+    <nav className="jump" aria-label="On this page">
+      <span className="mini-label">On this page</span>
+      {items.map(([id, label]) => (
+        <button key={id} className="chip" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{label}</button>
+      ))}
+    </nav>
+  );
+}

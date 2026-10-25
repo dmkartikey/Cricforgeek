@@ -179,6 +179,8 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
+      <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />
+
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
           { label: 'Strike rate', pct: pc.bat.sr, value: d1(s.sr) },
@@ -211,13 +213,18 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
               extra: [{ label: 'Runs', value: n0(y.r) }, { label: 'Balls', value: n0(y.b) }, { label: 'Average', value: d1(y.avg) }, { label: 'Strike rate', value: d1(y.sr) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
             : <div className="empty">No batting here.</div>}
         </Panel>
-        <Panel title="Average and strike rate by year" sub="Average (runs per dismissal) and strike rate (runs per 100 balls) on one scale. Years with few balls are left out."
+        <Panel title="Average and strike rate by year" sub="Each on its own scale. Hollow rings mark years with few balls or dismissals."
           tools={<MiniSelect label="In" value={pc2} onChange={setPc2} options={compOpts} />}>
-          <Legend items={[{ label: 'Strike rate', color: 'var(--s1)' }, { label: 'Average', color: 'var(--s2)' }]} />
-          {years2.length > 1 ? <LineChart aria="Average and strike rate by year" labels={years2.map((y: any) => y.k)} fmt={(v) => Math.round(v).toString()}
-            series={[{ name: 'Strike rate', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 60 ? y.sr : null)) },
-                     { name: 'Average', color: 'var(--s2)', values: years2.map((y: any) => (y.o >= 3 ? y.avg : null)) }]} />
-            : <div className="empty">Needs at least two seasons.</div>}
+          {years2.length > 1 ? (
+            <div className="stack" style={{ gap: 4 }}>
+              <span className="mini-label">Strike rate</span>
+              <LineChart aria="Strike rate by year" height={150} labels={years2.map((y: any) => y.k)} fmt={(v) => Math.round(v).toString()}
+                series={[{ name: 'Strike rate', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 30 ? y.sr : null)), weak: years2.map((y: any) => y.b < 150) }]} />
+              <span className="mini-label">Average</span>
+              <LineChart aria="Average by year" height={150} labels={years2.map((y: any) => y.k)} fmt={(v) => Math.round(v).toString()}
+                series={[{ name: 'Average', color: 'var(--s2)', values: years2.map((y: any) => (y.o >= 2 ? y.avg : null)), weak: years2.map((y: any) => y.o < 6) }]} />
+            </div>
+          ) : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
 
@@ -236,7 +243,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             <Mini label="Phase" value={vsP} onChange={setVsP} options={[['all', 'All'], ...phasesAvail.sort().map((k) => [k, phaseShort(fam, k)] as [string, string])]} />
             <Mini label="Sort" value={vsSort} onChange={setVsSort} options={[['b', 'Most faced'], ['sr', 'SR']]} />
           </>}>
-          <HBars key={vsP + vsSort} fmt={plus} rows={vsRows.map(batSplit).filter((x: any) => x.k !== 'unknown' && x.b >= 24).sort((a: any, b: any) => (b[vsSort] ?? 0) - (a[vsSort] ?? 0)).map((x: any) => ({
+          <HBars key={vsP + vsSort} fmt={plus} refLabel="overall strike rate" base={(() => { const r = vsRows.map(batSplit); const b = r.reduce((a: number, x: any) => a + (x.b ?? 0), 0); return b ? (100 * r.reduce((a: number, x: any) => a + (x.r ?? 0), 0)) / b : 0; })()} rows={vsRows.map(batSplit).filter((x: any) => x.k !== 'unknown' && x.b >= 24).sort((a: any, b: any) => (b[vsSort] ?? 0) - (a[vsSort] ?? 0)).map((x: any) => ({
             label: BGRP[x.k] ?? x.k, value: x.sr, note: `${n0(x.r)} off ${n0(x.b)} · ${n0(x.o)} outs`,
             tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Balls per dismissal', value: d1(x.b / Math.max(x.o, 1)) }, { label: 'Impact', value: signed(x.imp, 0) }] }))} />
         </Panel>
@@ -448,7 +455,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
         </Panel>
         <Panel title="Right- vs left-handers" sub="Economy against each batting hand. Lower is better."
           tools={<Mini label="Phase" value={hP} onChange={setHP} options={[['all', 'All'], ...phasesAvail.sort().map((k) => [k, phaseShort(fam, k)] as [string, string])]} />}>
-          <HBars key={hP} fmt={plus} rows={handRows.map(bowlSplit).filter((x: any) => x.k !== 'unknown').map((x: any) => ({
+          <HBars key={hP} fmt={plus} refLabel="overall economy" base={(() => { const r = handRows.map(bowlSplit); const b = r.reduce((a: number, x: any) => a + (x.b ?? 0), 0); return b ? (6 * r.reduce((a: number, x: any) => a + (x.r ?? 0), 0)) / b : 0; })()} rows={handRows.map(bowlSplit).filter((x: any) => x.k !== 'unknown').map((x: any) => ({
             label: x.k === 'R' ? 'vs right-handers' : 'vs left-handers', value: x.b >= 24 ? x.econ : null, note: `${overs(x.b)} ov · ${n0(x.w)} wkts`,
             tipRows: [{ label: 'Wickets', value: n0(x.w) }, { label: 'Strike rate', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }] }))} />
         </Panel>
@@ -486,3 +493,35 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   );
 }
 
+
+// Current form: the last 10 innings in this format against the career figures.
+function FormStrip({ rows, careerAvg, careerSr }: { rows: any[]; careerAvg: number; careerSr: number }) {
+  const last = rows.slice(-10);
+  if (last.length < 3) return null;
+  const r = last.reduce((a, x) => a + x[3], 0), b = last.reduce((a, x) => a + x[4], 0), o = last.filter((x) => x[5]).length;
+  const avg = o ? r / o : NaN, sr = b ? (100 * r) / b : NaN;
+  const trend = (now: number, base: number) => (!Number.isFinite(now) || !Number.isFinite(base) ? '' : now >= base * 1.1 ? 'up' : now <= base * 0.9 ? 'down' : 'flat');
+  const arrow = (t: string) => (t === 'up' ? '▲' : t === 'down' ? '▼' : '▬');
+  const ta = trend(avg, careerAvg), ts = trend(sr, careerSr);
+  const max = Math.max(...last.map((x) => x[3]), 30);
+  return (
+    <Panel title="Current form" sub={`Last ${last.length} innings in this format, newest on the right. Taller = more runs; * = not out.`}>
+      <div className="form-strip">
+        <div className="form-bars" aria-label="Runs in recent innings">
+          {last.map((x, i) => (
+            <Link key={`${x[8]}-${i}`} to={`/match/${x[8]}`} className={`form-bar${x[3] >= 50 ? ' big' : ''}`} title={`${dateShort(x[0])} v ${x[2]}: ${x[3]}${x[5] ? '' : '*'} (${x[4]})`}
+              style={{ ['--h' as any]: `${Math.max(6, (x[3] / max) * 100)}%`, animationDelay: `${i * 50}ms` }}>
+              <span className="v">{x[3]}{x[5] ? '' : '*'}</span>
+              <span className="o">{String(x[2]).split(' ').map((w: string) => w[0]).join('').slice(0, 3)}</span>
+            </Link>
+          ))}
+        </div>
+        <div className="form-kpis">
+          <div><span className="l">Average</span><b>{Number.isFinite(avg) ? d1(avg) : '–'}</b><span className={`t ${ta}`}>{arrow(ta)} career {d1(careerAvg)}</span></div>
+          <div><span className="l">Strike rate</span><b>{d1(sr)}</b><span className={`t ${ts}`}>{arrow(ts)} career {d1(careerSr)}</span></div>
+          <div><span className="l">Runs</span><b>{n0(r)}</b><span className="t">{last.filter((x) => x[3] >= 50).length} scores of 50+</span></div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
