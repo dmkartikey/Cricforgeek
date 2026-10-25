@@ -1,0 +1,19 @@
+name: Live feed results check (one-off)
+# Read-only: lists the finished matches the live feed has stored. Changes nothing.
+on:
+  push:
+    branches: [check-done]
+    paths: [".github/workflows/check-done.yml"]
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - run: |
+          W=https://cricforgeek-live.dmkartikey.workers.dev
+          curl -sS -m 20 $W/done | jq -r '.[] | .start[0:10] + " " + .fmt + " " + .gender + " | " + .teams[0] + " v " + .teams[1] + " | " + .status' | while read -r l; do echo "::notice::$l"; done
+          echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{hitsToday,hitsLimit,lastScores,errors}')"
+          echo "::notice::live $(curl -sS -m 20 $W/live | jq -c '[.matches[] | .start[0:10] + " " + .teams[0] + " v " + .teams[1] + " | " + .status]')"
