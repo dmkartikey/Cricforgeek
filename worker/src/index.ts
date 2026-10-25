@@ -18,7 +18,7 @@ type Done = { id: string; name: string; fmt: string; gender: string; teams: [str
 const CRIC = 'https://api.cricapi.com/v1';
 const ODDS = 'https://api.the-odds-api.com/v4';
 const HOUR = 3600_000;
-const SEARCH_V = 2;
+const SEARCH_V = 3;
 
 const winnerOf = (m: LiveMatch) => {
   const s = m.status.toLowerCase();
@@ -214,15 +214,22 @@ export async function tick(env: Env, now = new Date()) {
       b.lastSeriesSearch = now.getTime(); budgetChanged = true;
       const found: Record<string, { id: string; name: string; s: number; e: number }> = {};
       // team names, plus 'Tri' for tri-series named after the host (e.g. 'ODI Tri-Nation Series in UAE')
+      // results come newest-start first (next year's tours lead), so read up to 3 pages until series are older than 40 days
       for (const team of [...FULL_MEMBERS, 'Tri']) {
-        const res = await getJson(`${CRIC}/series?apikey=${env.CRICDATA_KEY}&offset=0&search=${encodeURIComponent(team)}`, 'series search', b);
-        if (res?.body?.status !== 'success') continue;
-        if (Number.isFinite(res.body.info?.hitsToday)) b.hitsToday = res.body.info.hitsToday;
-        for (const x of res.body.data ?? []) {
-          const span = seriesSpan(String(x.startDate ?? ''), String(x.endDate ?? ''));
-          if (!span || !x.matches) continue;
-          if (/\b(A|U19|U-19|Under[- ]19|XI)\b|Emerging|Academy|Legends|Masters/i.test(String(x.name))) continue;
-          if (span[0] <= now.getTime() + 2 * 864e5 && span[1] >= now.getTime() - 40 * 864e5) found[x.id] = { id: x.id, name: x.name, s: span[0], e: span[1] };
+        for (let page = 0; page < 3 && left() > 30; page++) {
+          const res = await getJson(`${CRIC}/series?apikey=${env.CRICDATA_KEY}&offset=${page * 25}&search=${encodeURIComponent(team)}`, 'series search', b);
+          if (res?.body?.status !== 'success') break;
+          if (Number.isFinite(res.body.info?.hitsToday)) b.hitsToday = res.body.info.hitsToday;
+          const rows = res.body.data ?? [];
+          let oldest = Infinity;
+          for (const x of rows) {
+            const span = seriesSpan(String(x.startDate ?? ''), String(x.endDate ?? ''));
+            if (!span) continue;
+            oldest = Math.min(oldest, span[0]);
+            if (!x.matches || /\b(A|U19|U-19|Under[- ]19|XI)\b|Emerging|Academy|Legends|Masters/i.test(String(x.name))) continue;
+            if (span[0] <= now.getTime() + 2 * 864e5 && span[1] >= now.getTime() - 40 * 864e5) found[x.id] = { id: x.id, name: x.name, s: span[0], e: span[1] };
+          }
+          if (rows.length < 25 || oldest < now.getTime() - 40 * 864e5) break;
         }
       }
       await env.LIVE.put('series', JSON.stringify(Object.values(found)));
