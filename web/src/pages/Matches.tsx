@@ -6,35 +6,7 @@ import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
 import { dateShort, n0, overs } from '../lib/fmt';
 import { ErrorBox, Loader, MiniSearch, MiniSelect, Panel } from '../components/ui';
-import { isFullMember, useLive, type LiveMatch } from '../lib/live';
-
-type Done = { id: string; name: string; fmt: LiveMatch['fmt']; gender: string; teams: [string, string]; start: string; status: string; winner: string | null; innings: LiveMatch['innings'] };
-
-// Internationals that finished after the last ball-by-ball update, from the live feed.
-function LatestResults({ fmt, gender, level }: { fmt: string; gender: string; level: string }) {
-  const meta = useData<{ data_to: string }>('meta.json');
-  const { data } = useLive<Done[]>(['T20', 'ODI', 'TEST'].includes(fmt) ? '/done' : null, 300_000);
-  const since = meta.data?.data_to ?? '';
-  const rows = (data ?? []).filter((d) => d.fmt === fmt && d.gender === gender && d.start.slice(0, 10) > since && (level !== 'top' || d.teams.every(isFullMember)));
-  if (!since || !rows.length) return null;
-  const line = (d: Done, t: string) => d.innings.filter((i) => i.team === t).map((i) => `${i.r}${i.w < 10 ? `/${i.w}` : ''}`).join(' & ');
-  const ovs = (d: Done, t: string) => { const x = d.innings.filter((i) => i.team === t); return x.length === 1 ? ` (${x[0].o})` : ''; };
-  return (
-    <Panel flush title="Latest results" sub={`Internationals since ${dateShort(since)}, from the live feed. Full scorecards and ball-by-ball pages follow when Cricsheet publishes them.`}>
-      <div style={{ height: 6 }} />
-      {rows.slice(0, 30).map((d) => (
-        <div key={d.id} className="mrow" style={{ cursor: 'default' }}>
-          <span className="stack" style={{ gap: 2 }}><span className="d">{dateShort(d.start.slice(0, 10))}</span><span className="muted" style={{ fontSize: 11 }}>{d.name.split(',').slice(1).join(',').trim()}</span></span>
-          <span className="tm">
-            <span className={d.winner === d.teams[0] ? 'w' : ''}>{d.teams[0]}</span><b>{line(d, d.teams[0])}<small className="muted">{ovs(d, d.teams[0])}</small></b>
-            <span className={d.winner === d.teams[1] ? 'w' : ''}>{d.teams[1]}</span><b>{line(d, d.teams[1])}<small className="muted">{ovs(d, d.teams[1])}</small></b>
-          </span>
-          <span className="res">{d.status}</span>
-        </div>
-      ))}
-    </Panel>
-  );
-}
+import LatestStrip from '../components/LatestStrip';
 
 // [id, date, comp, comp label, team1, team2, winner, result, by runs, by wkts, venue, top level, international, [[team, runs, wkts, balls]...]]
 type Row = [string, string, string, string, string, string, string | null, string, number | null, number | null, string, boolean, boolean, [string, number, number, number][]];
@@ -94,7 +66,7 @@ export default function Matches() {
           <p className="lede">{year === 'latest' && want === 'latest' ? `The latest ${n0(data.length)}` : n0(data.length)} {FAM_LABEL[s.fmt]} matches with ball-by-ball records{year !== 'latest' && year !== 'all' ? ` in ${year}` : ''}. Search finds any match from any year. Open any match for the full scorecard, worm, win probability and turning points.</p>
         </div>
       </section>
-      <LatestResults fmt={s.fmt} gender={s.gender} level={s.level} />
+      <LatestStrip />
       <Panel flush tools={<>
         <MiniSearch value={q} onChange={setQ} placeholder="Team or venue" />
         <MiniSelect label="Season" value={year} onChange={(v) => { setYear(v); setShown(40); }} options={[['latest', 'Latest'], ['all', 'All years'], ...(years.data ?? []).map(([y, n]) => [y, `${y} (${n})`] as [string, string])]} />

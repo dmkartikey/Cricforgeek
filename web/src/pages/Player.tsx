@@ -15,10 +15,22 @@ import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
 
 type BandItem = { l: string; v: string; h?: string; k?: string };
-function StatBand({ hero, groups, metrics, onDrill, plate, card, side }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void; card?: CardData | null; side?: ReactNode }) {
+function StatBand({ hero, groups, metrics, onDrill, plate, card }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void; card?: CardData | null }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
     : <div className="kv"><span>{it.l}</span><b>{it.v}</b></div>);
+  const boardEl = (
+      <Board plate={plate}>
+      <div className="sb-hero">
+        {hero.map((h, i) => {
+          const inner = <><span className="sb-label">{h.l}</span><Flap text={h.v} delay={i * 220} />{h.h && <span className="sb-sub">{h.h}</span>}</>;
+          return m(h.k)
+            ? <button key={h.l} type="button" className="sb-cell big" onClick={() => onDrill(m(h.k)!)} title="Break this number down">{inner}</button>
+            : <div key={h.l} className="sb-cell big">{inner}</div>;
+        })}
+      </div>
+    </Board>
+  );
   const groupsEl = (
     <div className="band-groups">
       {groups.map((g) => (
@@ -30,24 +42,16 @@ function StatBand({ hero, groups, metrics, onDrill, plate, card, side }: { plate
     </div>
   );
   // With a player card, the card takes the scoreboard's place and the numbers and current form sit beside it.
+  // With a player card: the card on the left; the split-flap scoreboard and the context numbers beside it.
   if (card) return (
     <div className="band with-card fade-in">
       <PlayerCard card={card} />
-      <div className="band-side">{groupsEl}{side}</div>
+      <div className="band-side">{boardEl}{groupsEl}</div>
     </div>
   );
   return (
     <div className="band with-board fade-in">
-      <Board plate={plate}>
-        <div className="sb-hero">
-          {hero.map((h, i) => {
-            const inner = <><span className="sb-label">{h.l}</span><Flap text={h.v} delay={i * 220} />{h.h && <span className="sb-sub">{h.h}</span>}</>;
-            return m(h.k)
-              ? <button key={h.l} type="button" className="sb-cell big" onClick={() => onDrill(m(h.k)!)} title="Break this number down">{inner}</button>
-              : <div key={h.l} className="sb-cell big">{inner}</div>;
-          })}
-        </div>
-      </Board>
+      {boardEl}
       <div className="band-groups">
         {groups.map((g) => (
           <div key={g.t} className="band-group">
@@ -184,7 +188,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
   return (
     <>
       <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`} card={card}
-        side={card ? <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} /> : undefined}
+        
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
           { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
@@ -201,7 +205,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
-      {!card && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
+      {<FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
 
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [

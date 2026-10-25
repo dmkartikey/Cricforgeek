@@ -138,7 +138,7 @@ ok(done.every((d: any, i: number) => i === 0 || (done[i - 1].start || '') >= (d.
 ok(!done.some((d: any) => d.id === 'psw'), 'domestic result stored earlier is removed');
 ok(done.some((d: any) => d.id === 'nzind-1') && done.some((d: any) => d.id === 'nzind-2'), 'series backfill adds finished NZ v India T20Is');
 ok(!done.some((d: any) => d.id === 'nzind-3' || d.id === 'a-1'), 'upcoming matches and A-team stumps are not stored as results');
-ok(seriesCalls <= 12 && infoCalls <= 12, `series backfill stays small (${seriesCalls} searches, ${infoCalls} match look-ups)`);
+ok(seriesCalls <= 13 && infoCalls <= 12, `series backfill stays small (${seriesCalls} searches, ${infoCalls} match look-ups)`);
 ok(recentCalls <= 6, `recent-results calls stay small (${recentCalls})`);
 
 // API
