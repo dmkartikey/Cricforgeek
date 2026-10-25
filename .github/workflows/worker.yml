@@ -73,7 +73,8 @@ jobs:
         env:
           CRICDATA_KEY: ${{ secrets.CRICDATA_KEY }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: jq -n '{CRICDATA_KEY: env.CRICDATA_KEY, ODDS_API_KEY: env.ODDS_API_KEY}' | npx wrangler secret bulk
+        run: |
+          jq -n '{CRICDATA_KEY: env.CRICDATA_KEY, ODDS_API_KEY: env.ODDS_API_KEY}' | npx wrangler secret bulk
 
       - name: Health check
         working-directory: .
