@@ -1,0 +1,17 @@
+# cricforgeek live feed: fetches live international scores and market odds on a schedule, stores them in KV,
+# and serves them to the website. The prediction model runs in the visitor's browser.
+name = "cricforgeek-live"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[triggers]
+crons = ["* * * * *"]
+
+[[kv_namespaces]]
+binding = "LIVE"
+id = "KV_NAMESPACE_ID"   # filled in by the deploy workflow
+
+[vars]
+SITE = "https://cricforgeek.site"
+ODDS_ENABLED = "true"    # set to "false" to stop fetching and showing market odds at once

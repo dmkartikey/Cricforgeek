@@ -63,7 +63,7 @@ function page(path, { title, desc, body, ld, noindex, type = 'website', group = 
   if (!noindex) urls[group].push([url, lastmod]);
 }
 
-const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/predictor">Situation predictor</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
+const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/live">Live predictions</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
 const crumbs = (items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + path })) });
 const table = (head, rows) => `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 const linkList = (items) => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`;
@@ -81,13 +81,13 @@ const dataTo = meta.data_to;
 const topPlayers = [...search.players].sort((a, b) => b[7] - a[7]).slice(0, 60);
 page('/', {
   title: 'cricforgeek: ball-by-ball cricket stats for geeks',
-  desc: `Deep cricket stats for Tests, ODIs, T20s, first-class and leagues: impact, win probability, pitch maps, full scorecards and a match situation predictor. ${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls.`,
+  desc: `Deep cricket stats for Tests, ODIs, T20s, first-class and leagues: impact, win probability, pitch maps, full scorecards and live match predictions. ${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls.`,
   ld: { '@context': 'https://schema.org', '@graph': [
     { '@type': 'WebSite', name: 'cricforgeek', url: SITE + '/', potentialAction: { '@type': 'SearchAction', target: `${SITE}/players?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
     { '@type': 'Dataset', name: 'cricforgeek ball-by-ball cricket statistics', description: 'Player, team and match statistics derived from Cricsheet ball-by-ball data.', url: SITE + '/',
       license: 'https://opendatacommons.org/licenses/by/1-0/', isBasedOn: 'https://cricsheet.org', dateModified: dataTo },
   ] },
-  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards and a match situation predictor for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${p[1]} (${p[4]})`]))}`,
+  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards and live match predictions for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${p[1]} (${p[4]})`]))}`,
 });
 page('/players', { title: 'Cricket players: stats for every player', desc: `Stats for ${n0(search.players.length)} cricketers with ball-by-ball records: runs, averages, strike rates, wickets, economy, impact and pitch maps.`,
   body: `<h1>Players</h1><p>Every cricketer with ball-by-ball records, sorted by matches played.</p>${linkList(topPlayers.map((p) => [`/player/${p[0]}`, `${p[1]}, ${p[4]}, ${p[5]}–${p[6]}`]))}` });
@@ -97,14 +97,15 @@ page('/competitions', { title: 'Cricket competitions and leagues', desc: `Every 
   body: `<h1>Competitions</h1>${linkList(compIdx.map((c) => [`/league/${c.key}`, `${c.label} (${c.from?.slice(0, 4)}–${c.to?.slice(0, 4)})`]))}` });
 page('/matches', { title: 'Cricket match scorecards', desc: 'Full ball-by-ball scorecards with fall of wickets, partnerships, worm, win probability and turning points for every recorded match.',
   body: '<h1>Matches</h1><p>Full scorecards for every recorded match.</p>' });
-page('/predictor', { title: 'Cricket situation predictor: who will win from here?',
-  desc: 'Enter any match situation and see each side\'s chance of winning, the projected total and the most likely finish, simulated ball by ball from every recorded match. T20, ODI and Test.',
-  ld: { '@context': 'https://schema.org', '@type': 'WebApplication', name: 'cricforgeek situation predictor', applicationCategory: 'SportsApplication', operatingSystem: 'Any', url: SITE + '/predictor', offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' } },
-  body: '<h1>Situation predictor</h1><p>Enter the score, wickets, overs, target, teams, ground and players. The predictor plays out the rest of the match thousands of times using how real matches went from the same situation, and shows win chances, the projected total, batter milestones and what could change the result.</p>' });
+page('/live', { title: 'Live cricket predictions: win chances, totals and sessions',
+  desc: 'Live win chances, fair odds, innings totals, session runs, wicket and player markets for every Test, ODI and T20I in progress, simulated ball by ball from every recorded international.',
+  ld: { '@context': 'https://schema.org', '@type': 'WebApplication', name: 'cricforgeek live predictions', applicationCategory: 'SportsApplication', operatingSystem: 'Any', url: SITE + '/live', offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' } },
+  body: '<h1>Live predictions</h1><p>Every international in progress, with each side\'s chance of winning, fair odds next to the market, innings total and session lines, wicket and player markets, and a track record of how often the model is right. Statistical estimates for information only, not betting advice.</p>' });
+page('/predictor', { title: 'Situation predictor has moved to Live predictions', desc: 'The situation predictor is now part of Live predictions.', body: '<h1>The situation predictor is now <a href="/live">Live predictions</a></h1>', noindex: true });
 page('/compare', { title: 'Compare cricket players side by side', desc: 'Compare up to four cricketers: averages, strike rates, impact, year-by-year form, phase splits, pace v spin and pitch maps, over whole careers or the same years.',
   body: '<h1>Compare players</h1><p>Pick up to four players to compare on the same charts.</p>' });
 page('/explore', { title: 'Cricket stats explorer and query builder', desc: 'Filter cricket stats by format, competition, years and minimum balls, sort by any metric and download CSV.', body: '<h1>Explorer</h1>' });
-page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability, pitch-zone and situation-predictor models are built, and how accurate they are.', body: '<h1>Methodology</h1>' });
+page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability, pitch-zone and live prediction models are built, and how accurate they are.', body: '<h1>Methodology</h1>' });
 page('/pinboard', { title: 'My pinboard', desc: 'Your saved cricforgeek charts and leaderboards.', body: '<h1>My pinboard</h1>', noindex: true });
 
 // ---------- players ----------
@@ -245,7 +246,7 @@ Every page below is plain HTML with the key numbers in the page itself. Player p
 - [Teams](${SITE}/teams): international and domestic teams
 - [Competitions](${SITE}/competitions): every competition with ball-by-ball data
 - [Matches](${SITE}/matches): scorecards
-- [Situation predictor](${SITE}/predictor): win chances from any match situation
+- [Live predictions](${SITE}/live): win chances and markets for internationals in progress
 - [Methodology](${SITE}/methodology): how the models work
 
 ## Page addresses

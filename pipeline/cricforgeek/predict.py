@@ -322,5 +322,19 @@ def export_predict(con, w, names=None):
         res = _multiday(con, w, fmt, gender, venue_names)
         if res:
             report.append(res)
-    w.write("predict/index.json", {"keys": [r["fk"] for r in report]})
+    # how wickets fall, by format and phase (start / middle / end of the innings), for the "next dismissal" market
+    dism = {}
+    for x in _rows(con, """select fam, gender, case when phase = 0 then 0 when phase = 1 then 1 else 2 end ph, coalesce(dcat, 'other') d, count(*) n
+                         from BXE where n_wkts > 0 and inn <= 4 group by all"""):
+        dism.setdefault(f"{x['fam']}-{x['gender']}", {}).setdefault(str(x["ph"]), {})[x["d"]] = x["n"]
+    for fk, phs in dism.items():
+        for ph, cnt in phs.items():
+            tot = sum(cnt.values())
+            phs[ph] = {k: round(v / tot, 4) for k, v in sorted(cnt.items(), key=lambda kv: -kv[1]) if v / tot >= 0.002}
+    teams = {}
+    for x in _rows(con, """select t, gender, count(*) n, max(date) last from (
+                             select team1 t, gender, date from matches where team_type = 'international'
+                             union all select team2, gender, date from matches where team_type = 'international') group by 1, 2"""):
+        teams.setdefault(x["gender"], {})[x["t"]] = [x["n"], str(x["last"])]
+    w.write("predict/index.json", {"keys": [r["fk"] for r in report], "dismissals": dism, "intl_teams": teams})
     return report

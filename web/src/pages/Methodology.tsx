@@ -105,7 +105,11 @@ export default function Methodology() {
           marked in the data: we take the fielder who made a stumping in that match, or the side's regular stumper that season.</p>
       </Panel>
       <div className="grid g2">
-        <Panel title="6 · Situation predictor">
+        <Panel title="6 · Live predictions">
+          <p className="sub"><b>Where live data comes from.</b> A small background service checks live international scores from CricketData.org about every
+            15 minutes while a match is on (hourly otherwise), fetches full scorecards for up to two matches at each new innings and every two hours, and takes
+            market odds from The Odds API a few times a day, averaged across bookmakers with their margin removed. No bookmaker is named or linked. The model then
+            runs in your browser, so every number on the page is recomputed from the latest score.</p>
           <p className="sub"><b>Limited overs.</b> The predictor plays out the rest of the match ball by ball, a few thousand times. Each ball is drawn from what really happened
             on balls with the same balls left (in blocks of six), wickets down and, when chasing, the required run rate. Thin cells are blended with broader ones.
             Run and wicket rates are then scaled by the competition and season (separately for the start, middle and end of an innings), by the two teams and the ground

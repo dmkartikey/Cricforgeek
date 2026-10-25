@@ -10,6 +10,7 @@ The sidebar sets the context for every page: **format** (Test, ODI, T20, first-c
 - **Teams** and **Team**: record band and form, win % and run rates by season, phase butterfly, batting order, pace v spin, attack mix, how they get out, leaders and appearances, highest and lowest totals, biggest wins, venues, head to head, recent results.
 - **Competitions**, **Matches** and **Match**: full scorecards for every innings (dismissals with fielders, extras, total, did not bat, fall of wickets, maidens, wides and no-balls, partnerships), over-by-over Manhattan, worm, win probability and turning points.
 - **Explorer**: Statsguru-style query builder with CSV export.
+- **Live predictions** (`/live`): every Test, ODI and T20I in progress, men's and women's. Pick a match for win chances and fair odds next to the market (bookmaker margin removed), innings-total and session lines, next-wicket and wickets lines, how the next wicket falls, player milestones, top batter, bowlers, sixes, momentum, what-ifs and a public track record. Analytics only, not betting advice.
 - **My pinboard**: pin any leaderboard or breakdown; boards are saved in your browser.
 - **Methodology**: every model explained, with live calibration charts.
 
@@ -42,11 +43,27 @@ No server or database to run. A GitHub Action (`.github/workflows/nightly.yml`) 
 
 ### Key metrics
 
-- **SR+ / Average+ / Economy+ / Wickets+**: actual vs expected for the same situations and era. 100 = average, higher is better.
 - **Impact**: runs added above an average player, counting the run value of wickets (from a run-expectancy table in limited overs, runs per wicket in multi-day).
 - **WPA**: win probability added. Each ball's change in win chance, credited to batter and bowler.
 - **Clutch**: impact on high-leverage balls only (where win chance typically swings ≥1.5× normal).
 - **Inferred pitch zones**: free data has no ball-tracking, so zones are inferred from how a batter gets out (bowled, LBW, caught behind, stumped…) and how they score (dots, ones to threes, fours, sixes) against the format's baseline, with a confidence score. Bowlers get the same maps for wickets, runs leaked and dot balls. The pipeline exports raw counts; the site builds the maps, so they can be filtered by phase, bowler type and batter hand. Weights live in `seeds/zones.json`.
+
+## Live feed
+
+```
+CricketData.org (scores) ─┐
+                          ├─► worker/ (Cloudflare Worker, every minute, KV storage) ─► /live, /match, /done ─► Live page (model runs in the browser)
+The Odds API (odds) ──────┘
+```
+
+- `worker/` paces both free plans: about 100 CricketData calls a day (a scorecard costs 10) and 500 odds credits a month. Scores refresh about
+  every 15 minutes while internationals are on; scorecards at each new innings and every two hours for up to two matches; odds before the start
+  and every two hours in play. Set `ODDS_ENABLED = "false"` in `worker/wrangler.toml` to turn market odds off everywhere.
+- `.github/workflows/worker.yml` deploys it on pushes to `worker/**`. Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+  `CRICDATA_KEY`, `ODDS_API_KEY`. Keys never appear in code, responses or logs.
+- `cd worker && npm test` runs a simulated match day against mocked APIs and checks every limit.
+- The nightly build runs `web/scripts/record.ts`, which replays the model at every score check of finished matches and writes
+  `data/live/record.json` for the track record.
 
 ## Run it locally
 

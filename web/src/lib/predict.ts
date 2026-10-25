@@ -88,6 +88,8 @@ export type LimSim = {
   final: number[]; wkts: number[]; won: number[]; worm: number[][]; ballsUsed: number[];
   batters: Record<string, BatOut[]>; bowlers: Record<string, { r: number; w: number; b: number }[]>;
   nextOver: { r: number; w: number; bnd: number }[];
+  // for betting markets: sixes from here, runs until the next wicket, who takes it, best score by a batter not yet in
+  sixes: number[]; r2w: number[]; nwb: (string | null)[]; topNew: number[];
 };
 
 function cellFor(d: LimData, inn: number, left: number, wk: number, need?: number) {
@@ -122,7 +124,7 @@ function overPlan(bowlers: Player[], oversLeft: number, maxBalls: number, r: () 
 
 export function simLimited(d: LimData, s: LimInput, n: number, seed: number, track = true): LimSim {
   const r = rng(seed);
-  const res: LimSim = { final: [], wkts: [], won: [], worm: [], ballsUsed: [], batters: {}, bowlers: {}, nextOver: [] };
+  const res: LimSim = { final: [], wkts: [], won: [], worm: [], ballsUsed: [], batters: {}, bowlers: {}, nextOver: [], sixes: [], r2w: [], nwb: [], topNew: [] };
   const trackB = track ? [s.striker.name, s.nonStriker.name] : [];
   for (const nm of trackB) res.batters[nm] = [];
   if (track) for (const b of s.bowlers) res.bowlers[b.name] = [];
@@ -139,6 +141,8 @@ export function simLimited(d: LimData, s: LimInput, n: number, seed: number, tra
     let ov = 0, inOver = (balls % 6);
     let bw = plan[0];
     let nx = { r: 0, w: 0, bnd: 0 }, nxDone = false, nxBalls = 0;
+    let six = 0, r2w = NaN, nwb: string | null = null, firstW = false;
+    const fresh = new Set<string>();
     while (wk < 10 && balls < s.totalBalls && !(s.inn === 2 && s.target != null && score >= s.target)) {
       const left = s.totalBalls - balls;
       const { v, key } = cellFor(d, s.inn, left, wk, s.target != null ? s.target - score : undefined);
@@ -151,12 +155,12 @@ export function simLimited(d: LimData, s: LimInput, n: number, seed: number, tra
         legal = false;
         const cdf = legalCdf(v, key, f, 0);
         const x = r(); let i = 1; while (i < cdf.length - 1 && x > cdf[i]) i++;
-        runs = 1 + RUNS[i - 1]; st.runs += RUNS[i - 1]; bnd = RUNS[i - 1] >= 4;
+        runs = 1 + RUNS[i - 1]; st.runs += RUNS[i - 1]; bnd = RUNS[i - 1] >= 4; if (RUNS[i - 1] === 6) six++;
       } else {
         const cdf = legalCdf(v, key, f, g);
         const x = r();
         if (x < cdf[0]) wicket = true;
-        else { let i = 1; while (i < cdf.length - 1 && x > cdf[i]) i++; runs = RUNS[i - 1]; bnd = runs >= 4; }
+        else { let i = 1; while (i < cdf.length - 1 && x > cdf[i]) i++; runs = RUNS[i - 1]; bnd = runs >= 4; if (runs === 6) six++; }
         st.balls++;
         if (!wicket) st.runs += runs;
       }
@@ -164,11 +168,13 @@ export function simLimited(d: LimData, s: LimInput, n: number, seed: number, tra
       const nm = bw ? bw.name : null;
       if (nm) { const fg = (figs[nm] ??= { r: 0, w: 0, b: 0 }); fg.r += runs; if (legal) fg.b++; if (wicket) fg.w++; }
       if (!nxDone) { nx.r += runs; if (wicket) nx.w++; if (bnd) nx.bnd++; }
+      if (wicket && !firstW) { firstW = true; r2w = score - s.score; nwb = nm; }
       if (wicket) {
         wk++;
         st.out = true; outs[st.name] = { runs: st.runs, balls: st.balls, out: true };
         const nb = s.next[ni++];
         st = { name: nb?.name ?? `Batter ${wk + 2}`, id: nb?.id, rf: nb?.rf ?? 1, wf: nb?.wf ?? 1, runs: 0, balls: 0, out: false };
+        fresh.add(st.name);
       } else if (runs % 2 === 1 && legal) { const t = st; st = ns; ns = t; }
       if (legal) {
         balls++; inOver++; nxBalls++;
@@ -187,6 +193,8 @@ export function simLimited(d: LimData, s: LimInput, n: number, seed: number, tra
     res.final.push(score); res.wkts.push(wk); res.worm.push(worm); res.ballsUsed.push(balls);
     res.won.push(s.inn === 2 && s.target != null ? (score >= s.target ? 1 : score === s.target - 1 ? 0.5 : 0) : NaN);
     res.nextOver.push(nx);
+    res.sixes.push(six); res.r2w.push(r2w); res.nwb.push(nwb);
+    let tn = 0; for (const nm of fresh) tn = Math.max(tn, outs[nm]?.runs ?? 0); res.topNew.push(tn);
     if (track) {
       for (const nm of trackB) res.batters[nm].push(outs[nm] ?? { runs: 0, balls: 0, out: false });
       for (const b of s.bowlers) res.bowlers[b.name].push(figs[b.name] ?? { r: 0, w: 0, b: 0 });

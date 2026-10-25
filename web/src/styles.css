@@ -758,3 +758,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ssr-nav { font-size: 13px; }
 @media (prefers-color-scheme: dark) { .ssr { background: #0A100D; color: #E8EADF; } .ssr a { color: #3BBF8C; } }
     
+
+/* ============ live ============ */
+.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); vertical-align: middle; margin-right: 4px; flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot { animation: livePulse 1.6s ease-in-out infinite; }
+  @keyframes livePulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 55%, transparent); } 60% { box-shadow: 0 0 0 6px transparent; } }
+}
+.live-card { gap: 10px; }
+.live-card .kv b small { font-weight: 400; }
+.side .live-dot { background: #FF8F87; }

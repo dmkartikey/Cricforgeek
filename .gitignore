@@ -13,3 +13,4 @@ __pycache__/
 *.duckdb.wal
 .DS_Store
 *.tsbuildinfo
+web/scripts/.record.mjs

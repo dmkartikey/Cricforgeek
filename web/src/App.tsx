@@ -18,7 +18,7 @@ import Matches from './pages/Matches';
 import Explorer from './pages/Explorer';
 import Methodology from './pages/Methodology';
 import Pinboard from './pages/Pinboard';
-import Predictor from './pages/Predictor';
+import Live from './pages/Live';
 
 const I = (d: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
@@ -26,7 +26,7 @@ const I = (d: string) => (
 const NAV: [string, string, ReactNode][] = [
   ['/', 'Overview', I('M3 12l9-8 9 8M5 10v10h14V10')],
   ['/players', 'Players', I('M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c1-4 4.5-6 8-6s7 2 8 6')],
-  ['/predictor', 'Situation predictor', I('M3 17l5-5 4 4 8-9M14 7h6v6')],
+  ['/live', 'Live predictions', I('M3 17l5-5 4 4 8-9M14 7h6v6')],
   ['/compare', 'Compare', I('M8 4v16M16 4v16M3 9h5M16 15h5M3 15h5M16 9h5')],
   ['/teams', 'Teams', I('M4 21V7l8-4 8 4v14M9 21v-6h6v6')],
   ['/competitions', 'Competitions', I('M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 6h3v2a3 3 0 01-3 3M7 6H4v2a3 3 0 003 3')],
@@ -45,7 +45,7 @@ function Ball() {
   );
 }
 
-const CRUMB: Record<string, string> = { '': 'Overview', player: 'Player', players: 'Players', compare: 'Compare', predictor: 'Situation predictor', team: 'Team', teams: 'Teams',
+const CRUMB: Record<string, string> = { '': 'Overview', player: 'Player', players: 'Players', compare: 'Compare', live: 'Live predictions', predictor: 'Live predictions', team: 'Team', teams: 'Teams',
   league: 'Competition', competitions: 'Competitions', match: 'Match', matches: 'Matches', explore: 'Explorer', pinboard: 'My pinboard', methodology: 'Methodology' };
 
 export default function App() {
@@ -85,7 +85,7 @@ export default function App() {
         </div>
         <nav className="side-nav" aria-label="Main">
           {NAV.map(([to, label, icon]) => (
-            <NavLink key={to} to={to} end={to === '/'}>{icon}{label}{to === '/pinboard' && pins > 0 && <span className="count">{pins}</span>}</NavLink>
+            <NavLink key={to} to={to} end={to === '/'}>{icon}{label}{to === '/pinboard' && pins > 0 && <span className="count">{pins}</span>}{to === '/live' && <span className="live-dot" aria-hidden="true" style={{ marginLeft: 'auto' }} />}</NavLink>
           ))}
         </nav>
         <div className="side-foot">
@@ -118,7 +118,8 @@ export default function App() {
             <Route path="/players" element={<Players />} />
             <Route path="/player/:id" element={<Player />} />
             <Route path="/compare" element={<Compare />} />
-            <Route path="/predictor" element={<Predictor />} />
+            <Route path="/live" element={<Live />} />
+            <Route path="/predictor" element={<Navigate to="/live" replace />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/team/:key" element={<Team />} />
             <Route path="/competitions" element={<Leagues />} />
