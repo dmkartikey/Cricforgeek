@@ -28,8 +28,8 @@ export default function Methodology() {
           <p className="sub">For each ball we look up what an average batter and bowler produce in the same <b>format, gender, innings, over</b> and <b>wickets down</b>, then scale it to the
             scoring level of that <b>competition and season</b> (so a 2025 IPL strike rate is judged against 2025 IPL, not 2009). That gives expected runs, expected
             chance of dismissal and expected wicket chance for the bowler.</p>
-          <p className="sub"><b>SR+</b> = runs / expected runs × 100. <b>Average+</b> = runs per dismissal vs expected. <b>Economy+</b> = expected runs conceded / actual × 100.
-            <b> Wickets+</b> = wickets / expected wickets × 100. In every "+" stat, 100 is average and higher is better.</p>
+          <p className="sub">The site shows plain averages, strike rates and economy rates. The expected-runs model sits behind <b>Impact</b> and <b>runs above average</b>:
+            the runs a player scored (or saved) beyond what an average player would have managed in exactly the same overs, wickets and era.</p>
         </Panel>
         <Panel title="2 · Impact (runs added)">
           <p className="sub">Impact is runs above expected, minus the run cost of getting out above the expected number of dismissals. In limited-overs cricket the cost of a wicket
@@ -103,6 +103,17 @@ export default function Methodology() {
           marked in the data: we take the fielder who made a stumping in that match, or the side's regular stumper that season.</p>
       </Panel>
       <div className="grid g2">
+        <Panel title="6 · Situation predictor">
+          <p className="sub"><b>Limited overs.</b> The predictor plays out the rest of the match ball by ball, a few thousand times. Each ball is drawn from what really happened
+            on balls with the same balls left (in blocks of six), wickets down and, when chasing, the required run rate. Thin cells are blended with broader ones.
+            Run and wicket rates are then scaled by the competition and season (separately for the start, middle and end of an innings), by the two teams and the ground
+            (at half weight), and by the batters and bowlers you name, from their records in that format. With no competition chosen, a big target is also read as a sign of a good batting pitch.</p>
+          <p className="sub"><b>How well it works.</b> On 300 real chase situations from the IPL, BBL, T20 Blast and PSL (2021 to 2026), predicted chances matched what happened:
+            situations given about 30% were won 31% of the time, about 50% → 56%, about 93% → 96%. Across all men's T20 and ODI chases, the average gap to the real result rate was 4 and 5 points.</p>
+          <p className="sub"><b>Tests and first-class.</b> A model trained on every past Test state, one per innings, gives win, draw and loss chances from the lead, wickets in hand,
+            overs left in the match and the run rate. It picks the eventual result 53% of the time in the first innings, rising to 80% in the fourth. In a fourth-innings chase it is
+            blended with a simulation of the chase that uses the teams and players. Declarations, weather and day-night games are not modelled.</p>
+        </Panel>
         <Panel title="5 · Coverage & caveats">
           <ul className="sub" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
             <li>Bowling and batting styles are known for {pct(meta.style_coverage, 0)} of deliveries. Pace/spin splits leave out the rest.</li>

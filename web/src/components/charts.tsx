@@ -183,7 +183,7 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
   );
 }
 
-// ---------- horizontal bars against a reference (e.g. SR+ vs 100) ----------
+// ---------- horizontal bars against a reference (e.g. phase strike rate vs career) ----------
 export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: maxV }: {
   rows: { label: string; value: number | null; note?: string; tipRows?: { label: string; value: string }[] }[];
   fmt: (v: number) => string; base?: number; refLabel?: string; max?: number;
@@ -214,7 +214,7 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
 
 // ---------- percentile bars ----------
 export function PctBars({ items }: { items: { label: string; pct: number | null | undefined; value: string; tip?: string }[] }) {
-  const color = (p: number) => (p >= 90 ? 'var(--accent)' : p >= 50 ? 'var(--s1)' : 'var(--line-2)');
+  const color = (p: number) => (p >= 90 ? 'var(--gold)' : p >= 50 ? 'var(--s1)' : 'var(--line-2)');
   return (
     <div className="pct">
       {items.map((i) => (
@@ -242,19 +242,19 @@ export const isDark = () => {
 const mix = (a: number[], b: number[], k: number) => a.map((x, i) => Math.round(x + (b[i] - x) * k));
 const rgb = (c: number[]) => `rgb(${c.join(',')})`;
 
-// diverging colour for index values (1 = average): blue = lower, red = higher. Log scale, clamped at 0.5x and 2x.
+// diverging colour for index values (1 = average): slate blue = lower, ball red = higher. Log scale, clamped at 0.5x and 2x.
 export function divColor(v: number) {
   const t = Math.max(-1, Math.min(1, Math.log2(v)));
   const d = isDark();
-  const neg = d ? [74, 134, 232] : [37, 99, 201], mid = d ? [30, 39, 55] : [236, 239, 243], pos = d ? [240, 89, 107] : [194, 37, 58];
+  const neg = d ? [92, 134, 216] : [50, 102, 192], mid = d ? [29, 42, 35] : [236, 231, 220], pos = d ? [240, 100, 95] : [179, 38, 47];
   return rgb(t < 0 ? mix(mid, neg, -t) : mix(mid, pos, t));
 }
 
-// sequential blue scale for shares (0 = surface, 1 = darkest / brightest)
+// sequential pitch-green scale for shares (0 = surface, 1 = darkest / brightest)
 export function seqColor(t: number) {
   const k = Math.max(0, Math.min(1, t));
   const d = isDark();
-  const a = d ? [23, 32, 48] : [241, 244, 248], b = d ? [74, 134, 232] : [37, 99, 201], c = d ? [169, 199, 247] : [18, 53, 122];
+  const a = d ? [23, 36, 29] : [241, 238, 228], b = d ? [39, 160, 122] : [19, 128, 90], c = d ? [170, 230, 200] : [10, 61, 43];
   return rgb(k < 0.7 ? mix(a, b, k / 0.7) : mix(b, c, (k - 0.7) / 0.3));
 }
 export const seqGradient = () => `linear-gradient(90deg, ${seqColor(0)}, ${seqColor(0.7)}, ${seqColor(1)})`;

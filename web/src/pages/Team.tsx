@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
-import { d1, d2, dateShort, n0, pct, plus, signed } from '../lib/fmt';
+import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
 import { BGRP, DCAT, FAM_LABEL, MULTI, PHASES, POS } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg } from '../components/ui';
 import { Butterfly, Columns, HBars, LineChart } from '../components/charts';
@@ -153,8 +153,8 @@ export default function Team() {
         </Panel>
       </div>
       <div className="grid g3">
-        <Panel title="Batting v pace and spin" sub="SR+: strike rate against expected for the overs and situations. 100 = average.">
-          <HBars fmt={plus} rows={vs.map((x) => ({ label: `v ${x[0]}`, value: (100 * x[1]) / Math.max(1, x[4]), note: `avg ${d1(x[1] / Math.max(1, x[3]))} · SR ${d1((100 * x[1]) / Math.max(1, x[2]))}` }))} />
+        <Panel title="Batting v pace and spin" sub="Strike rate against each. The dark line is their overall strike rate.">
+          <HBars fmt={d1} refLabel="overall" base={(100 * vs.reduce((a, x) => a + x[1], 0)) / Math.max(1, vs.reduce((a, x) => a + x[2], 0))} rows={vs.map((x) => ({ label: `v ${x[0]}`, value: (100 * x[1]) / Math.max(1, x[2]), note: `avg ${d1(x[1] / Math.max(1, x[3]))} · ${n0(x[1])} runs` }))} />
         </Panel>
         <Panel title="Their attack" sub="Where the wickets come from.">
           <div className="stackbar" aria-hidden="true">{att.map((x, n) => <i key={x[0]} style={{ width: `${(100 * x[1]) / Math.max(1, attW)}%`, background: n ? 'var(--s2)' : 'var(--s1)' }} />)}</div>

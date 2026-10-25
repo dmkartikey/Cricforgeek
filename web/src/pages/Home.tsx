@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { FMTS, LEVELS, useSettings } from '../lib/settings';
 import { MULTI, PHASES } from '../lib/labels';
-import { d1, d2, dateShort, n0, plus, signed } from '../lib/fmt';
+import { d1, d2, dateShort, n0, signed } from '../lib/fmt';
 import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, SERIES } from '../components/ui';
 import { HBars, LineChart, WagonMix } from '../components/charts';
 import { Table } from '../components/Table';
@@ -12,7 +12,7 @@ import { Board as Scoreboard, SbCell } from '../components/Scoreboard';
 
 type Stats = { b: number; r: number; o?: number; w?: number; imp: number; wpa: number; xr: number; t: string };
 type Row = [string, string, number, Stats];
-export type Board = { key: string; metric: string; title: string; desc: string; window: string; kind: 'bat' | 'bowl'; unit: string; min_balls: number; rows: Row[] };
+export type Board = { key: string; metric: string; title: string; desc: string; window: string; kind: 'bat' | 'bowl'; unit: string; min_balls: number; order?: string; rows: Row[] };
 type Breakout = [string, string, number, number, number, number, number, string];
 type Pulse = { m: number; rpo: number; rpw: number; dot: number; six_pm: number; four_pm: number; bpw: number; pace_share: number; n_dot: number; n_r13: number; n_four: number; n_six: number; n_faced: number };
 type Scope = { fmt: string; boards: Board[]; breakouts: { bat: Breakout[]; bowl: Breakout[] }; pulse: { now: Pulse; prev: Pulse; all: Pulse };
@@ -21,25 +21,33 @@ type Scope = { fmt: string; boards: Board[]; breakouts: { bat: Breakout[]; bowl:
 type HomeIdx = { scopes: { key: string; fmt: string; gender: string; level: string; level_label: string; matches: number }[]; cut365: string; data_to: string;
   trend: { comp: string; year: number; rpo: number; six_pm: number; four_pm: number; dot_pct: number; bpw: number }[] };
 
-const BAT_LIM = ['bat_imp', 'bat_srplus', 'bat_avgplus', 'hardest_out', 'pp_srplus', 'death_srplus', 'pace_srplus', 'spin_srplus', 'bat_wpa'];
-const BOWL_LIM = ['bowl_imp', 'bowl_econplus', 'bowl_wktplus', 'pp_econplus', 'death_econplus', 'bowl_wpa'];
-const BAT_MD = ['bat_imp', 'bat_avgplus', 'hardest_out', 'bat_srplus', 'newball_srplus', 'inn4_bat', 'pace_srplus', 'spin_srplus'];
-const BOWL_MD = ['bowl_imp', 'bowl_wktplus', 'bowl_econplus', 'newball_wktplus', 'inn4_bowl'];
+const BAT_LIM = ['bat_imp', 'bat_runs', 'bat_avg', 'bat_sr', 'hardest_out', 'pp_sr', 'death_sr', 'pace_sr', 'spin_sr', 'bat_wpa'];
+const BOWL_LIM = ['bowl_imp', 'bowl_wkts', 'bowl_avg', 'bowl_econ', 'bowl_sr', 'pp_econ', 'death_econ', 'bowl_wpa'];
+const BAT_MD = ['bat_imp', 'bat_runs', 'bat_avg', 'hardest_out', 'bat_sr', 'newball_avg', 'inn4_bat', 'pace_sr', 'spin_sr'];
+const BOWL_MD = ['bowl_imp', 'bowl_wkts', 'bowl_avg', 'bowl_sr', 'bowl_econ', 'newball_wkts', 'inn4_bowl'];
 const SHORT: Record<string, string> = {
-  bat_imp: 'Impact', bat_srplus: 'SR+', bat_avgplus: 'Avg+', hardest_out: 'Hardest out', pp_srplus: 'Powerplay', death_srplus: 'Death', pace_srplus: 'v Pace',
-  spin_srplus: 'v Spin', bat_wpa: 'Win prob.', bowl_imp: 'Impact', bowl_econplus: 'Econ+', bowl_wktplus: 'Wkts+', pp_econplus: 'Powerplay', death_econplus: 'Death',
-  bowl_wpa: 'Win prob.', newball_srplus: 'New ball', inn4_bat: '4th innings', newball_wktplus: 'New ball', inn4_bowl: '4th innings',
+  bat_imp: 'Impact', bat_runs: 'Runs', bat_avg: 'Average', bat_sr: 'Strike rate', hardest_out: 'Balls/out', pp_sr: 'Powerplay', death_sr: 'Death', pace_sr: 'v Pace',
+  spin_sr: 'v Spin', bat_wpa: 'Win prob.', bowl_imp: 'Impact', bowl_wkts: 'Wickets', bowl_avg: 'Average', bowl_econ: 'Economy', bowl_sr: 'Strike rate',
+  pp_econ: 'Powerplay', death_econ: 'Death', bowl_wpa: 'Win prob.', newball_avg: 'New ball', inn4_bat: '4th innings', newball_wkts: 'New ball', inn4_bowl: '4th innings',
 };
 
 export const fmtBoard = (b: Pick<Board, 'metric' | 'unit'>, v: number) => {
-  if (b.unit === 'runs') return signed(v, 0);
-  if (b.unit === 'wins') return signed(v, 2);
-  if (b.metric === 'full_straight' || b.metric === 'corridor') return d1(v);
-  return plus(v);
+  switch (b.unit) {
+    case 'runs': return signed(v, 0);
+    case 'wins': return signed(v, 2);
+    case 'count': return n0(v);
+    case 'sr': return d1(v);
+    case 'avg': return d2(v);
+    case 'econ': return d2(v);
+    case 'bpd': return d1(v);
+    default: return d1(v);
+  }
 };
-const unitText = (b: Board) => (b.unit === 'runs' ? 'runs vs average' : b.unit === 'wins' ? 'wins added' :
-  b.metric === 'full_straight' || b.metric === 'corridor' ? 'per 1,000 balls' : 'index · 100 = average');
-const baseOf = (b: Board) => (b.unit === 'runs' || b.unit === 'wins' || b.metric === 'full_straight' || b.metric === 'corridor' ? 0 : 100);
+const UNIT: Record<string, string> = { runs: 'runs vs average', wins: 'wins added', count: 'total', sr: 'runs per 100 balls', avg: 'runs per wicket', econ: 'runs per over', bpd: 'balls per wicket' };
+const unitText = (b: Board) => (b.metric === 'full_straight' || b.metric === 'corridor' ? 'per 1,000 balls' : UNIT[b.unit] ?? '');
+const baseOf = (_b: Board) => 0;
+// bar length: share of the best value; for lower-is-better boards the best is the smallest
+const barVal = (b: Board, v: number, best: number) => (b.order === 'asc' ? best / Math.max(v, 1e-9) : v);
 const metaOf = (b: Board, s: Stats) => (b.kind === 'bat'
   ? `${s.t} · ${n0(s.r)} runs · ${n0(s.b)} balls`
   : `${s.t} · ${n0(s.w)} wkts · ${n0(s.b)} balls`);
@@ -60,7 +68,7 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
   return (
     <Panel flush title={kind === 'bat' ? 'Batting leaders' : 'Bowling leaders'} sub={b.desc}
       pin={{ id: `board:${scopeLabel}:${b.key}`, title: `${b.title}`, ctx: scopeLabel, href: '/', rows: rows.slice(0, 5).map((r) => ({ l: r[1], v: fmtBoard(b, r[2]),
-        w: Math.abs(r[2] - baseOf(b)) / Math.max(1e-9, Math.abs(rows[0][2] - baseOf(b))), href: `/player/${r[0]}` })) }}>
+        w: barVal(b, r[2], rows[0][2]) / Math.max(1e-9, barVal(b, rows[0][2], rows[0][2])), href: `/player/${r[0]}` })) }}>
       <div className="tabs" role="tablist" style={{ padding: '0 14px' }}>
         {avail.map((k) => <button key={k} role="tab" aria-selected={k === b.key.split(':')[0]} onClick={() => { setTab(k); setTeam('all'); }}>{SHORT[k] ?? k}</button>)}
       </div>
@@ -72,7 +80,7 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
         <Mini label="View" value={view} onChange={setView} options={[['list', 'Ranked'], ['table', 'Table']]} />
       </div>
       {view === 'list'
-        ? <RankList unit={unitText(b)} base={baseOf(b)} rows={rows.map((r) => ({ id: r[0], name: r[1], meta: metaOf(b, r[3]), value: r[2], text: fmtBoard(b, r[2]), href: `/player/${r[0]}` }))} />
+        ? <RankList unit={unitText(b)} base={baseOf(b)} rows={rows.map((r) => ({ id: r[0], name: r[1], meta: metaOf(b, r[3]), value: barVal(b, r[2], rows[0]?.[2] ?? 1), text: fmtBoard(b, r[2]), href: `/player/${r[0]}` }))} />
         : <Table rank rows={rows} cols={[
             { key: 'n', label: kind === 'bat' ? 'Batter' : 'Bowler', left: true, sortable: false, get: (r: Row) => r[1], fmt: (v, r: Row) => <Link className="link" to={`/player/${r[0]}`}>{v}</Link> },
             { key: 't', label: 'Team', left: true, get: (r: Row) => r[3].t },
@@ -80,9 +88,9 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
             { key: 'b', label: 'Balls', get: (r: Row) => r[3].b, fmt: n0 },
             ...(kind === 'bat'
               ? [{ key: 'r', label: 'Runs', get: (r: Row) => r[3].r, fmt: n0 }, { key: 'o', label: 'Outs', get: (r: Row) => r[3].o },
-                 { key: 'sr', label: 'SR', get: (r: Row) => (100 * r[3].r) / r[3].b, fmt: d1 }, { key: 'srp', label: 'SR+', get: (r: Row) => (100 * r[3].r) / r[3].xr, fmt: plus }]
+                 { key: 'avg', label: 'Avg', get: (r: Row) => r[3].r / Math.max(r[3].o ?? 0, 1), fmt: d1 }, { key: 'sr', label: 'SR', get: (r: Row) => (100 * r[3].r) / r[3].b, fmt: d1 }]
               : [{ key: 'w', label: 'Wkts', get: (r: Row) => r[3].w }, { key: 'e', label: 'Econ', get: (r: Row) => (6 * r[3].r) / r[3].b, fmt: d2 },
-                 { key: 'ep', label: 'Econ+', get: (r: Row) => (100 * r[3].xr) / r[3].r, fmt: plus }]),
+                 { key: 'avg', label: 'Avg', get: (r: Row) => r[3].r / Math.max(r[3].w ?? 0, 1), fmt: d1 }]),
             { key: 'imp', label: 'Impact', get: (r: Row) => r[3].imp, fmt: (v) => signed(v, 0) },
           ]} />}
       <div className="panel-foot">{b.min_balls > 0 ? `Minimum ${n0(minB)} balls. ` : ''}{unitText(b)}.</div>

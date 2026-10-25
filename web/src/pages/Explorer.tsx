@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { PREVIEW, useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
 import { bat, bowl } from '../lib/stats';
-import { d1, d2, n0, pct, plus, signed } from '../lib/fmt';
+import { d1, d2, n0, pct, signed } from '../lib/fmt';
 import { famKeyLabel, MULTI } from '../lib/labels';
 import { ErrorBox, Loader, Panel, Seg } from '../components/ui';
 import { Col, Table } from '../components/Table';
@@ -71,8 +71,8 @@ export default function Explorer() {
   const batCols: Col<any>[] = [who,
     { key: 'i', label: 'Inns', get: (x) => x.i }, { key: 'r', label: 'Runs', get: (x) => x.r, fmt: n0 }, { key: 'b', label: 'Balls', get: (x) => x.b, fmt: n0 },
     { key: 'avg', label: 'Avg', get: (x) => x.avg, fmt: d1 }, { key: 'sr', label: 'SR', get: (x) => x.sr, fmt: d1 },
-    { key: 'srPlus', label: 'SR+', get: (x) => x.srPlus, fmt: plus, title: 'Strike rate vs expected, 100 = average' },
-    { key: 'avgPlus', label: 'Avg+', get: (x) => x.avgPlus, fmt: plus },
+    { key: 'bpd', label: 'Balls/out', get: (x) => x.bpd, fmt: d1 },
+    { key: 'rae', label: 'Runs v avg', get: (x) => x.rae, fmt: (v) => signed(v, 0), title: 'Runs above an average batter in the same situations' },
     { key: 'imp', label: 'Impact', get: (x) => x.imp, fmt: (v) => signed(v, 0) },
     { key: 'imp100', label: 'Imp/100', get: (x) => x.imp100, fmt: (v) => signed(v, 2) },
     ...(limited ? [{ key: 'wpa', label: 'WPA', get: (x: any) => x.wpa, fmt: (v: any) => signed(v, 2) }] : []),
@@ -80,7 +80,7 @@ export default function Explorer() {
   const bowlCols: Col<any>[] = [who,
     { key: 'i', label: 'Inns', get: (x) => x.i }, { key: 'w', label: 'Wkts', get: (x) => x.w }, { key: 'b', label: 'Balls', get: (x) => x.b, fmt: n0 },
     { key: 'econ', label: 'Econ', get: (x) => x.econ, fmt: d2, desc: false }, { key: 'avg', label: 'Avg', get: (x) => x.avg, fmt: d1, desc: false },
-    { key: 'econPlus', label: 'Econ+', get: (x) => x.econPlus, fmt: plus }, { key: 'wktPlus', label: 'Wkts+', get: (x) => x.wktPlus, fmt: plus },
+    { key: 'saved', label: 'Runs saved', get: (x) => x.saved, fmt: (v) => signed(v, 0), title: 'Runs saved against an average bowler in the same situations' },
     { key: 'imp', label: 'Impact', get: (x) => x.imp, fmt: (v) => signed(v, 0) },
     { key: 'imp100', label: 'Imp/100', get: (x) => x.imp100, fmt: (v) => signed(v, 2) },
     ...(limited ? [{ key: 'wpa', label: 'WPA', get: (x: any) => x.wpa, fmt: (v: any) => signed(v, 2) }] : []),

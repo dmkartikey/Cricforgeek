@@ -110,8 +110,8 @@ def bat_metrics(s):
     b, rr, o = s.get("b") or 0, s.get("r") or 0, s.get("o") or 0
     xr, xo = s.get("xr") or 0, s.get("xo") or 0
     return {
-        "sr_plus": 100 * rr / xr if xr else None,
-        "avg_plus": 100 * (rr / o) / (xr / xo) if o and xr and xo else None,
+        "sr": 100 * rr / b if b else None,
+        "avg": rr / max(o, 1) if b else None,
         "imp100": 100 * (s.get("imp") or 0) / b if b else None,
         "wpa100": 100 * (s.get("wpa") or 0) / b if b else None,
         "bnd": ((s.get("f4") or 0) + (s.get("s6") or 0)) / b if b else None,
@@ -123,15 +123,16 @@ def bowl_metrics(s):
     b, rr, w = s.get("b") or 0, s.get("r") or 0, s.get("w") or 0
     xr, xw = s.get("xr") or 0, s.get("xw") or 0
     return {
-        "econ_plus": 100 * xr / rr if rr else None,
-        "wkt_plus": 100 * w / xw if xw else None,
+        "econ": 6 * rr / b if b else None,
+        "bavg": rr / w if w else None,
+        "bsr": b / w if w else None,
         "imp100": 100 * (s.get("imp") or 0) / b if b else None,
         "wpa100": 100 * (s.get("wpa") or 0) / b if b else None,
         "dotp": (s.get("d") or 0) / b if b else None,
     }
 
 
-LOWER_BETTER = {("bat", "dotp")}
+LOWER_BETTER = {("bat", "dotp"), ("bowl", "econ"), ("bowl", "bavg"), ("bowl", "bsr")}
 
 
 def percentiles(groups: dict[str, list[tuple[str, dict]]], kind: str):
@@ -229,6 +230,8 @@ def export_all(con, out: Path, report: dict):
         d["bowl"][f"{bt}|{hd}|{x['ph']}"] = vec
     w.write("zbase.json", zbase)
     _export_tests(con, w, names)
+    from .predict import export_predict
+    report["predict"] = export_predict(con, w, names)
 
     meta = {
         "built": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"),
@@ -763,27 +766,32 @@ def _scope_home(con, fmt, cut365, cut730, cut1095, names):
                             having count(*) filter (where {'faced' if kind == 'bat' else 'is_legal'}) >= {min_b}
                             order by v {order} nulls last limit 50""")
         boards.append({"key": f"{key}:{window}", "metric": key, "title": title, "desc": desc, "window": window, "kind": kind,
-                       "unit": unit, "min_balls": min_b,
+                       "unit": unit, "min_balls": min_b, "order": order,
                        "rows": [[x["player"], names.get(x["player"], (x["player"],))[0], r(x["v"], 3),
                                  {**{k: r(x[k], 2) for k in ("b", "r", "o", "w", "imp", "wpa", "xr") if k in x}, "t": x["team"]}] for x in res]})
 
-    SRP = "100*sum(r_bat)/nullif(sum(xbat_r) filter (where faced),0)"
-    ECP = "100*sum(xbowl_r)/nullif(sum(bowl_runs),0)"
+    SR = "100.0*sum(r_bat)/nullif(count(*) filter (where faced),0)"
+    AVG = "sum(r_bat)*1.0/greatest(count(*) filter (where striker_out),1)"
+    ECO = "6.0*sum(bowl_runs)/nullif(count(*) filter (where is_legal),0)"
+    BAVG = "sum(bowl_runs)*1.0/nullif(count(*) filter (where bowler_wkt),0)"
+    BSR = "count(*) filter (where is_legal)*1.0/nullif(count(*) filter (where bowler_wkt),0)"
+    WK = "count(*) filter (where bowler_wkt)"
     for window in ("365", "all"):
         mb = QB[fmt] // (2 if window == "365" else 1)
         mw = QW[fmt] // (2 if window == "365" else 1)
         board("bat_imp", "Batting impact", "Runs added above an average batter in the same situation, counting the run cost of getting out.", window, "bat", "sum(bat_val)", unit="runs")
-        board("bat_srplus", "SR+", "Strike rate against an average batter in the same over, wickets and era. 100 = average.", window, "bat", SRP, min_b=mb)
-        board("bat_avgplus", "Average+", "Runs per dismissal against expected for the same situations. 100 = average.", window, "bat",
-              "100*((sum(r_bat) + 3*sum(xbat_r) filter (where faced)/nullif(sum(xbat_out) filter (where faced),0))/(count(*) filter (where striker_out) + 3))/nullif(sum(xbat_r) filter (where faced)/nullif(sum(xbat_out) filter (where faced),0),0)", min_b=mb)
-        board("hardest_out", "Hardest to dismiss", "Balls per dismissal against expected. 100 = average.", window, "bat",
-              "100*(sum(xbat_out) filter (where faced) + 3)/(count(*) filter (where striker_out) + 3)", min_b=mb)
+        board("bat_runs", "Most runs", "Total runs scored.", window, "bat", "sum(r_bat)", unit="count")
+        board("bat_avg", "Batting average", "Runs per dismissal.", window, "bat", AVG, min_b=mb, unit="avg")
+        board("bat_sr", "Strike rate", "Runs per 100 balls faced.", window, "bat", SR, min_b=mb, unit="sr")
+        board("hardest_out", "Hardest to dismiss", "Balls faced per dismissal.", window, "bat",
+              "count(*) filter (where faced)*1.0/greatest(count(*) filter (where striker_out),1)", min_b=mb, unit="bpd")
         board("bowl_imp", "Bowling impact", "Runs saved against an average bowler in the same situation, plus the value of wickets.", window, "bowl", "sum(bowl_val)", unit="runs")
-        board("bowl_econplus", "Economy+", "Expected runs conceded divided by actual. 100 = average, higher is tighter.", window, "bowl", ECP, min_b=mw)
-        board("bowl_wktplus", "Wickets+", "Wickets taken against expected for the same overs and situations. 100 = average.", window, "bowl",
-              "100*(count(*) filter (where bowler_wkt) + 3)/(sum(xbowl_w) + 3)", min_b=mw)
-        board("spin_srplus", "SR+ vs spin", "Scoring against spin against expected.", window, "bat", SRP, min_b=mb // 3, extra_where="btype = 'spin'")
-        board("pace_srplus", "SR+ vs pace", "Scoring against pace against expected.", window, "bat", SRP, min_b=mb // 3, extra_where="btype = 'pace'")
+        board("bowl_wkts", "Most wickets", "Total wickets taken.", window, "bowl", WK, unit="count")
+        board("bowl_avg", "Bowling average", "Runs conceded per wicket. Lower is better.", window, "bowl", BAVG, order="asc", min_b=mw, unit="avg")
+        board("bowl_econ", "Economy", "Runs conceded per over. Lower is better.", window, "bowl", ECO, order="asc", min_b=mw, unit="econ")
+        board("bowl_sr", "Bowling strike rate", "Balls per wicket. Lower is better.", window, "bowl", BSR, order="asc", min_b=mw, unit="bpd")
+        board("spin_sr", "Strike rate v spin", "Runs per 100 balls against spin.", window, "bat", SR, min_b=mb // 3, extra_where="btype = 'spin'", unit="sr")
+        board("pace_sr", "Strike rate v pace", "Runs per 100 balls against pace.", window, "bat", SR, min_b=mb // 3, extra_where="btype = 'pace'", unit="sr")
         board("full_straight", "Bowled + LBW rate", "Bowled and LBW dismissals per 1,000 balls faced. Inferred weakness to full, straight balls.", window, "bat",
               "1000.0*count(*) filter (where dcat in ('bowled','lbw'))/nullif(count(*) filter (where faced),0)", min_b=mb)
         board("corridor", "Caught-behind rate", "Edges to the keeper per 1,000 balls faced. Inferred weakness in the off-stump corridor.", window, "bat",
@@ -793,14 +801,13 @@ def _scope_home(con, fmt, cut365, cut730, cut1095, names):
             board("bowl_wpa", "Win probability added", "Swing in win chance credited to the bowler.", window, "bowl", "sum(bowl_wpa)", unit="wins")
             board("clutch", "Clutch batting", "Batting impact on high-pressure balls only, where the result was most on the line.", window, "bat", "sum(bat_val)", extra_where="lev = 'high'", unit="runs")
             board("clutch_bowl", "Clutch bowling", "Bowling impact on high-pressure balls only.", window, "bowl", "sum(bowl_val)", extra_where="lev = 'high'", unit="runs")
-            board("pp_srplus", "Powerplay SR+", "SR+ in the opening phase.", window, "bat", SRP, min_b=mb // 4, extra_where="phase = 0")
-            board("death_srplus", "Death-overs SR+", "SR+ in the final phase.", window, "bat", SRP, min_b=mb // 4, extra_where="phase = 2")
-            board("pp_econplus", "Powerplay Economy+", "Economy+ in the opening phase.", window, "bowl", ECP, min_b=mw // 4, extra_where="phase = 0")
-            board("death_econplus", "Death-overs Economy+", "Economy+ at the death.", window, "bowl", ECP, min_b=mw // 4, extra_where="phase = 2")
+            board("pp_sr", "Powerplay strike rate", "Runs per 100 balls in the opening phase.", window, "bat", SR, min_b=mb // 4, extra_where="phase = 0", unit="sr")
+            board("death_sr", "Death-overs strike rate", "Runs per 100 balls in the final phase.", window, "bat", SR, min_b=mb // 4, extra_where="phase = 2", unit="sr")
+            board("pp_econ", "Powerplay economy", "Runs per over in the opening phase. Lower is better.", window, "bowl", ECO, order="asc", min_b=mw // 4, extra_where="phase = 0", unit="econ")
+            board("death_econ", "Death-overs economy", "Runs per over at the death. Lower is better.", window, "bowl", ECO, order="asc", min_b=mw // 4, extra_where="phase = 2", unit="econ")
         else:
-            board("newball_srplus", "SR+ against the new ball", "Scoring in the first 20 overs of an innings.", window, "bat", SRP, min_b=mb // 4, extra_where="phase = 0")
-            board("newball_wktplus", "New-ball Wickets+", "Wickets against expected in the first 20 overs.", window, "bowl",
-                  "100*(count(*) filter (where bowler_wkt) + 3)/(sum(xbowl_w) + 3)", min_b=mw // 4, extra_where="phase = 0")
+            board("newball_avg", "Average v the new ball", "Runs per dismissal in the first 20 overs of an innings.", window, "bat", AVG, min_b=mb // 4, extra_where="phase = 0", unit="avg")
+            board("newball_wkts", "New-ball wickets", "Wickets in the first 20 overs of an innings.", window, "bowl", WK, extra_where="phase = 0", unit="count")
             board("inn4_bat", "Fourth-innings batting impact", "Impact batting last, when pitches are worn and the result is on the line.", window, "bat", "sum(bat_val)", extra_where="inn = 4", unit="runs")
             board("inn4_bowl", "Fourth-innings bowling impact", "Impact bowling at the side batting last.", window, "bowl", "sum(bowl_val)", extra_where="inn = 4", unit="runs")
 

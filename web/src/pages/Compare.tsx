@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { load, useData } from '../lib/data';
 import { useSettings } from '../lib/settings';
 import { bat, bowl, batSplit, bowlSplit, ok, SplitRow } from '../lib/stats';
-import { d1, d2, n0, pct, plus, signed } from '../lib/fmt';
+import { d1, d2, n0, pct, signed } from '../lib/fmt';
 import { FAM_LABEL, MULTI, PHASES } from '../lib/labels';
 import { Legend, Mini, MiniSearch, Panel, SectionHead, Seg, SERIES } from '../components/ui';
 import { LineChart, MultiBars, Scatter } from '../components/charts';
@@ -48,7 +48,7 @@ export default function Compare() {
   const [players, setPlayers] = useState<Record<string, P>>({});
   const [role, setRole] = useState<'bat' | 'bowl'>((sp.get('r') as any) === 'bowl' ? 'bowl' : 'bat');
   const [mode, setMode] = useState<'career' | 'same'>('career');
-  const [lm, setLm] = useState<string>('srPlus');
+  const [lm, setLm] = useState<string>('avg');
   const [cum, setCum] = useState<'year' | 'cum'>('year');
   const meta = useData<any>('meta.json').data;
   const zbase = useData<any>('zbase.json').data;
@@ -84,18 +84,18 @@ export default function Compare() {
   const sums = has.map((x) => ({ ...x, s: summary(x.p) as any }));
 
   const METRICS: [string, string, (v: number) => string, boolean][] = role === 'bat'
-    ? [['r', 'Runs', n0, true], ['b', 'Balls', n0, true], ['avg', 'Average', d2, true], ['sr', 'Strike rate', d1, true], ['srPlus', 'SR+', plus, true],
-       ['avgPlus', 'Average+', plus, true], ['imp', 'Impact', (v) => signed(v, 0), true], ['imp100', 'Impact / 100 balls', (v) => signed(v, 2), true],
+    ? [['r', 'Runs', n0, true], ['b', 'Balls', n0, true], ['avg', 'Average', d2, true], ['sr', 'Strike rate', d1, true], ['bpd', 'Balls per dismissal', d1, true],
+       ['rae', 'Runs above average', (v) => signed(v, 0), true], ['imp', 'Impact', (v) => signed(v, 0), true], ['imp100', 'Impact / 100 balls', (v) => signed(v, 2), true],
        ...(!multi ? [['wpa', 'Win prob. added', (v: number) => signed(v, 2), true] as [string, string, (v: number) => string, boolean]] : []),
        ['bnd', 'Boundary %', (v) => pct(v), true], ['dotp', 'Dot %', (v) => pct(v), false]]
     : [['w', 'Wickets', n0, true], ['b', 'Balls', n0, true], ['econ', 'Economy', d2, false], ['avg', 'Average', d1, false], ['sr', 'Strike rate', d1, false],
-       ['econPlus', 'Economy+', plus, true], ['wktPlus', 'Wickets+', plus, true], ['imp', 'Impact', (v) => signed(v, 0), true],
+       ['saved', 'Runs saved v average', (v) => signed(v, 0), true], ['imp', 'Impact', (v) => signed(v, 0), true],
        ['imp100', 'Impact / 100 balls', (v) => signed(v, 2), true], ['dotp', 'Dot %', (v) => pct(v), true]];
 
   // yearly overlay
   const LM: Record<string, [string, (v: number) => string, (y: any) => number | null, number?]> = role === 'bat'
-    ? { srPlus: ['SR+', plus, (y) => (y.b >= 60 ? y.srPlus : null), 100], avgPlus: ['Average+', plus, (y) => (y.o >= 3 ? y.avgPlus : null), 100], r: ['Runs', n0, (y) => y.r], imp: ['Impact', (v) => signed(v, 0), (y) => y.imp] }
-    : { econPlus: ['Economy+', plus, (y) => (y.b >= 60 ? y.econPlus : null), 100], wktPlus: ['Wickets+', plus, (y) => (y.b >= 120 ? y.wktPlus : null), 100], w: ['Wickets', n0, (y) => y.w], imp: ['Impact', (v) => signed(v, 0), (y) => y.imp] };
+    ? { avg: ['Average', d1, (y) => (y.o >= 3 ? y.avg : null)], sr: ['Strike rate', d1, (y) => (y.b >= 60 ? y.sr : null)], r: ['Runs', n0, (y) => y.r], imp: ['Impact', (v) => signed(v, 0), (y) => y.imp] }
+    : { econ: ['Economy', d2, (y) => (y.b >= 60 ? y.econ : null)], avg: ['Average', d1, (y) => (y.b >= 120 && y.w >= 2 ? y.avg : null)], w: ['Wickets', n0, (y) => y.w], imp: ['Impact', (v) => signed(v, 0), (y) => y.imp] };
   const lmKey = LM[lm] ? lm : Object.keys(LM)[0];
   const yearsAll = [...new Set(has.flatMap((x) => yearRows(x.p).map((r) => String(r[0]))))].filter((y) => !same || common!.includes(y)).sort();
   const lines = has.map((x) => {
@@ -113,13 +113,13 @@ export default function Compare() {
   const phaseVal = (p: P, k: string) => {
     const row = (p.splits?.[fk]?.[role]?.phase ?? []).find((r: SplitRow) => String(r[0]) === k);
     if (!row || (row[1] as number) < 24) return null;
-    return role === 'bat' ? batSplit(row).srPlus : bowlSplit(row).econPlus;
+    return role === 'bat' ? batSplit(row).sr : bowlSplit(row).econ;
   };
   // pace v spin scatter
   const typeVal = (p: P, t: string) => {
     const rows: SplitRow[] = role === 'bat' ? (p.splits?.[fk]?.bat?.type ?? []) : [];
     const row = rows.find((r) => r[0] === t);
-    return row && (row[1] as number) >= 60 ? batSplit(row).srPlus : NaN;
+    return row && (row[1] as number) >= 60 ? batSplit(row).sr : NaN;
   };
   // common opponents
   const oppKey = role === 'bat' ? (r: any) => ({ k: r[0], i: r[1], a: r[4] ? r[2] / r[4] : NaN, sr: r[3] ? (100 * r[2]) / r[3] : NaN, n: r[2] })
@@ -190,32 +190,32 @@ export default function Compare() {
             <div className="panel-foot">Green marks the best value in each row.</div>
           </Panel>
 
-          <Panel title="Year by year" sub={`${LM[lmKey][0]}${LM[lmKey][3] ? ' · 100 = average' : ''}`}
+          <Panel title="Year by year" sub={LM[lmKey][0]}
             tools={<>
               <Mini label="Metric" value={lmKey} onChange={setLm} options={Object.entries(LM).map(([k, v]) => [k, v[0]] as [string, string])} />
               {['r', 'w', 'imp'].includes(lmKey) && <Mini label="As" value={cum} onChange={setCum} options={[['year', 'Per year'], ['cum', 'Running total']]} />}
             </>}>
             <Legend items={lines.map((l) => ({ label: l.name, color: l.color }))} />
-            <LineChart key={lmKey + cum + role + mode} aria="Comparison by year" labels={yearsAll} series={lines} fmt={LM[lmKey][1]} refLine={LM[lmKey][3]} height={280} />
+            <LineChart key={lmKey + cum + role + mode} aria="Comparison by year" labels={yearsAll} series={lines} fmt={LM[lmKey][1]} height={280} />
           </Panel>
 
           <div className="grid g2">
-            <Panel title="By phase" sub={role === 'bat' ? 'SR+ in each phase. 100 = average.' : 'Economy+ in each phase. 100 = average; higher is better.'}>
+            <Panel title="By phase" sub={role === 'bat' ? 'Strike rate in each phase.' : 'Economy in each phase. Lower is better.'}>
               <Legend items={has.map((x) => ({ label: x.p.name, color: x.color, kind: 'box' }))} />
-              <MultiBars fmt={plus} base={100} baseLabel="average" series={has.map((x) => ({ name: x.p.name, color: x.color }))}
+              <MultiBars fmt={role === 'bat' ? d1 : d2} series={has.map((x) => ({ name: x.p.name, color: x.color }))}
                 rows={['0', '1', '2'].map((k) => ({ label: phN[+k].split(' (')[0], note: phN[+k].match(/\((.*)\)/)?.[1], values: has.map((x) => phaseVal(x.p, k)) }))} />
             </Panel>
             {role === 'bat' ? (
-              <Panel title="Pace v spin" sub="SR+ against each. Top right = strong against both.">
-                <Scatter aria="SR+ against pace and spin" xLabel="SR+ v pace" yLabel="SR+ v spin" fmtX={plus} fmtY={plus} refX={100} refY={100}
+              <Panel title="Pace v spin" sub="Strike rate against each. Top right = scores quickly against both.">
+                <Scatter aria="Strike rate against pace and spin" xLabel="Strike rate v pace" yLabel="Strike rate v spin" fmtX={d1} fmtY={d1}
                   points={has.map((x) => ({ label: x.p.name, x: typeVal(x.p, 'pace'), y: typeVal(x.p, 'spin'), color: x.color }))} />
               </Panel>
             ) : (
-              <Panel title="Right- and left-handers" sub="Economy+ against each hand. 100 = average.">
-                <MultiBars fmt={plus} base={100} series={has.map((x) => ({ name: x.p.name, color: x.color }))}
+              <Panel title="Right- and left-handers" sub="Economy against each hand. Lower is better.">
+                <MultiBars fmt={d2} series={has.map((x) => ({ name: x.p.name, color: x.color }))}
                   rows={[['R', 'v right-handers'], ['L', 'v left-handers']].map(([k, l]) => ({ label: l, values: has.map((x) => {
                     const r = (x.p.splits?.[fk]?.bowl?.hand ?? []).find((q: SplitRow) => q[0] === k);
-                    return r && r[1] >= 24 ? bowlSplit(r).econPlus : null; }) }))} />
+                    return r && r[1] >= 24 ? bowlSplit(r).econ : null; }) }))} />
               </Panel>
             )}
           </div>

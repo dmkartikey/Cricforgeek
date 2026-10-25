@@ -136,9 +136,9 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
   const [ym, setYm] = useState<'r' | 'imp' | 'sr'>('r');
   const [pc2, setPc2] = useState('all');
   const [phT, setPhT] = useState('all');
-  const [phM, setPhM] = useState<'srPlus' | 'sr' | 'avg'>('srPlus');
+  const [phM, setPhM] = useState<'sr' | 'avg' | 'bnd'>('sr');
   const [vsP, setVsP] = useState('all');
-  const [vsSort, setVsSort] = useState<'b' | 'srPlus'>('b');
+  const [vsSort, setVsSort] = useState<'b' | 'sr'>('b');
   const [minInn, setMinInn] = useState<'1' | '5' | '20'>('1');
   const [ilv, setIlv] = useState<'inn' | 'lev'>('inn');
   const [rc, setRc] = useState('all');
@@ -146,7 +146,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
   const [muQ, setMuQ] = useState('');
   const [muMin, setMuMin] = useState<'6' | '30' | '60'>('6');
   const [ov, setOv] = useState<'opp' | 'venue'>('opp');
-  const [csort, setCsort] = useState<'r' | 'imp' | 'srp'>('r');
+  const [csort, setCsort] = useState<'r' | 'imp' | 'sr'>('r');
   const years = useYears(p, fk, 'bat', yc);
   const years2 = useYears(p, fk, 'bat', pc2);
   const entry = p.entry?.[fk];
@@ -155,7 +155,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
   const phaseRows = phT === 'all' ? (sp.phase ?? []) : (sp.pt ?? []).filter((x: any) => String(x[0]).endsWith('|' + phT)).map((x: any) => [String(x[0]).split('|')[0], ...x.slice(1)]);
   const vsRows = vsP === 'all' ? (sp.vs ?? []) : (sp.pv ?? []).filter((x: any) => String(x[0]).startsWith(vsP + '|')).map((x: any) => [String(x[0]).split('|')[1], ...x.slice(1)]);
   const phasesAvail = [...new Set((sp.pt ?? []).map((x: any) => String(x[0]).split('|')[0]))] as string[];
-  const PM: Record<string, [string, (v: number) => string, number]> = { srPlus: ['SR+', plus, 100], sr: ['Strike rate', d1, s.sr], avg: ['Average', d1, s.avg] };
+  const PM: Record<string, [string, (v: number) => string, number]> = { sr: ['Strike rate', d1, s.sr], avg: ['Average', d1, s.avg], bnd: ['Boundary %', (v) => pct(v), s.bnd] };
 
   return (
     <>
@@ -167,7 +167,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
         ]}
         groups={[
           { t: 'Adjusted for context', items: [
-            { l: 'SR+', v: plus(s.srPlus), k: 'srPlus' }, { l: 'Average+', v: plus(s.avgPlus), k: 'avgPlus' },
+            { l: 'Runs above average', v: signed(s.rae, 0) }, { l: 'Balls per dismissal', v: d1(s.bpd) },
             { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
           { t: 'Scoring', items: [
             { l: '50s · 100s', v: `${s.c50 ?? 0} · ${s.c100 ?? 0}` }, { l: 'Fours · sixes', v: `${n0(s.f4)} · ${n0(s.s6)}` },
@@ -178,21 +178,20 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
 
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
-          { label: 'SR+', pct: pc.bat.sr_plus, value: plus(s.srPlus) },
-          { label: 'Average+', pct: pc.bat.avg_plus, value: plus(s.avgPlus) },
+          { label: 'Strike rate', pct: pc.bat.sr, value: d1(s.sr) },
+          { label: 'Average', pct: pc.bat.avg, value: d1(s.avg) },
           { label: 'Impact / 100 balls', pct: pc.bat.imp100, value: signed(s.imp100, 2) },
           ...(limited ? [{ label: 'WPA / 100 balls', pct: pc.bat.wpa100, value: signed(s.wpa100, 3) }] : []),
           { label: 'Boundary rate', pct: pc.bat.bnd, value: pct(s.bnd) },
           { label: 'Dot-ball avoidance', pct: pc.bat.dotp, value: pct(s.dotp) },
         ] : []} role="batters" />
-        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['r', 'Runs'], ['imp', 'Impact'], ['srp', 'SR+']]} />}>
+        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['r', 'Runs'], ['imp', 'Impact'], ['sr', 'SR']]} />}>
           <Table key={csort} rows={comps} sort={csort} cols={[
             { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
             { key: 'i', label: 'Inns', get: (c: any) => c.bat.i },
             { key: 'r', label: 'Runs', get: (c: any) => c.bat.r, fmt: n0 },
             { key: 'avg', label: 'Avg', get: (c: any) => bat(c.bat).avg, fmt: d1 },
             { key: 'sr', label: 'SR', get: (c: any) => bat(c.bat).sr, fmt: d1 },
-            { key: 'srp', label: 'SR+', get: (c: any) => bat(c.bat).srPlus, fmt: plus },
             { key: 'imp', label: 'Impact', get: (c: any) => c.bat.imp, fmt: (v) => signed(v, 0) },
           ]} />
         </Panel>
@@ -206,15 +205,15 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
           </>}>
           {years.length ? <Columns key={yc + ym} aria="Batting by year" fmt={ym === 'sr' ? d1 : ym === 'imp' ? (v) => signed(v, 0) : n0}
             data={years.map((y: any) => ({ label: yLabel(y.k), title: y.k, value: ym === 'r' ? y.r : ym === 'imp' ? y.imp : (y.b >= 30 ? y.sr : null),
-              extra: [{ label: 'Runs', value: n0(y.r) }, { label: 'Balls', value: n0(y.b) }, { label: 'SR+', value: plus(y.srPlus) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
+              extra: [{ label: 'Runs', value: n0(y.r) }, { label: 'Balls', value: n0(y.b) }, { label: 'Average', value: d1(y.avg) }, { label: 'Strike rate', value: d1(y.sr) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
             : <div className="empty">No batting here.</div>}
         </Panel>
-        <Panel title="SR+ and Average+ by year" sub="100 = average batter in the same situations and era."
+        <Panel title="Average and strike rate by year" sub="Average (runs per dismissal) and strike rate (runs per 100 balls) on one scale. Years with few balls are left out."
           tools={<MiniSelect label="In" value={pc2} onChange={setPc2} options={compOpts} />}>
-          <Legend items={[{ label: 'SR+', color: 'var(--s1)' }, { label: 'Average+', color: 'var(--s2)' }, { label: 'Average (100)', kind: 'dash' }]} />
-          {years2.length > 1 ? <LineChart aria="SR+ and Average+ by year" labels={years2.map((y: any) => y.k)} refLine={100} fmt={(v) => Math.round(v).toString()}
-            series={[{ name: 'SR+', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 60 ? y.srPlus : null)) },
-                     { name: 'Average+', color: 'var(--s2)', values: years2.map((y: any) => (y.o >= 3 ? y.avgPlus : null)) }]} />
+          <Legend items={[{ label: 'Strike rate', color: 'var(--s1)' }, { label: 'Average', color: 'var(--s2)' }]} />
+          {years2.length > 1 ? <LineChart aria="Average and strike rate by year" labels={years2.map((y: any) => y.k)} fmt={(v) => Math.round(v).toString()}
+            series={[{ name: 'Strike rate', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 60 ? y.sr : null)) },
+                     { name: 'Average', color: 'var(--s2)', values: years2.map((y: any) => (y.o >= 3 ? y.avg : null)) }]} />
             : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
@@ -222,21 +221,21 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
       <div className="grid g2">
         <Panel title="Phase of the innings" sub="Hover a bar for the raw numbers."
           tools={<>
-            <Mini label="Metric" value={phM} onChange={setPhM} options={[['srPlus', 'SR+'], ['sr', 'SR'], ['avg', 'Avg']]} />
+            <Mini label="Metric" value={phM} onChange={setPhM} options={[['sr', 'SR'], ['avg', 'Avg'], ['bnd', 'Boundary %']]} />
             <Mini label="Vs" value={phT} onChange={setPhT} options={[['all', 'All'], ['pace', 'Pace'], ['spin', 'Spin']]} />
           </>}>
-          <HBars key={phT + phM} fmt={PM[phM][1]} base={PM[phM][2]} refLabel={phM === 'srPlus' ? 'average' : 'career'} rows={phaseRows.map(batSplit).sort((a: any, b: any) => +a.k - +b.k).map((x: any) => ({
+          <HBars key={phT + phM} fmt={PM[phM][1]} base={PM[phM][2]} refLabel="career" rows={phaseRows.map(batSplit).sort((a: any, b: any) => +a.k - +b.k).map((x: any) => ({
             label: PHASES[fam][+x.k], value: x.b >= 20 ? x[phM] : null, note: `${n0(x.r)} runs · ${n0(x.b)} balls · ${n0(x.o)} outs`,
             tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Impact', value: signed(x.imp, 0) }, { label: 'Dot %', value: pct(x.dotp) }] }))} />
         </Panel>
-        <Panel title="Against bowling types" sub="SR+ against each bowling style. Survival+ (in the tooltip) = balls per dismissal vs expected."
+        <Panel title="Against bowling types" sub="Strike rate against each bowling style. Tooltips add average and balls per dismissal."
           tools={<>
             <Mini label="Phase" value={vsP} onChange={setVsP} options={[['all', 'All'], ...phasesAvail.sort().map((k) => [k, phaseShort(fam, k)] as [string, string])]} />
-            <Mini label="Sort" value={vsSort} onChange={setVsSort} options={[['b', 'Most faced'], ['srPlus', 'SR+']]} />
+            <Mini label="Sort" value={vsSort} onChange={setVsSort} options={[['b', 'Most faced'], ['sr', 'SR']]} />
           </>}>
           <HBars key={vsP + vsSort} fmt={plus} rows={vsRows.map(batSplit).filter((x: any) => x.k !== 'unknown' && x.b >= 24).sort((a: any, b: any) => (b[vsSort] ?? 0) - (a[vsSort] ?? 0)).map((x: any) => ({
-            label: BGRP[x.k] ?? x.k, value: x.srPlus, note: `${n0(x.r)} off ${n0(x.b)} · ${n0(x.o)} outs`,
-            tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Survival+', value: plus(100 * (x.xo / Math.max(x.o, 1))) }, { label: 'Impact', value: signed(x.imp, 0) }] }))} />
+            label: BGRP[x.k] ?? x.k, value: x.sr, note: `${n0(x.r)} off ${n0(x.b)} · ${n0(x.o)} outs`,
+            tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Balls per dismissal', value: d1(x.b / Math.max(x.o, 1)) }, { label: 'Impact', value: signed(x.imp, 0) }] }))} />
         </Panel>
       </div>
 
@@ -253,7 +252,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             { key: 'i', label: 'Inns', get: (x: any) => x[1] },
             { key: 'r', label: 'Runs', get: (x: any) => x[2], fmt: n0 },
             { key: 'avg', label: 'Avg', get: (x: any) => (x[4] ? x[2] / x[4] : NaN), fmt: d1 },
-            { key: 'srp', label: 'SR+', get: (x: any) => (x[5] ? (100 * x[2]) / x[5] : NaN), fmt: plus },
+            { key: 'sr', label: 'SR', get: (x: any) => (x[3] ? (100 * x[2]) / x[3] : NaN), fmt: d1 },
           ]} />
         </Panel>
         <Panel title="Situation" flush tools={limited ? <Mini label="Split" value={ilv} onChange={setIlv} options={[['inn', 'Innings'], ['lev', 'Leverage']]} /> : undefined}>
@@ -261,7 +260,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             { key: 'k', label: ilv === 'lev' ? 'Leverage' : 'Innings', left: true, get: (x: any) => (ilv === 'lev' && limited ? LEV[x[0]] : INN[x[0]]), sortable: false },
             { key: 'b', label: 'Balls', get: (x: any) => x[1], fmt: n0 },
             { key: 'sr', label: 'SR', get: (x: any) => batSplit(x).sr, fmt: d1 },
-            { key: 'srp', label: 'SR+', get: (x: any) => batSplit(x).srPlus, fmt: plus },
+            { key: 'avg', label: 'Avg', get: (x: any) => batSplit(x).avg, fmt: d1 },
             { key: 'imp', label: 'Impact', get: (x: any) => x[9], fmt: (v) => signed(v, 0) },
           ]} />
           {ilv === 'lev' && <div className="muted" style={{ padding: '10px 22px 16px', fontSize: 12 }}>High leverage = balls where the win chance typically swings 1.5× more than usual.</div>}
@@ -304,7 +303,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             { key: 'r', label: 'Runs', get: (x: any) => x[3] },
             { key: 'o', label: 'Outs', get: (x: any) => x[4] },
             { key: 'sr', label: 'SR', get: (x: any) => (100 * x[3]) / x[2], fmt: d1 },
-            { key: 'srp', label: 'SR+', get: (x: any) => (x[8] ? (100 * x[3]) / x[8] : NaN), fmt: plus },
+            { key: 'avg', label: 'Avg', get: (x: any) => (x[4] ? x[3] / x[4] : NaN), fmt: d1 },
             { key: 'imp', label: 'Impact', get: (x: any) => x[9], fmt: (v) => signed(v, 1) },
           ]} />
         </Panel>
@@ -359,13 +358,13 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   const [ym, setYm] = useState<'w' | 'econ' | 'imp'>('w');
   const [pc2, setPc2] = useState('all');
   const [phH, setPhH] = useState('all');
-  const [phM, setPhM] = useState<'econPlus' | 'wktPlus' | 'econ'>('econPlus');
+  const [phM, setPhM] = useState<'econ' | 'avg' | 'sr'>('econ');
   const [hP, setHP] = useState('all');
   const [rc, setRc] = useState('all');
   const [muQ, setMuQ] = useState('');
   const [muMin, setMuMin] = useState<'6' | '30' | '60'>('6');
   const [ov, setOv] = useState<'opp' | 'venue'>('opp');
-  const [csort, setCsort] = useState<'w' | 'imp' | 'ep'>('w');
+  const [csort, setCsort] = useState<'w' | 'imp' | 'avg'>('w');
   const years = useYears(p, fk, 'bowl', yc);
   const years2 = useYears(p, fk, 'bowl', pc2);
   const mus = (p.matchups?.[fk]?.bowl ?? []).filter((x: any) => x[2] >= +muMin && (!muQ || String(x[1]).toLowerCase().includes(muQ.toLowerCase())));
@@ -374,7 +373,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   const phaseRows = phH === 'all' ? (sp.phase ?? []) : ph.filter((x: any) => String(x[0]).endsWith('|' + phH)).map((x: any) => [String(x[0]).split('|')[0], ...x.slice(1)]);
   const handRows = hP === 'all' ? (sp.hand ?? []) : ph.filter((x: any) => String(x[0]).startsWith(hP + '|')).map((x: any) => [String(x[0]).split('|')[1], ...x.slice(1)]);
   const phasesAvail = [...new Set(ph.map((x: any) => String(x[0]).split('|')[0]))] as string[];
-  const PM: Record<string, [string, (v: number) => string, number]> = { econPlus: ['Economy+', plus, 100], wktPlus: ['Wickets+', plus, 100], econ: ['Economy', d2, s.econ] };
+  const PM: Record<string, [string, (v: number) => string, number]> = { econ: ['Economy', d2, s.econ], avg: ['Average', d1, s.avg], sr: ['Strike rate', d1, s.sr] };
 
   return (
     <>
@@ -386,7 +385,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
         ]}
         groups={[
           { t: 'Adjusted for context', items: [
-            { l: 'Economy+', v: plus(s.econPlus), k: 'econPlus' }, { l: 'Wickets+', v: plus(s.wktPlus), k: 'wktPlus' },
+            { l: 'Runs saved v average', v: signed(s.saved, 0) }, { l: 'Wickets per innings', v: d2((s.w ?? 0) / Math.max(s.i ?? 1, 1)) },
             { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
           { t: 'Hauls', items: [
             { l: 'Best figures', v: s.best ?? '–' }, { l: '3-fors · 5-fors', v: `${s.w3 ?? 0} · ${s.w5 ?? 0}` },
@@ -396,19 +395,20 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
       {drill && <Drill p={p} fk={fk} role="bowl" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
       <div className="grid g2">
         <PercentileCard pc={pc?.bowl} n={pc?.n_bowl} fk={fk} role="bowlers" items={pc?.bowl ? [
-          { label: 'Economy+', pct: pc.bowl.econ_plus, value: plus(s.econPlus) },
-          { label: 'Wickets+', pct: pc.bowl.wkt_plus, value: plus(s.wktPlus) },
+          { label: 'Economy', pct: pc.bowl.econ, value: d2(s.econ) },
+          { label: 'Average', pct: pc.bowl.bavg, value: d1(s.avg) },
+          { label: 'Strike rate', pct: pc.bowl.bsr, value: d1(s.sr) },
           { label: 'Impact / 100 balls', pct: pc.bowl.imp100, value: signed(s.imp100, 2) },
           ...(limited ? [{ label: 'WPA / 100 balls', pct: pc.bowl.wpa100, value: signed(s.wpa100, 3) }] : []),
           { label: 'Dot-ball rate', pct: pc.bowl.dotp, value: pct(s.dotp) },
         ] : []} />
-        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['w', 'Wickets'], ['imp', 'Impact'], ['ep', 'Econ+']]} />}>
+        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['w', 'Wickets'], ['imp', 'Impact'], ['avg', 'Avg']]} />}>
           <Table key={csort} rows={comps} sort={csort} cols={[
             { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
             { key: 'i', label: 'Inns', get: (c: any) => c.bowl.i },
             { key: 'w', label: 'Wkts', get: (c: any) => c.bowl.w },
             { key: 'e', label: 'Econ', get: (c: any) => bowl(c.bowl).econ, fmt: d2 },
-            { key: 'ep', label: 'Econ+', get: (c: any) => bowl(c.bowl).econPlus, fmt: plus },
+            { key: 'avg', label: 'Avg', get: (c: any) => bowl(c.bowl).avg, fmt: d1 },
             { key: 'imp', label: 'Impact', get: (c: any) => c.bowl.imp, fmt: (v) => signed(v, 0) },
           ]} />
         </Panel>
@@ -424,30 +424,30 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
               extra: [{ label: 'Wickets', value: n0(y.w) }, { label: 'Overs', value: overs(y.b) }, { label: 'Econ', value: d2(y.econ) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
             : <div className="empty">No bowling here.</div>}
         </Panel>
-        <Panel title="Economy+ and Wickets+ by year" sub="100 = average bowler in the same situations and era."
+        <Panel title="Economy and average by year" sub="Lower is better for both. Years with few balls are left out."
           tools={<MiniSelect label="In" value={pc2} onChange={setPc2} options={compOpts} />}>
-          <Legend items={[{ label: 'Economy+', color: 'var(--s1)' }, { label: 'Wickets+', color: 'var(--s2)' }, { label: 'Average (100)', kind: 'dash' }]} />
-          {years2.length > 1 ? <LineChart aria="Economy+ and Wickets+ by year" labels={years2.map((y: any) => y.k)} refLine={100} fmt={(v) => Math.round(v).toString()}
-            series={[{ name: 'Economy+', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 60 ? y.econPlus : null)) },
-                     { name: 'Wickets+', color: 'var(--s2)', values: years2.map((y: any) => (y.b >= 120 ? y.wktPlus : null)) }]} />
+          <Legend items={[{ label: 'Economy', color: 'var(--s1)' }, { label: 'Average', color: 'var(--s2)' }]} />
+          {years2.length > 1 ? <LineChart aria="Economy and average by year" labels={years2.map((y: any) => y.k)} fmt={d1}
+            series={[{ name: 'Economy', color: 'var(--s1)', values: years2.map((y: any) => (y.b >= 60 ? y.econ : null)) },
+                     { name: 'Average', color: 'var(--s2)', values: years2.map((y: any) => (y.b >= 120 && y.w >= 2 ? y.avg : null)) }]} />
             : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
       <div className="grid g2">
-        <Panel title="Phase of the innings" sub={phM === 'econ' ? 'Runs per over.' : 'Higher is better.'}
+        <Panel title="Phase of the innings" sub={phM === 'econ' ? 'Runs per over. Lower is better.' : phM === 'avg' ? 'Runs per wicket. Lower is better.' : 'Balls per wicket. Lower is better.'}
           tools={<>
-            <Mini label="Metric" value={phM} onChange={setPhM} options={[['econPlus', 'Econ+'], ['wktPlus', 'Wkts+'], ['econ', 'Econ']]} />
+            <Mini label="Metric" value={phM} onChange={setPhM} options={[['econ', 'Econ'], ['avg', 'Avg'], ['sr', 'SR']]} />
             <Mini label="Vs" value={phH} onChange={setPhH} options={[['all', 'All'], ['R', 'RHB'], ['L', 'LHB']]} />
           </>}>
-          <HBars key={phH + phM} fmt={PM[phM][1]} base={PM[phM][2]} refLabel={phM === 'econ' ? 'career' : 'average'} rows={phaseRows.map(bowlSplit).sort((a: any, b: any) => +a.k - +b.k).map((x: any) => ({
+          <HBars key={phH + phM} fmt={PM[phM][1]} base={PM[phM][2]} refLabel="career" rows={phaseRows.map(bowlSplit).sort((a: any, b: any) => +a.k - +b.k).map((x: any) => ({
             label: PHASES[fam][+x.k], value: x.b >= 24 ? x[phM] : null, note: `${overs(x.b)} ov · ${n0(x.w)} wkts · econ ${d2(x.econ)}`,
-            tipRows: [{ label: 'Wickets+', value: plus(x.wktPlus) }, { label: 'Impact', value: signed(x.imp, 0) }, { label: 'Dot %', value: pct(x.dotp) }] }))} />
+            tipRows: [{ label: 'Average', value: d1(x.avg) }, { label: 'Impact', value: signed(x.imp, 0) }, { label: 'Dot %', value: pct(x.dotp) }] }))} />
         </Panel>
-        <Panel title="Right- vs left-handers" sub="Economy+ against each batting hand."
+        <Panel title="Right- vs left-handers" sub="Economy against each batting hand. Lower is better."
           tools={<Mini label="Phase" value={hP} onChange={setHP} options={[['all', 'All'], ...phasesAvail.sort().map((k) => [k, phaseShort(fam, k)] as [string, string])]} />}>
           <HBars key={hP} fmt={plus} rows={handRows.map(bowlSplit).filter((x: any) => x.k !== 'unknown').map((x: any) => ({
-            label: x.k === 'R' ? 'vs right-handers' : 'vs left-handers', value: x.b >= 24 ? x.econPlus : null, note: `${overs(x.b)} ov · ${n0(x.w)} wkts`,
-            tipRows: [{ label: 'Econ', value: d2(x.econ) }, { label: 'Wickets+', value: plus(x.wktPlus) }, { label: 'Avg', value: d1(x.avg) }] }))} />
+            label: x.k === 'R' ? 'vs right-handers' : 'vs left-handers', value: x.b >= 24 ? x.econ : null, note: `${overs(x.b)} ov · ${n0(x.w)} wkts`,
+            tipRows: [{ label: 'Wickets', value: n0(x.w) }, { label: 'Strike rate', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }] }))} />
         </Panel>
       </div>
       {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && (

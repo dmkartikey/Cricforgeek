@@ -1,5 +1,5 @@
 import { bat, bowl, batSplit, bowlSplit, ok, SplitRow } from '../lib/stats';
-import { d1, d2, n0, pct, plus, signed } from '../lib/fmt';
+import { d1, d2, n0, pct, signed } from '../lib/fmt';
 import { BGRP, INN, LEV, MULTI, PHASES } from '../lib/labels';
 import { Drawer, PinButton } from './ui';
 import { HBars } from './charts';
@@ -8,13 +8,13 @@ export type DrillMetric = { key: string; label: string; fmt: (v: number) => stri
 
 export const BAT_METRICS: DrillMetric[] = [
   { key: 'r', label: 'Runs', fmt: n0 }, { key: 'avg', label: 'Average', fmt: d2 }, { key: 'sr', label: 'Strike rate', fmt: d1 },
-  { key: 'srPlus', label: 'SR+', fmt: plus }, { key: 'avgPlus', label: 'Average+', fmt: plus }, { key: 'imp', label: 'Impact', fmt: (v) => signed(v, 0) },
+  { key: 'bpd', label: 'Balls per dismissal', fmt: d1 }, { key: 'imp', label: 'Impact', fmt: (v) => signed(v, 0) },
   { key: 'imp100', label: 'Impact / 100 balls', fmt: (v) => signed(v, 2) }, { key: 'wpa', label: 'Win prob. added', fmt: (v) => signed(v, 2) },
   { key: 'bnd', label: 'Boundary %', fmt: (v) => pct(v) }, { key: 'dotp', label: 'Dot %', fmt: (v) => pct(v) },
 ];
 export const BOWL_METRICS: DrillMetric[] = [
   { key: 'w', label: 'Wickets', fmt: n0 }, { key: 'econ', label: 'Economy', fmt: d2 }, { key: 'avg', label: 'Average', fmt: d1 },
-  { key: 'sr', label: 'Strike rate', fmt: d1 }, { key: 'econPlus', label: 'Economy+', fmt: plus }, { key: 'wktPlus', label: 'Wickets+', fmt: plus },
+  { key: 'sr', label: 'Strike rate', fmt: d1 }, { key: 'saved', label: 'Runs saved v average', fmt: (v) => signed(v, 0) },
   { key: 'imp', label: 'Impact', fmt: (v) => signed(v, 0) }, { key: 'imp100', label: 'Impact / 100 balls', fmt: (v) => signed(v, 2) },
   { key: 'wpa', label: 'Win prob. added', fmt: (v) => signed(v, 2) }, { key: 'dotp', label: 'Dot %', fmt: (v) => pct(v) },
 ];
@@ -28,7 +28,7 @@ export function Drill({ p, fk, role, metric, onClose, name }: { p: any; fk: stri
   const conv = role === 'bat' ? batSplit : bowlSplit;
   const minB = role === 'bat' ? 30 : 36;
   const k = metric.key;
-  const counting = ['r', 'w', 'imp', 'wpa'].includes(k);
+  const counting = ['r', 'w', 'imp', 'wpa', 'saved'].includes(k);
   const dims: [string, string, (key: string) => string][] = [
     ['phase', 'Phase of the innings', (x) => (PHASES[fam] ?? PHASES.T20)[+x] ?? x],
     ...(role === 'bat' ? [['type', 'Pace or spin', (x: string) => (x === 'pace' ? 'v Pace' : x === 'spin' ? 'v Spin' : 'Style unknown')], ['vs', 'Bowling style', (x: string) => BGRP[x] ?? x]] as [string, string, (k: string) => string][]
