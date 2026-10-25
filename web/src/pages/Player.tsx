@@ -15,6 +15,9 @@ import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
 
 type BandItem = { l: string; v: string; h?: string; k?: string };
+// Card layout option while we choose (?layout=a|b|c).
+const layoutOf = () => new URLSearchParams(location.search).get('layout') ?? 'a';
+
 function StatBand({ hero, groups, metrics, onDrill, plate, card, side }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void; card?: CardData | null; side?: ReactNode }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
@@ -30,7 +33,7 @@ function StatBand({ hero, groups, metrics, onDrill, plate, card, side }: { plate
     </div>
   );
   // With a player card, the card takes the scoreboard's place and the numbers and current form sit beside it.
-  const layout = new URLSearchParams(location.search).get('layout') ?? 'a';
+  const layout = layoutOf();
   if (card && layout === 'c') return (
     <div className="card-spread fade-in">
       <div className="spread-cards"><PlayerCard card={card} hint={false} /><PlayerCard card={card} back hint={false} /></div>
@@ -111,8 +114,8 @@ export default function Player() {
 
   const body = (
     <>
-      <section className={`player-head fade-in${card ? ' has-card' : ''}${card && new URLSearchParams(location.search).get('layout') === 'b' ? ' hero' : ''}`}>
-        {card && new URLSearchParams(location.search).get('layout') === 'b' && <div className="hero-card"><PlayerCard card={card} /></div>}
+      <section className={`player-head fade-in${card ? ' has-card' : ''}${card && layoutOf() === 'b' ? ' hero' : ''}`}>
+        {card && layoutOf() === 'b' && <div className="hero-card"><PlayerCard card={card} /></div>}
         <div className="row" style={{ gap: 18, alignItems: 'center' }}>
           <div className="avatar" aria-hidden="true">{initials(p.name)}</div>
           <div className="stack" style={{ gap: 6 }}>
@@ -193,7 +196,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
   return (
     <>
       <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`} card={card}
-        side={card ? <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} /> : undefined}
+        side={card && layoutOf() !== 'b' ? <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} /> : undefined}
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
           { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
@@ -210,7 +213,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
-      {!card && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
+      {(!card || layoutOf() === 'b') && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
 
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [

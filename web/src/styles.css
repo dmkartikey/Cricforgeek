@@ -835,3 +835,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .player-head.hero .btn { background: #EFE6CB; color: #123B2D; border-color: #EFE6CB; }
 .player-head.hero ~ .band-side { margin-left: 330px; margin-top: -8px; }
 @media (max-width: 860px) { .player-head.hero ~ .band-side { margin-left: 0; margin-top: 0; } }
+/* B: the numbers fill the space where the card hangs below the band; current form runs full width under both */
+.player-head.hero ~ .band-side { margin-top: 0; }
+.player-head.hero ~ .band-side .band-groups { min-height: 196px; align-content: center; }
+.player-head.hero .pcard-hint { color: var(--muted); margin-top: 8px; }
