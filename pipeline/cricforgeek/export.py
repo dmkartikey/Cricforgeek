@@ -720,8 +720,8 @@ def _export_matches(con, w, comp_label, names):
     for k, v in lists.items():
         w.write(f"matches/index-{k}.json", v[:600])
         years = defaultdict(list)
-        for r in v:
-            years[r[1][:4]].append(r)
+        for row in v:  # not "r": that name is the rounding helper used above
+            years[row[1][:4]].append(row)
         for y, rs in years.items():
             w.write(f"matches/index-{k}-{y}.json", rs)
         w.write(f"matches/index-{k}-years.json", sorted(([y, len(rs)] for y, rs in years.items()), reverse=True))
