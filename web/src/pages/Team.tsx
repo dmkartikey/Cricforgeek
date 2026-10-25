@@ -7,6 +7,7 @@ import { BGRP, DCAT, FAM_LABEL, MULTI, PHASES, POS } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg } from '../components/ui';
 import { Butterfly, Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
+import { Board, SbCell } from '../components/Scoreboard';
 
 const ORDER = ['TEST', 'ODI', 'T20', 'FC', 'LA', 'HUN'];
 const pretty = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -89,21 +90,19 @@ export default function Team() {
         {fams.length > 1 && <Seg label="Format" value={fam} onChange={setFam} options={fams.map((k) => [k, FAM_LABEL[k] ?? k])} />}
       </section>
 
-      <div className="record-band stagger">
-        <div><span className="l">Played</span><span className="v">{n0(f.p)}</span><span className="h">{FAM_LABEL[fam]} matches</span></div>
-        <div><span className="l">Won · Lost</span><span className="v">{n0(f.w)} <span className="muted" style={{ fontSize: 16 }}>· {n0(famRow.l)}</span></span>
-          <div className="wl-bar" aria-hidden="true"><i style={{ width: pct(f.w / Math.max(1, f.p)), background: 'var(--accent)' }} /><i style={{ width: pct(famRow.l / Math.max(1, f.p)), background: 'var(--red)' }} /></div></div>
-        <div><span className="l">Win %</span><span className="v">{pct(f.w / Math.max(1, f.w + famRow.l), 0)}</span><span className="h">of decided matches</span></div>
-        <div><span className="l">Batting first</span><span className="v">{pct(f.bf_w / Math.max(1, f.bf_p), 0)}</span><span className="h">won {f.bf_w} of {f.bf_p}</span></div>
-        <div><span className="l">Batting second</span><span className="v">{pct(f.ch_w / Math.max(1, f.ch_p), 0)}</span><span className="h">won {f.ch_w} of {f.ch_p}</span></div>
-        <div><span className="l">After winning the toss</span><span className="v">{pct(f.toss_won_match / Math.max(1, f.toss_w), 0)}</span><span className="h">chose to bat {pct(f.toss_bat / Math.max(1, f.toss_w), 0)}</span></div>
-      </div>
-      {form.length > 0 && (
-        <div className="row" style={{ gap: 12 }}>
-          <span className="eyebrow">Form, oldest → latest</span>
-          <div className="form">{form.map((x: any) => <Link key={x[5]} to={`/match/${x[5]}`} className={x[3] === 'W' ? 'W' : x[3] === 'L' ? 'L' : 'D'} title={`${dateShort(x[0])} v ${x[2]}: ${x[3]} ${x[4] ?? ''}`}>{x[3]}</Link>)}</div>
+      <Board key={fam} plate={`${t.name} · ${FAM_LABEL[fam]} record`}
+        foot={form.length > 0 ? <span className="row" style={{ gap: 10 }}>FORM
+          <span className="form board-form">{form.map((x: any) => <Link key={x[5]} to={`/match/${x[5]}`} className={x[3] === 'W' ? 'W' : x[3] === 'L' ? 'L' : 'D'} title={`${dateShort(x[0])} v ${x[2]}: ${x[3]} ${x[4] ?? ''}`}>{x[3]}</Link>)}</span>
+          <small style={{ color: 'var(--board-dim)' }}>oldest → latest</small></span> : undefined}>
+        <div className="sb-grid">
+          <SbCell label="Played" value={n0(f.p)} sub={span} delay={0} />
+          <SbCell label="Won" value={n0(f.w)} sub={`${n0(famRow.l)} lost`} delay={140} />
+          <SbCell label="Win %" value={pct(f.w / Math.max(1, f.w + famRow.l), 0)} sub="decided matches" tone="up" delay={280} />
+          <SbCell label="Bat first" value={pct(f.bf_w / Math.max(1, f.bf_p), 0)} sub={`won ${f.bf_w} of ${f.bf_p}`} delay={420} />
+          <SbCell label="Chasing" value={pct(f.ch_w / Math.max(1, f.ch_p), 0)} sub={`won ${f.ch_w} of ${f.ch_p}`} delay={560} />
+          <SbCell label="Won toss, won" value={pct(f.toss_won_match / Math.max(1, f.toss_w), 0)} sub={`chose to bat ${pct(f.toss_bat / Math.max(1, f.toss_w), 0)}`} delay={700} />
         </div>
-      )}
+      </Board>
 
       <SectionHead title="Results over time" />
       <div className="grid wide-l">

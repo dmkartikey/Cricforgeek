@@ -8,6 +8,7 @@ import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, 
 import { HBars, LineChart, WagonMix } from '../components/charts';
 import { Table } from '../components/Table';
 import Tests from './Tests';
+import { Board as Scoreboard, SbCell } from '../components/Scoreboard';
 
 type Stats = { b: number; r: number; o?: number; w?: number; imp: number; wpa: number; xr: number; t: string };
 type Row = [string, string, number, Stats];
@@ -89,11 +90,12 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
   );
 }
 
-function Delta({ now, prev, fmt, invert }: { now: number; prev: number; fmt: (v: number) => string; invert?: boolean }) {
-  if (!isFinite(now) || !isFinite(prev) || !prev) return <span className="d flat">no previous year</span>;
+// Change against the previous 365 days, as board text and a tone
+function delta(now: number, prev: number, fmt: (v: number) => string, invert?: boolean): [string, 'up' | 'down' | 'flat'] {
+  if (!isFinite(now) || !isFinite(prev) || !prev) return ['no previous year', 'flat'];
   const d = now - prev, up = d > 0;
-  const cls = Math.abs(d / prev) < 0.01 ? 'flat' : (up !== !!invert ? 'up' : 'down');
-  return <span className={`d ${cls}`}>{up ? '▲' : d < 0 ? '▼' : '■'} {fmt(Math.abs(d))} vs prior 365 days</span>;
+  const tone = Math.abs(d / prev) < 0.01 ? 'flat' : (up !== !!invert ? 'up' : 'down');
+  return [`${up ? '▲' : d < 0 ? '▼' : '■'} ${fmt(Math.abs(d))} on last year`, tone];
 }
 
 export default function Home() {
@@ -160,15 +162,23 @@ export default function Home() {
       </section>
       {fallback.key !== want && <div className="notice info">No {LEVELS.find((l) => l[0] === s.level)?.[1].toLowerCase()} data for this format, so this shows {fallback.level_label.toLowerCase()}.</div>}
 
-      <div className="pulse stagger" aria-label="Last 365 days">
-        <div><span className="l">Matches, last 365 days</span><span className="v">{n0(P.now.m)}</span><span className="d flat">{n0(P.all.m)} all time</span></div>
-        <div><span className="l">Runs per over</span><span className="v">{d2(P.now.rpo)}</span><Delta now={P.now.rpo} prev={P.prev.rpo} fmt={d2} /></div>
-        <div><span className="l">Runs per wicket</span><span className="v">{d1(P.now.rpw)}</span><Delta now={P.now.rpw} prev={P.prev.rpw} fmt={d1} /></div>
-        <div><span className="l">Dot-ball %</span><span className="v">{d1(P.now.dot)}%</span><Delta now={P.now.dot} prev={P.prev.dot} fmt={(v) => d1(v) + ' pts'} invert /></div>
-        <div><span className="l">{multi ? 'Balls per wicket' : 'Sixes per match'}</span><span className="v">{multi ? d1(P.now.bpw) : d1(P.now.six_pm)}</span>
-          {multi ? <Delta now={P.now.bpw} prev={P.prev.bpw} fmt={d1} /> : <Delta now={P.now.six_pm} prev={P.prev.six_pm} fmt={d1} />}</div>
-        <div><span className="l">Wickets to pace</span><span className="v">{d1(P.now.pace_share)}%</span><Delta now={P.now.pace_share} prev={P.prev.pace_share} fmt={(v) => d1(v) + ' pts'} /></div>
-      </div>
+      {(() => {
+        const cells: [string, string, [string, 'up' | 'down' | 'flat']][] = [
+          ['Matches', n0(P.now.m), [`${n0(P.all.m)} all time`, 'flat']],
+          ['Runs / over', d2(P.now.rpo), delta(P.now.rpo, P.prev.rpo, d2)],
+          ['Runs / wkt', d1(P.now.rpw), delta(P.now.rpw, P.prev.rpw, d1)],
+          ['Dot balls', `${d1(P.now.dot)}%`, delta(P.now.dot, P.prev.dot, (v) => d1(v) + ' pts', true)],
+          multi ? ['Balls / wkt', d1(P.now.bpw), delta(P.now.bpw, P.prev.bpw, d1)] : ['Sixes / match', d1(P.now.six_pm), delta(P.now.six_pm, P.prev.six_pm, d1)],
+          ['Wkts to pace', `${d1(P.now.pace_share)}%`, delta(P.now.pace_share, P.prev.pace_share, (v) => d1(v) + ' pts')],
+        ];
+        return (
+          <Scoreboard key={fallback.key} plate={`${fl.l} · ${s.gender === 'male' ? 'Men' : 'Women'} · last 365 days`}>
+            <div className="sb-grid">
+              {cells.map(([l, v, [sub, tone]], i) => <SbCell key={l} label={l} value={v} sub={sub} tone={tone} delay={i * 140} />)}
+            </div>
+          </Scoreboard>
+        );
+      })()}
 
       <SectionHead title="Leaders" sub={`${win === '365' ? 'Last 365 days' : 'All time'}. Every number is adjusted for the situation it came in. Tap a name for the full profile.`} />
       <div className="grid g2">

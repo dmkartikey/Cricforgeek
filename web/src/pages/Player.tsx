@@ -4,28 +4,29 @@ import { useData } from '../lib/data';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
-import { ErrorBox, Flip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
 import { useSettings } from '../lib/settings';
 import { BAT_METRICS, BOWL_METRICS, Drill, DrillMetric } from '../components/Drill';
 import { ReactNode } from 'react';
+import { Board, Flap } from '../components/Scoreboard';
 
 type BandItem = { l: string; v: string; h?: string; k?: string };
-function StatBand({ hero, groups, metrics, onDrill }: { hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
+function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
     : <div className="kv"><span>{it.l}</span><b>{it.v}</b></div>);
   return (
-    <div className="band fade-in">
-      <div className="band-hero">
-        {hero.map((h) => (
-          <div key={h.l} className="big">
-            <span className="l">{h.l}</span>
-            {m(h.k) ? <button type="button" className="v drill" style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', borderBottom: '1px dotted var(--line-2)', alignSelf: 'flex-start' }}
-              onClick={() => onDrill(m(h.k)!)} title="Break this number down"><Flip text={h.v} /></button> : <span className="v"><Flip text={h.v} /></span>}
-            {h.h && <span className="h">{h.h}</span>}
-          </div>
-        ))}
-      </div>
+    <div className="band with-board fade-in">
+      <Board plate={plate}>
+        <div className="sb-hero">
+          {hero.map((h, i) => {
+            const inner = <><span className="sb-label">{h.l}</span><Flap text={h.v} delay={i * 220} />{h.h && <span className="sb-sub">{h.h}</span>}</>;
+            return m(h.k)
+              ? <button key={h.l} type="button" className="sb-cell big" onClick={() => onDrill(m(h.k)!)} title="Break this number down">{inner}</button>
+              : <div key={h.l} className="sb-cell big">{inner}</div>;
+          })}
+        </div>
+      </Board>
       <div className="band-groups">
         {groups.map((g) => (
           <div key={g.t} className="band-group">
@@ -158,7 +159,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BAT_METRICS} onDrill={setDrill}
+      <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`}
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
           { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
@@ -172,7 +173,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             { l: '50s · 100s', v: `${s.c50 ?? 0} · ${s.c100 ?? 0}` }, { l: 'Fours · sixes', v: `${n0(s.f4)} · ${n0(s.s6)}` },
             { l: 'Boundary %', v: pct(s.bnd), k: 'bnd' }, { l: 'Dot %', v: pct(s.dotp), k: 'dotp' } ] },
         ]} />
-      <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap any underlined or highlighted number to break it down by phase, bowling type, innings, year, opposition and venue.</div>
+      <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
       <div className="grid g2">
@@ -377,7 +378,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BOWL_METRICS} onDrill={setDrill}
+      <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`}
         hero={[
           { l: 'Wickets', v: n0(s.w), h: `${n0(s.i)} innings · ${overs(s.b)} overs`, k: 'w' },
           { l: 'Economy', v: d2(s.econ), h: `${n0(s.r)} runs conceded`, k: 'econ' },

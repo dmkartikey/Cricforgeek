@@ -6,6 +6,7 @@ import { FAM_LABEL, MULTI } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, Panel, SectionHead, SERIES } from '../components/ui';
 import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
+import { Board, Flap } from '../components/Scoreboard';
 
 // bat:  [inn, player, runs, balls, 4s, 6s, kind, bowler, impact, wpa, team, fielder, pos]
 // bowl: [inn, player, balls, runs, wkts, dots, wides, noballs, impact, wpa, maidens]
@@ -83,23 +84,26 @@ export default function Match() {
           </h1>
           <div className="sub">{i.event ? `${i.event} · ` : ''}{i.venue}{i.city ? `, ${i.city}` : ''} · Toss: {i.toss_winner}, chose to {i.toss_decision}</div>
         </div>
-        <div className="stack" style={{ gap: 6, alignItems: 'flex-end' }}>
-          <span className="result-line">{result}</span>
-          {i.pom && <span className="tag">Player of the match: <Link className="link" to={`/player/${i.pom}`}>{nm(i.pom)}</Link></span>}
-        </div>
       </section>
 
-      <div className="scores">
-        {innings.map((k) => {
-          const x = ex(k), t = team(k);
-          return (
-            <div key={k} className={`score-cell ${i.winner === t && k === innings.filter((q) => team(q) === t).slice(-1)[0] ? 'won' : ''}`}>
-              <span className="team"><i className="sw" style={{ background: colorOf(t) }} />{t}{innings.length > 2 ? <span className="muted" style={{ fontWeight: 400 }}> · inns {Math.ceil(k / 2)}</span> : null}</span>
-              <span className="runs">{x[4]}{x[6] < 10 ? `/${x[6]}` : ''} <small>({overs(x[5], bpo)} ov{x[5] ? ` · RR ${d2((x[4] * bpo) / x[5])}` : ''})</small></span>
-            </div>
-          );
-        })}
-      </div>
+      <Board plate={`${m.comp_label ?? 'Scoreboard'} · ${i.venue ?? ''}`.slice(0, 70)}
+        foot={<><span>{result.toUpperCase()}</span>{i.pom && <span>Player of the match: <Link to={`/player/${i.pom}`}>{nm(i.pom)}</Link></span>}</>}>
+        <div className="sb-score">
+          <span className="hd">Batting</span><span className="hd">Total</span><span className="hd">Wkts</span><span className="hd">Overs</span><span className="hd rr">Run rate</span>
+          {innings.map((k, n) => {
+            const x = ex(k), t = team(k);
+            const won = i.winner === t && k === innings.filter((q) => team(q) === t).slice(-1)[0];
+            const d = n * 600;
+            return [
+              <span key={k + 't'} className="tm"><span>{t}</span>{innings.length > 2 && <small>{Math.ceil(k / 2) === 1 ? '1st' : '2nd'}</small>}{won && <i className="won">WON</i>}</span>,
+              <span key={k + 'r'} className="cv main"><Flap text={String(x[4])} delay={d} /></span>,
+              <span key={k + 'w'} className="cv"><Flap text={String(x[6])} delay={d + 250} /></span>,
+              <span key={k + 'o'} className="cv"><Flap text={overs(x[5], bpo)} delay={d + 380} /></span>,
+              <span key={k + 'rr'} className="cv rr"><Flap text={x[5] ? d2((x[4] * bpo) / x[5]) : '0.00'} delay={d + 500} /></span>,
+            ];
+          })}
+        </div>
+      </Board>
 
       <div>
         <div className="inn-tabs" role="tablist" aria-label="Innings">
