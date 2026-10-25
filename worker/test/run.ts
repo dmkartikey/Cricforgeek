@@ -13,9 +13,9 @@ const kv = {
   async put(k: string, v: string) { writes++; store.set(k, v); },
 };
 
-let hits = 0, odds = 500, oddsCalls = 0, cards = 0, events = 0, recentCalls = 0;
+let hits = 0, odds = 500, oddsCalls = 0, cards = 0, events = 0, recentCalls = 0, seriesCalls = 0, infoCalls = 0;
 let clock = Date.parse('2026-10-25T06:00:00Z');
-const teams = { male: { Pakistan: [1], England: [1], Nigeria: [1], Uganda: [1], India: [1], Australia: [1] }, female: { India: [1], England: [1] } };
+const teams = { male: { Pakistan: [1], England: [1], Nigeria: [1], Uganda: [1], India: [1], Australia: [1], 'New Zealand': [1] }, female: { India: [1], England: [1] } };
 
 function matchesAt(t: number) {
   const mins = (t - Date.parse('2026-10-25T08:00:00Z')) / 60000; // ODI starts 08:00, T20 starts 13:00
@@ -59,6 +59,34 @@ globalThis.fetch = (async (input: any) => {
     ];
     return json({ status: 'success', info: { hitsToday: hits }, data });
   }
+  if (url.pathname.endsWith('/series')) {
+    hits += 1; seriesCalls++;
+    const q = url.searchParams.get('search');
+    const data = q === 'India' || q === 'New Zealand' ? [
+      { id: 'ser-nzind', name: 'India tour of New Zealand 2026', startDate: '2026-10-22', endDate: 'Dec 01', matches: 12 },
+      { id: 'ser-a', name: 'India A tour of New Zealand, 2026', startDate: '2026-10-24', endDate: 'Nov 10', matches: 3 },
+      { id: 'ser-old', name: 'India tour of Sri Lanka 2026', startDate: '2026-08-07', endDate: 'Aug 27', matches: 3 },
+    ] : [];
+    return json({ status: 'success', info: { hitsToday: hits }, data });
+  }
+  if (url.pathname.endsWith('/series_info')) {
+    hits += 1;
+    const id = url.searchParams.get('id');
+    const list = id === 'ser-nzind' ? [
+      { id: 'nzind-1', name: 'New Zealand vs India, 1st T20I, India tour of New Zealand 2026', matchType: 't20', status: 'India won by 4 wkts', dateTimeGMT: '2026-10-22T06:15:00', teams: ['New Zealand', 'India'], matchStarted: true, matchEnded: true },
+      { id: 'nzind-2', name: 'New Zealand vs India, 2nd T20I, India tour of New Zealand 2026', matchType: 't20', status: 'India won by 4 wkts', dateTimeGMT: '2026-10-24T06:15:00', teams: ['New Zealand', 'India'], matchStarted: true, matchEnded: true },
+      { id: 'nzind-3', name: 'New Zealand vs India, 3rd T20I, India tour of New Zealand 2026', matchType: 't20', status: 'Match starts at Oct 27', dateTimeGMT: '2026-10-27T06:15:00', teams: ['New Zealand', 'India'], matchStarted: false, matchEnded: false },
+    ] : [{ id: 'a-1', name: 'New Zealand A vs India A, 1st Unofficial Test', matchType: 'test', status: 'Day 2: Stumps - India A trail by 98 runs', dateTimeGMT: '2026-10-24T21:30:00', teams: ['New Zealand A', 'India A'], matchStarted: true, matchEnded: true }];
+    return json({ status: 'success', info: { hitsToday: hits }, data: { info: { id }, matchList: list } });
+  }
+  if (url.pathname.endsWith('/match_info')) {
+    hits += 1; infoCalls++;
+    const id = url.searchParams.get('id')!;
+    const n = id.endsWith('1') ? 1 : 2;
+    return json({ status: 'success', info: { hitsToday: hits }, data: { id, name: `New Zealand vs India, ${n === 1 ? '1st' : '2nd'} T20I, India tour of New Zealand 2026`, matchType: 't20',
+      status: 'India won by 4 wkts', venue: 'Hagley Oval, Christchurch', dateTimeGMT: n === 1 ? '2026-10-22T06:15:00' : '2026-10-24T06:15:00', teams: ['New Zealand', 'India'],
+      score: [{ r: n === 1 ? 225 : 180, w: n === 1 ? 4 : 5, o: 20, inning: 'New Zealand Inning 1' }, { r: n === 1 ? 226 : 181, w: 6, o: 19.4, inning: 'India Inning 1' }], matchStarted: true, matchEnded: true } });
+  }
   if (url.pathname.endsWith('/events')) { events++; return json([{ commence_time: '2026-10-25T13:00:00Z', home_team: 'India', away_team: 'England' }]); }
   if (url.pathname.endsWith('/odds')) {
     odds--; oddsCalls++;
@@ -100,13 +128,17 @@ ok(live.matches.every((m: any) => !/\bA$|U19/.test(m.teams[0])), 'stored feed ha
 const odi = live.matches.find((m: any) => m.id === 'odi1');
 ok(!!odi?.market && Math.abs(odi.market.fair.Pakistan + odi.market.fair.England - 1) < 1e-6, 'market odds attached to the right match');
 const hist = JSON.parse(store.get('h:odi1')!);
-ok(hist.length >= 15, `ODI history kept (${hist.length} snapshots)`);
+// 12+ on a day that also runs the series backfill (it shares the 100 daily calls); 15+ on ordinary days
+ok(hist.length >= 12, `ODI history kept (${hist.length} snapshots)`);
 const done = JSON.parse(store.get('done') ?? '[]');
 ok(done.some((d: any) => d.id === 'odi1'), 'finished ODI recorded for the track record');
 ok(done.some((d: any) => d.id === 'old-odi' && d.winner === 'India'), 'recent results backfill an international that finished earlier');
 ok(!done.some((d: any) => d.id === 'dom' || d.id === 'future'), 'domestic and unfinished matches are left out of results');
 ok(done.every((d: any, i: number) => i === 0 || (done[i - 1].start || '') >= (d.start || '')), 'results are newest first');
 ok(!done.some((d: any) => d.id === 'psw'), 'domestic result stored earlier is removed');
+ok(done.some((d: any) => d.id === 'nzind-1') && done.some((d: any) => d.id === 'nzind-2'), 'series backfill adds finished NZ v India T20Is');
+ok(!done.some((d: any) => d.id === 'nzind-3' || d.id === 'a-1'), 'upcoming matches and A-team stumps are not stored as results');
+ok(seriesCalls <= 12 && infoCalls <= 12, `series backfill stays small (${seriesCalls} searches, ${infoCalls} match look-ups)`);
 ok(recentCalls <= 6, `recent-results calls stay small (${recentCalls})`);
 
 // API
@@ -115,7 +147,7 @@ ok(r1.status === 200 && r1.headers.get('access-control-allow-origin') === 'https
 const r2 = await handle(new Request('https://x/live', { headers: { origin: 'https://evil.example' } }), env);
 ok(r2.headers.get('access-control-allow-origin') === 'https://cricforgeek.site', 'other sites are not allowed to read it from a browser');
 const r3 = await handle(new Request('https://x/match?id=odi1'), env);
-ok((await r3.json() as any).history.length >= 15, '/match returns the history');
+ok((await r3.json() as any).history.length >= 12, '/match returns the history');
 const r4 = await handle(new Request('https://x/match?id=../../x'), env);
 ok(r4.status === 400, 'bad match id rejected');
 const r5 = await handle(new Request('https://x/live', { method: 'POST' }), env);

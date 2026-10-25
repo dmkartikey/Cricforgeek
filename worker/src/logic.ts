@@ -15,7 +15,7 @@ export type Upcoming = { key: string; fmt: string; start: string; teams: [string
 export type Budget = {
   day: string; hitsToday: number; hitsLimit: number; month: string; oddsRemaining: number | null; oddsToday: number;
   lastScores: number; lastCard: Record<string, number>; lastOdds: Record<string, number>; lastEvents: number;
-  cardInnings: Record<string, number>; errors: string[]; lastRecent?: number; backfilled?: boolean; cleaned?: number;
+  cardInnings: Record<string, number>; errors: string[]; lastRecent?: number; backfilled?: boolean; cleaned?: number; lastSeriesSearch?: number; lastSeriesScan?: number; backfilledSeries?: string[];
 };
 
 export const FMT: Record<string, LiveMatch['fmt']> = { t20: 'T20', odi: 'ODI', test: 'TEST' };
@@ -163,3 +163,23 @@ export function oddsToFetch(b: Budget, now: Date, live: LiveMatch[], upcoming: U
   }
   return [...keys].slice(0, Math.max(0, today - b.oddsToday));
 }
+
+// ---------- series backfill ----------
+export const FULL_MEMBERS = ['India', 'Australia', 'England', 'South Africa', 'New Zealand', 'Pakistan', 'Sri Lanka', 'West Indies', 'Bangladesh', 'Zimbabwe', 'Afghanistan', 'Ireland'];
+const MON: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+// Series dates come as "2026-10-22" or "Dec 01" (no year). Returns [start, end] in ms, or null.
+export function seriesSpan(start: string, end: string): [number, number] | null {
+  const iso = (x: string) => (/^\d{4}-\d{2}-\d{2}$/.test(x) ? Date.parse(x + 'T00:00:00Z') : NaN);
+  const s = iso(start);
+  if (!Number.isFinite(s)) return null;
+  let e = iso(end);
+  if (!Number.isFinite(e)) {
+    const m = /^([A-Za-z]{3})\s+(\d{1,2})$/.exec(end.trim());
+    if (!m || !(m[1].toLowerCase() in MON)) return [s, s + 45 * 864e5];
+    const sy = new Date(s).getUTCFullYear(), mo = MON[m[1].toLowerCase()];
+    e = Date.UTC(mo < new Date(s).getUTCMonth() ? sy + 1 : sy, mo, +m[2]);
+  }
+  return [s, e];
+}
+// A finished result, judged from the status text (the ended flag is also set at stumps on each day of a Test).
+export const isResult = (status: string) => /\b(won|drawn|draw|tied|tie|no result|abandoned)\b/i.test(status) && !/\b(need|trail|lead|stumps|innings break)\b/i.test(status);
