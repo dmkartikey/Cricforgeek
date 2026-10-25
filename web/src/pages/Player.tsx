@@ -205,19 +205,6 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
           { label: 'Boundary rate', pct: pc.bat.bnd, value: pct(s.bnd) },
           { label: 'Dot-ball avoidance', pct: pc.bat.dotp, value: pct(s.dotp) },
         ] : []} role="batters" />
-        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['r', 'Runs'], ['imp', 'Impact'], ['sr', 'SR']]} />}>
-          <Table key={csort} rows={comps} sort={csort} cols={[
-            { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
-            { key: 'i', label: 'Inns', get: (c: any) => c.bat.i },
-            { key: 'r', label: 'Runs', get: (c: any) => c.bat.r, fmt: n0 },
-            { key: 'avg', label: 'Avg', get: (c: any) => bat(c.bat).avg, fmt: d1 },
-            { key: 'sr', label: 'SR', get: (c: any) => bat(c.bat).sr, fmt: d1 },
-            { key: 'imp', label: 'Impact', get: (c: any) => c.bat.imp, fmt: (v) => signed(v, 0) },
-          ]} />
-        </Panel>
-      </div>
-
-      <div className="grid g2">
         <Panel title="Year by year" sub={yc === 'all' ? 'All competitions in this format.' : compOpts.find((c) => c[0] === yc)?.[1]}
           tools={<>
             <Mini label="Metric" value={ym} onChange={setYm} options={[['r', 'Runs'], ['imp', 'Impact'], ['sr', 'Strike rate']]} />
@@ -227,6 +214,19 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
             data={years.map((y: any) => ({ label: yLabel(y.k), title: y.k, value: ym === 'r' ? y.r : ym === 'imp' ? y.imp : (y.b >= 30 ? y.sr : null),
               extra: [{ label: 'Runs', value: n0(y.r) }, { label: 'Balls', value: n0(y.b) }, { label: 'Average', value: d1(y.avg) }, { label: 'Strike rate', value: d1(y.sr) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
             : <div className="empty">No batting here.</div>}
+        </Panel>
+      </div>
+
+      <div className="grid g2">
+        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['r', 'Runs'], ['imp', 'Impact'], ['sr', 'SR']]} />}>
+          <Table key={csort} rows={comps} sort={csort} cols={[
+            { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
+            { key: 'i', label: 'Inns', get: (c: any) => c.bat.i },
+            { key: 'r', label: 'Runs', get: (c: any) => c.bat.r, fmt: n0 },
+            { key: 'avg', label: 'Avg', get: (c: any) => bat(c.bat).avg, fmt: d1 },
+            { key: 'sr', label: 'SR', get: (c: any) => bat(c.bat).sr, fmt: d1 },
+            { key: 'imp', label: 'Impact', get: (c: any) => c.bat.imp, fmt: (v) => signed(v, 0) },
+          ]} />
         </Panel>
         <Panel title="Average and strike rate by year" sub="Each on its own scale. Hollow rings mark years with few balls or dismissals."
           tools={<MiniSelect label="In" value={pc2} onChange={setPc2} options={compOpts} />}>
@@ -427,18 +427,6 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
           ...(limited ? [{ label: 'WPA / 100 balls', pct: pc.bowl.wpa100, value: signed(s.wpa100, 3) }] : []),
           { label: 'Dot-ball rate', pct: pc.bowl.dotp, value: pct(s.dotp) },
         ] : []} />
-        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['w', 'Wickets'], ['imp', 'Impact'], ['avg', 'Avg']]} />}>
-          <Table key={csort} rows={comps} sort={csort} cols={[
-            { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
-            { key: 'i', label: 'Inns', get: (c: any) => c.bowl.i },
-            { key: 'w', label: 'Wkts', get: (c: any) => c.bowl.w },
-            { key: 'e', label: 'Econ', get: (c: any) => bowl(c.bowl).econ, fmt: d2 },
-            { key: 'avg', label: 'Avg', get: (c: any) => bowl(c.bowl).avg, fmt: d1 },
-            { key: 'imp', label: 'Impact', get: (c: any) => c.bowl.imp, fmt: (v) => signed(v, 0) },
-          ]} />
-        </Panel>
-      </div>
-      <div className="grid g2">
         <Panel title="Year by year" sub={yc === 'all' ? 'All competitions in this format.' : compOpts.find((c) => c[0] === yc)?.[1]}
           tools={<>
             <Mini label="Metric" value={ym} onChange={setYm} options={[['w', 'Wickets'], ['econ', 'Economy'], ['imp', 'Impact']]} />
@@ -448,6 +436,18 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             data={years.map((y: any) => ({ label: yLabel(y.k), title: y.k, value: ym === 'w' ? y.w : ym === 'imp' ? y.imp : (y.b >= 30 ? y.econ : null),
               extra: [{ label: 'Wickets', value: n0(y.w) }, { label: 'Overs', value: overs(y.b) }, { label: 'Econ', value: d2(y.econ) }, { label: 'Impact', value: signed(y.imp, 0) }] }))} />
             : <div className="empty">No bowling here.</div>}
+        </Panel>
+      </div>
+      <div className="grid g2">
+        <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['w', 'Wickets'], ['imp', 'Impact'], ['avg', 'Avg']]} />}>
+          <Table key={csort} rows={comps} sort={csort} cols={[
+            { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
+            { key: 'i', label: 'Inns', get: (c: any) => c.bowl.i },
+            { key: 'w', label: 'Wkts', get: (c: any) => c.bowl.w },
+            { key: 'e', label: 'Econ', get: (c: any) => bowl(c.bowl).econ, fmt: d2 },
+            { key: 'avg', label: 'Avg', get: (c: any) => bowl(c.bowl).avg, fmt: d1 },
+            { key: 'imp', label: 'Impact', get: (c: any) => c.bowl.imp, fmt: (v) => signed(v, 0) },
+          ]} />
         </Panel>
         <Panel title="Economy and average by year" sub="Lower is better for both. Years with few balls are left out."
           tools={<MiniSelect label="In" value={pc2} onChange={setPc2} options={compOpts} />}>

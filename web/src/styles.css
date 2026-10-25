@@ -817,3 +817,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .player-main .player-head .avatar { display: none; }
 .pcard-hint { text-align: center; font: 500 11px var(--mono); color: var(--muted); margin-top: 10px; }
 @media (max-width: 980px) { .player-layout { grid-template-columns: minmax(0, 1fr); } .player-card-col { position: static; max-width: 340px; width: 100%; margin: 0 auto; } }
+/* with a card: the card carries the headline numbers and teams, so the page header and stat band get compact */
+.player-main .player-head .chips { display: none; }
+.player-main .player-head h1 { font-size: clamp(30px, 3.6vw, 42px); }
+.player-main .band.with-board { grid-template-columns: minmax(0, 1fr); }
+.player-main .band.with-board > .sboard { display: none; }
+.player-main .grid.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
