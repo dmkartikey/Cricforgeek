@@ -219,5 +219,51 @@ for (const [name, list] of Object.entries(urls)) {
   }
 }
 writeFileSync(join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${maps.map((f) => `  <sitemap><loc>${SITE}/${f}</loc><lastmod>${dataTo}</lastmod></sitemap>`).join('\n')}\n</sitemapindex>\n`);
-writeFileSync(join(dist, 'robots.txt'), `# cricforgeek\nUser-agent: *\nAllow: /\nDisallow: /pinboard\n\nSitemap: ${SITE}/sitemap.xml\n`);
+const AI_BOTS = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai', 'PerplexityBot', 'Perplexity-User',
+  'Google-Extended', 'Applebot-Extended', 'CCBot', 'meta-externalagent', 'Bytespider', 'Amazonbot', 'DuckAssistBot', 'cohere-ai', 'MistralAI-User'];
+writeFileSync(join(dist, 'robots.txt'), `# cricforgeek: everyone, including AI crawlers and assistants, is welcome to read the site.
+User-agent: *
+Allow: /
+Disallow: /pinboard
+
+${AI_BOTS.map((b) => `User-agent: ${b}`).join('\n')}
+Allow: /
+Disallow: /pinboard
+
+Sitemap: ${SITE}/sitemap.xml
+`);
+// llms.txt: a plain-text guide for AI tools (https://llmstxt.org)
+writeFileSync(join(dist, 'llms.txt'), `# cricforgeek
+
+> Ball-by-ball cricket statistics for Tests, ODIs, T20 internationals, first-class cricket and T20 leagues, built every night from Cricsheet data (${n0(meta.counts.matches)} matches, ${n0(meta.counts.players)} players, data to ${dataTo}).
+
+Every page below is plain HTML with the key numbers in the page itself. Player pages list runs, averages, strike rates, hundreds and fifties, wickets, bowling averages and economy by format. Match pages list the result, every innings total, top scorers and best bowling. Team pages list results by format and competition.
+
+## Main pages
+- [Overview](${SITE}/): leaderboards and trends for each format
+- [Players](${SITE}/players): directory of every player
+- [Teams](${SITE}/teams): international and domestic teams
+- [Competitions](${SITE}/competitions): every competition with ball-by-ball data
+- [Matches](${SITE}/matches): scorecards
+- [Situation predictor](${SITE}/predictor): win chances from any match situation
+- [Methodology](${SITE}/methodology): how the models work
+
+## Page addresses
+- Player: ${SITE}/player/{id} (ids are Cricsheet register ids, e.g. ${SITE}/player/ba607b88 for V Kohli)
+- Team: ${SITE}/team/{name-in-lowercase-with-dashes}, women's teams end in -women (e.g. ${SITE}/team/india, ${SITE}/team/india-women)
+- Competition: ${SITE}/league/{key} (e.g. ${SITE}/league/ipl)
+- Match: ${SITE}/match/{cricsheet-match-id}
+- Full list of pages: ${SITE}/sitemap.xml
+
+## Raw data (JSON)
+- Player: ${SITE}/data/players/{id}.json
+- Match: ${SITE}/data/matches/{id}.json
+- Team: ${SITE}/data/teams/{key}.json
+- Search index of all players, teams and competitions: ${SITE}/data/search.json
+
+## Most-capped players
+${topPlayers.slice(0, 40).map((p) => `- [${p[1]}](${SITE}/player/${p[0]}): ${p[4]}, ${p[5]}–${p[6]}`).join('\n')}
+
+Data: Cricsheet (cricsheet.org), Open Data Commons Attribution licence.
+`);
 console.log(JSON.stringify({ pages, mb: +(bytes / 1e6).toFixed(1), sitemaps: maps.length, urls: Object.fromEntries(Object.entries(urls).map(([k, v]) => [k, v.length])) }));
