@@ -13,7 +13,7 @@ const kv = {
   async put(k: string, v: string) { writes++; store.set(k, v); },
 };
 
-let hits = 0, odds = 500, oddsCalls = 0, cards = 0, events = 0;
+let hits = 0, odds = 500, oddsCalls = 0, cards = 0, events = 0, recentCalls = 0;
 let clock = Date.parse('2026-10-25T06:00:00Z');
 const teams = { male: { Pakistan: [1], England: [1], Nigeria: [1], Uganda: [1], India: [1], Australia: [1] }, female: { India: [1], England: [1] } };
 
@@ -46,6 +46,18 @@ globalThis.fetch = (async (input: any) => {
     return json({ status: 'success', info: { hitsToday: hits }, data: { tossWinner: 'pakistan', tossChoice: 'bowl', scorecard: [{ inning: 'England Inning 1',
       batting: [{ batsman: { name: 'Tom Banton' }, 'dismissal-text': 'c Arafat Minhas b Shaheen Afridi', r: 4, b: 5, '4s': 1, '6s': 0 }, { batsman: { name: 'Joe Root' }, 'dismissal-text': 'not out', r: 61, b: 70, '4s': 5, '6s': 1 }],
       bowling: [{ bowler: { name: 'Shaheen Afridi' }, o: 8.4, m: 0, r: 46, w: 4, nb: 0, wd: 1 }] }] } });
+  }
+  if (url.pathname.endsWith('/matches')) {
+    hits += 1; recentCalls++;
+    const off = +(url.searchParams.get('offset') ?? 0);
+    const data = off > 0 ? [] : [
+      { id: 'old-odi', name: 'India vs Australia, 2nd ODI, Australia tour of India, 2026', matchType: 'odi', status: 'India won by 6 wickets', teams: ['India', 'Australia'],
+        dateTimeGMT: '2026-10-20T08:30:00', score: [{ r: 281, w: 8, o: 50, inning: 'Australia Inning 1' }, { r: 285, w: 4, o: 47.2, inning: 'India Inning 1' }], matchStarted: true, matchEnded: true },
+      { id: 'dom', name: 'Mumbai vs Delhi, Ranji Trophy', matchType: 'test', status: 'Match drawn', teams: ['Mumbai', 'Delhi'], dateTimeGMT: '2026-10-18T04:00:00',
+        score: [{ r: 300, w: 10, o: 90, inning: 'Mumbai Inning 1' }], matchStarted: true, matchEnded: true },
+      { id: 'future', name: 'India vs Australia, 3rd ODI', matchType: 'odi', status: 'Match not started', teams: ['India', 'Australia'], dateTimeGMT: '2026-10-29T08:30:00', score: [], matchStarted: false, matchEnded: false },
+    ];
+    return json({ status: 'success', info: { hitsToday: hits }, data });
   }
   if (url.pathname.endsWith('/events')) { events++; return json([{ commence_time: '2026-10-25T13:00:00Z', home_team: 'India', away_team: 'England' }]); }
   if (url.pathname.endsWith('/odds')) {
@@ -86,6 +98,10 @@ const hist = JSON.parse(store.get('h:odi1')!);
 ok(hist.length >= 15, `ODI history kept (${hist.length} snapshots)`);
 const done = JSON.parse(store.get('done') ?? '[]');
 ok(done.some((d: any) => d.id === 'odi1'), 'finished ODI recorded for the track record');
+ok(done.some((d: any) => d.id === 'old-odi' && d.winner === 'India'), 'recent results backfill an international that finished earlier');
+ok(!done.some((d: any) => d.id === 'dom' || d.id === 'future'), 'domestic and unfinished matches are left out of results');
+ok(done.every((d: any, i: number) => i === 0 || (done[i - 1].start || '') >= (d.start || '')), 'results are newest first');
+ok(recentCalls <= 6, `recent-results calls stay small (${recentCalls})`);
 
 // API
 const r1 = await handle(new Request('https://x/live', { headers: { origin: 'https://cricforgeek.site' } }), env);

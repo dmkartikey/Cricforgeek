@@ -7,7 +7,7 @@ import {
   CALIB, chaseCurve, hash, LimData, LimInput, mdProbs, MdData, mean, Player, quantile, simLimited, simMd,
 } from '../lib/predict';
 import {
-  ago, baseTeam, contextFx, P, quickWin, TEST_CAP, ballsOf, Card, dataKey, LiveDoc, LiveMatch, LimState, MdState, modelPath, playerFactors, PlayerFx, Snap, stateOf, useLive,
+  ago, baseTeam, contextFx, LIVE_DEMO, P, quickWin, TEST_CAP, ballsOf, Card, dataKey, LiveDoc, LiveMatch, LimState, MdState, modelPath, playerFactors, PlayerFx, Snap, stateOf, useLive,
 } from '../lib/live';
 import { ErrorBox, Legend, Loader, Panel, SectionHead } from '../components/ui';
 import { LineChart } from '../components/charts';
@@ -60,7 +60,8 @@ export default function Live() {
   const [sp] = useSearchParams();
   const id = sp.get('m');
   usePageMeta(id ? 'Live match' : 'Live cricket predictions');
-  return id ? <MatchView id={id} /> : <LiveList />;
+  const demo = LIVE_DEMO && <div className="notice" style={{ marginBottom: 16 }}><b>Review copy.</b> These are saved sample matches, not live games. Once deployed, this page shows real internationals in progress.</div>;
+  return <>{demo}{id ? <MatchView id={id} /> : <LiveList />}</>;
 }
 
 function LiveList() {
@@ -331,7 +332,7 @@ function LimitedView({ m, st, d, hist, card, fx, dism, sched, setSched }: {
     <div className="stack" style={{ gap: 32 }}>
       <Board plate={`Live · ${st.batting} batting`} foot={<>
         <span>{st.inn === 2 ? `${st.batting} need ${need} off ${left} balls · required ${d2(rrr)} an over · current ${d2(crr)}` : `${st.batting} ${st.score}/${st.wkts} after ${Math.floor(base.balls / 6)}.${base.balls % 6} overs · run rate ${d2(crr)}`}</span>
-        <span>{m.status}</span>
+        {!(st.inn === 2 && /\bneed\b/i.test(m.status)) && <span>{m.status}</span>}
       </>}>
         <div className="sb-grid">
           <SbCell big label={`${st.batting} win`} value={pct(win)} sub={`fair odds ${odds(win)}`} tone="up" />

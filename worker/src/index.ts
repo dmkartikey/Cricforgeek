@@ -26,6 +26,20 @@ const winnerOf = (m: LiveMatch) => {
   return m.teams.find((t) => s.startsWith(t.toLowerCase() + ' won')) ?? null;
 };
 
+const toDone = (m: LiveMatch, now: Date): Done => ({ id: m.id, name: m.name, fmt: m.fmt, gender: m.gender, teams: m.teams, start: m.start, status: m.status,
+  winner: winnerOf(m), innings: m.innings, ended: now.toISOString() });
+
+// Add finished matches to the results list (newest first). Returns true if anything was new.
+async function addDone(env: Env, add: Done[]) {
+  const done: Done[] = (await env.LIVE.get('done', 'json')) ?? [];
+  const have = new Set(done.map((d) => d.id));
+  const fresh = add.filter((d) => !have.has(d.id) && d.innings.length);
+  if (!fresh.length) return false;
+  const all = [...fresh, ...done].sort((a, b) => (b.start || b.ended).localeCompare(a.start || a.ended)).slice(0, 500);
+  await env.LIVE.put('done', JSON.stringify(all));
+  return true;
+}
+
 function note(b: Budget, msg: string) {
   b.errors = [`${new Date().toISOString()} ${msg}`, ...b.errors].slice(0, 10);
 }
@@ -83,11 +97,9 @@ export async function tick(env: Env, now = new Date()) {
           h.push({ t: now.toISOString(), s: m.innings.map((i) => [i.r, i.w, i.o]), st: m.status, ...(m.market ? { mk: m.market.fair } : {}) });
           await env.LIVE.put(`h:${m.id}`, JSON.stringify(h.slice(-400)), { expirationTtl: 400 * 86400 });
         }
-        if (m.ended && old && !old.ended) {
-          const done: Done[] = (await env.LIVE.get('done', 'json')) ?? [];
-          done.unshift({ id: m.id, name: m.name, fmt: m.fmt, gender: m.gender, teams: m.teams, start: m.start, status: m.status, winner: winnerOf(m), innings: m.innings, ended: now.toISOString() });
-          await env.LIVE.put('done', JSON.stringify(done.slice(0, 500)));
-          await env.LIVE.put(`m:${m.id}`, JSON.stringify(m), { expirationTtl: 400 * 86400 });
+        if (m.ended && !old?.ended) {
+          // also catches matches that had already finished when the worker first saw them
+          if (await addDone(env, [toDone(m, now)])) await env.LIVE.put(`m:${m.id}`, JSON.stringify(m), { expirationTtl: 400 * 86400 });
         }
         // keep live matches, and finished ones for 12 hours after they end
         m.endedAt = old?.endedAt ?? (m.ended ? now.toISOString() : undefined);
@@ -154,6 +166,28 @@ export async function tick(env: Env, now = new Date()) {
         if (mk) { u.market = mk; changed = true; }
       }
     }
+  }
+
+  // 5. recent results (1 call per 25 matches) every 6 hours, to fill in matches that finished between score checks
+  //    or before the worker started. The first run reads four pages to backfill the last few weeks.
+  const leftToday = b.hitsLimit - b.hitsToday;
+  if (env.CRICDATA_KEY && now.getTime() - (b.lastRecent ?? 0) >= 6 * HOUR && leftToday > 30) {
+    b.lastRecent = now.getTime(); budgetChanged = true;
+    const pages = b.backfilled ? 1 : 4;
+    const teams = await knownTeams(env);
+    const found: Done[] = [];
+    for (let p = 0; p < pages; p++) {
+      const res = await getJson(`${CRIC}/matches?apikey=${env.CRICDATA_KEY}&offset=${p * 25}`, 'recent results', b);
+      if (res?.body?.status !== 'success') break;
+      if (Number.isFinite(res.body.info?.hitsToday)) b.hitsToday = res.body.info.hitsToday;
+      for (const m of normalize(res.body.data, teams)) {
+        const age = now.getTime() - Date.parse(m.start);
+        if (m.ended && age > 0 && age < 60 * 24 * HOUR) found.push(toDone(m, now));
+      }
+      if ((res.body.data ?? []).length < 25) break;
+    }
+    b.backfilled = true;
+    await addDone(env, found);
   }
 
   if (changed) {

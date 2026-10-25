@@ -7,7 +7,7 @@ import { PREVIEW } from './lib/data';
 import './styles.css';
 
 // Refuse to run inside someone else's frame (clickjacking). Headers can't be set on GitHub Pages, so this is the fallback.
-if (window.top !== window.self) {
+if (!PREVIEW && window.top !== window.self) {
   try { window.top!.location.replace(window.self.location.href); } catch { document.documentElement.style.display = 'none'; }
 }
 

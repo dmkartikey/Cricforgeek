@@ -28,7 +28,7 @@ const securityMeta = {
 // The live site is served from the domain root with real paths (/player/abc), so assets load from "/".
 // Preview builds (VITE_PREVIEW=1) use hash routing and relative paths instead.
 export default defineConfig({
-  plugins: [react(), securityMeta],
+  plugins: process.env.VITE_PREVIEW === '1' ? [react()] : [react(), securityMeta],
   base: process.env.VITE_PREVIEW === '1' ? './' : process.env.BASE_PATH || '/',
   build: { outDir: 'dist', chunkSizeWarningLimit: 800 },
 });

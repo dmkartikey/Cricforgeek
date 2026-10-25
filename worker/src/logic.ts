@@ -15,7 +15,7 @@ export type Upcoming = { key: string; fmt: string; start: string; teams: [string
 export type Budget = {
   day: string; hitsToday: number; hitsLimit: number; month: string; oddsRemaining: number | null; oddsToday: number;
   lastScores: number; lastCard: Record<string, number>; lastOdds: Record<string, number>; lastEvents: number;
-  cardInnings: Record<string, number>; errors: string[];
+  cardInnings: Record<string, number>; errors: string[]; lastRecent?: number; backfilled?: boolean;
 };
 
 export const FMT: Record<string, LiveMatch['fmt']> = { t20: 'T20', odi: 'ODI', test: 'TEST' };

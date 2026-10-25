@@ -6,6 +6,9 @@ export * from './winline';
 
 // The live feed is served by the cricforgeek-live Cloudflare Worker.
 export const LIVE_API = (import.meta.env.VITE_LIVE_API as string | undefined) ?? 'https://cricforgeek-live.dmkartikey.workers.dev';
+// Review copies (VITE_LIVE_DEMO=1) read saved sample matches from static files instead of the live feed.
+export const LIVE_DEMO = import.meta.env.VITE_LIVE_DEMO === '1';
+const liveUrl = (path: string) => (LIVE_DEMO ? `${LIVE_API}${path.replace('/match?id=', '/match-').replace(/[^\w/-]/g, '_')}.json` : LIVE_API + path);
 
 // Fetch a live endpoint and refresh it every minute while the page is open.
 export function useLive<T>(path: string | null, every = 60_000) {
@@ -15,7 +18,7 @@ export function useLive<T>(path: string | null, every = 60_000) {
     let live = true, timer: ReturnType<typeof setTimeout>;
     const go = async () => {
       try {
-        const r = await fetch(LIVE_API + path, { headers: { accept: 'application/json' } });
+        const r = await fetch(liveUrl(path), { headers: { accept: 'application/json' } });
         if (!r.ok) throw new Error(`The live feed answered ${r.status}`);
         const data = (await r.json()) as T;
         if (live) setState({ data, error: null, at: Date.now() });
