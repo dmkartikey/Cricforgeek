@@ -1,0 +1,24 @@
+name: Live feed health (one-off)
+
+# Read-only: asks the deployed worker how it is doing. Changes nothing.
+on:
+  push:
+    branches: [v7]
+    paths: [".github/workflows/live-health.yml"]
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Ask the worker
+        run: |
+          W=https://cricforgeek-live.dmkartikey.workers.dev
+          echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{ok,scores,odds,hitsToday,hitsLimit,oddsRemaining,lastScores,errors}')"
+          echo "::notice::live $(curl -sS -m 20 -H 'origin: https://cricforgeek.site' $W/live | jq -c '{checked, live: [.matches[] | .name + " | " + .status], upcoming: (.upcoming | length)}')"
+          echo "::notice::results $(curl -sS -m 20 $W/done | jq -c '[.[] | .start[0:10] + " " + .fmt + " " + .teams[0] + " v " + .teams[1] + " | " + .status] | .[0:12]')"
+          echo "::notice::results count $(curl -sS -m 20 $W/done | jq 'length')"
