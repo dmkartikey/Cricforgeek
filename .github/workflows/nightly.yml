@@ -67,9 +67,10 @@ jobs:
       - name: Player photos
         continue-on-error: true
         timeout-minutes: 25
+        working-directory: pipeline  # the database points at its data files relative to this folder
         run: |
-          python -m pip install -q "rembg[cpu]==2.0.66" pillow "$(grep -i '^duckdb' pipeline/requirements.txt)"
-          python pipeline/scripts/photos.py people.csv work web/public/data photo-cache 2>&1 | tee photo.log
+          python -m pip install -q "rembg[cpu]==2.0.66" pillow "$(grep -i '^duckdb' requirements.txt)"
+          python scripts/photos.py ../people.csv ../work ../web/public/data ../photo-cache 2>&1 | tee photo.log
           echo "::notice::photos: $(tail -n 1 photo.log)"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
