@@ -82,6 +82,11 @@ ok(card?.batting[0].out === false, 'not-out batter recognised');
 const mk = fairMarket({ bookmakers: [{ markets: [{ key: 'h2h', outcomes: [{ name: 'A', price: 1.9 }, { name: 'B', price: 1.9 }] }] }] }, new Date());
 ok(Math.abs((mk?.fair.A ?? 0) - 0.5) < 1e-9 && (mk?.margin ?? 0) > 0.05, 'bookmaker margin removed from market odds');
 
+ok(!isInternational('Perth Scorchers Women vs Sydney Sixers Women, Final', ['Perth Scorchers Women', 'Sydney Sixers Women'], 't20', null), 'nothing passes without the team list');
+// a domestic result stored before the team list was available gets cleaned out
+store.set('done', JSON.stringify([{ id: 'psw', name: 'Perth Scorchers Women vs Sydney Sixers Women, Final', fmt: 'T20', gender: 'female', teams: ['Perth Scorchers Women', 'Sydney Sixers Women'],
+  start: '2026-10-24T08:00:00', status: 'Sydney Sixers Women won by 15 runs', winner: 'Sydney Sixers Women', innings: [{ team: 'Perth Scorchers Women', r: 120, w: 8, o: 20, label: '' }], ended: '2026-10-24T12:00:00Z' }]));
+
 // a simulated day, one tick per minute from 06:00 to 23:59 UTC
 for (; clock < Date.parse('2026-10-25T23:59:00Z'); clock += 60_000) await tick(env, new Date(clock));
 console.log(`day: ${hits} CricketData calls (${cards} scorecards), ${oddsCalls} odds credits, ${events} fixture checks, ${writes} storage writes`);
@@ -101,6 +106,7 @@ ok(done.some((d: any) => d.id === 'odi1'), 'finished ODI recorded for the track 
 ok(done.some((d: any) => d.id === 'old-odi' && d.winner === 'India'), 'recent results backfill an international that finished earlier');
 ok(!done.some((d: any) => d.id === 'dom' || d.id === 'future'), 'domestic and unfinished matches are left out of results');
 ok(done.every((d: any, i: number) => i === 0 || (done[i - 1].start || '') >= (d.start || '')), 'results are newest first');
+ok(!done.some((d: any) => d.id === 'psw'), 'domestic result stored earlier is removed');
 ok(recentCalls <= 6, `recent-results calls stay small (${recentCalls})`);
 
 // API

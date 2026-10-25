@@ -2,7 +2,7 @@
 // Every minute the schedule wakes up, decides whether a call is worth spending, and if so fetches
 // live international scores (CricketData.org), scorecards and market odds (The Odds API).
 // Results go to KV; the website reads them through the GET endpoints below.
-import { cardsToFetch, fairMarket, freshBudget, matchEvent, normalize, ODDS_KEY, oddsToFetch, parseCard, scoreInterval } from './logic.ts';
+import { cardsToFetch, fairMarket, freshBudget, isInternational, matchEvent, normalize, ODDS_KEY, oddsToFetch, parseCard, scoreInterval } from './logic.ts';
 import type { Budget, LiveMatch, Upcoming } from './logic.ts';
 
 type KV = {
@@ -165,6 +165,18 @@ export async function tick(env: Env, now = new Date()) {
         const mk = ev && fairMarket(ev, now);
         if (mk) { u.market = mk; changed = true; }
       }
+    }
+  }
+
+  // Remove anything from the results list that is not a senior international (once per team-list version).
+  if ((b.cleaned ?? 0) < 1) {
+    const teams = await knownTeams(env);
+    if (teams) {
+      const done: Done[] = (await env.LIVE.get('done', 'json')) ?? [];
+      const lower: Record<string, string> = { T20: 't20', ODI: 'odi', TEST: 'test' };
+      const keep = done.filter((d) => isInternational(d.name, d.teams, lower[d.fmt], teams));
+      if (keep.length !== done.length) await env.LIVE.put('done', JSON.stringify(keep));
+      b.cleaned = 1; budgetChanged = true;
     }
   }
 

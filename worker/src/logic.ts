@@ -15,7 +15,7 @@ export type Upcoming = { key: string; fmt: string; start: string; teams: [string
 export type Budget = {
   day: string; hitsToday: number; hitsLimit: number; month: string; oddsRemaining: number | null; oddsToday: number;
   lastScores: number; lastCard: Record<string, number>; lastOdds: Record<string, number>; lastEvents: number;
-  cardInnings: Record<string, number>; errors: string[]; lastRecent?: number; backfilled?: boolean;
+  cardInnings: Record<string, number>; errors: string[]; lastRecent?: number; backfilled?: boolean; cleaned?: number;
 };
 
 export const FMT: Record<string, LiveMatch['fmt']> = { t20: 'T20', odi: 'ODI', test: 'TEST' };
@@ -32,7 +32,7 @@ export function isInternational(name: string, teams: string[], fmt: string | und
   if (!fmt || !FMT[fmt]) return false;
   if (teams.length !== 2 || teams.some((t) => NOT_SENIOR.test(t))) return false;
   if (/warm-?up|tour match|practice|unofficial/i.test(name)) return false;
-  if (!known) return true;
+  if (!known) return false; // without the team list, let nothing through rather than domestic games
   const g = isWomen(name, teams) ? 'female' : 'male';
   return teams.every((t) => !!known[g]?.[baseTeam(t)]);
 }
