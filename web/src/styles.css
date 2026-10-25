@@ -810,16 +810,28 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .form-bar::before { animation: none; } }
 @media (max-width: 640px) { .form-strip { grid-template-columns: 1fr; } .form-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; } }
 
-/* player page with a card: card pinned top-left */
-.player-layout { overflow-x: clip; display: grid; grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 28px; align-items: start; }
-.player-card-col { position: sticky; top: 76px; display: grid; gap: 12px; }
-.player-main { display: grid; gap: 32px; min-width: 0; }
-.player-main .player-head .avatar { display: none; }
+/* player page with a card: the card takes the scoreboard's place, numbers and current form beside it */
+.player-head.has-card .avatar { display: none; }
+.band.with-card { display: grid; grid-template-columns: minmax(260px, 310px) minmax(0, 1fr); gap: 20px; align-items: stretch; background: transparent; border: 0; box-shadow: none; overflow-x: clip; }
+.band.with-card .pcard { align-self: start; }
+.band.with-card .band-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.band.with-card .band-groups { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.band.with-card .band-side > .panel { margin: 0; }
 .pcard-hint { text-align: center; font: 500 11px var(--mono); color: var(--muted); margin-top: 10px; }
-@media (max-width: 980px) { .player-layout { grid-template-columns: minmax(0, 1fr); } .player-card-col { position: static; max-width: 340px; width: 100%; margin: 0 auto; } }
-/* with a card: the card carries the headline numbers and teams, so the page header and stat band get compact */
-.player-main .player-head .chips { display: none; }
-.player-main .player-head h1 { font-size: clamp(30px, 3.6vw, 42px); }
-.player-main .band.with-board { grid-template-columns: minmax(0, 1fr); }
-.player-main .band.with-board > .sboard { display: none; }
-.player-main .grid.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
+@media (max-width: 860px) { .band.with-card { grid-template-columns: minmax(0, 1fr); } .band.with-card .pcard { width: 100%; max-width: 340px; justify-self: center; } }
+/* layout option B: hero band */
+.player-head.hero { position: relative; background: radial-gradient(120% 120% at 0% 0%, #1F5B44, #123B2D 55%, #0B2A1F); color: #EFE6CB; border-radius: 16px; padding: 28px 28px 28px 340px; min-height: 300px; margin-bottom: 140px; border: 6px solid #2B2A22; align-items: flex-start; }
+.player-head.hero h1 { color: #F4ECD4; } .player-head.hero .eyebrow, .player-head.hero .sub { color: #A9B9A6; }
+.player-head.hero .tag { background: rgba(239,230,203,.12); color: #EFE6CB; border-color: rgba(239,230,203,.2); }
+.player-head.hero .hero-card { position: absolute; left: 24px; top: 24px; width: 290px; }
+@media (max-width: 860px) { .player-head.hero { padding: 20px; margin-bottom: 0; } .player-head.hero .hero-card { position: static; width: 100%; max-width: 320px; margin: 0 auto 16px; } }
+/* layout option C: the card opened flat, front and back side by side */
+.card-spread { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: start; overflow-x: clip; }
+.spread-cards { display: grid; grid-template-columns: repeat(2, 270px); gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); }
+@media (max-width: 1240px) { .card-spread { grid-template-columns: minmax(0, 1fr); } .spread-cards { justify-content: center; } }
+@media (max-width: 640px) { .spread-cards { grid-template-columns: minmax(0, 1fr); } }
+.band-side .band-groups { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.player-head.hero { margin-bottom: 0; min-height: 230px; }
+.player-head.hero .btn { background: #EFE6CB; color: #123B2D; border-color: #EFE6CB; }
+.player-head.hero ~ .band-side { margin-left: 330px; margin-top: -8px; }
+@media (max-width: 860px) { .player-head.hero ~ .band-side { margin-left: 0; margin-top: 0; } }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import PlayerCard, { usePlayerCard } from '../components/PlayerCard';
+import type { CardData } from '../lib/card';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
@@ -14,10 +15,35 @@ import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
 
 type BandItem = { l: string; v: string; h?: string; k?: string };
-function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
+function StatBand({ hero, groups, metrics, onDrill, plate, card, side }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void; card?: CardData | null; side?: ReactNode }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
     : <div className="kv"><span>{it.l}</span><b>{it.v}</b></div>);
+  const groupsEl = (
+    <div className="band-groups">
+      {groups.map((g) => (
+        <div key={g.t} className="band-group">
+          <h3>{g.t}</h3>
+          {g.items.map((it) => <div key={it.l}>{val(it)}</div>)}
+        </div>
+      ))}
+    </div>
+  );
+  // With a player card, the card takes the scoreboard's place and the numbers and current form sit beside it.
+  const layout = new URLSearchParams(location.search).get('layout') ?? 'a';
+  if (card && layout === 'c') return (
+    <div className="card-spread fade-in">
+      <div className="spread-cards"><PlayerCard card={card} hint={false} /><PlayerCard card={card} back hint={false} /></div>
+      <div className="band-side">{groupsEl}{side}</div>
+    </div>
+  );
+  if (card && layout === 'b') return <div className="band-side">{groupsEl}{side}</div>;
+  if (card) return (
+    <div className="band with-card fade-in">
+      <PlayerCard card={card} />
+      <div className="band-side">{groupsEl}{side}</div>
+    </div>
+  );
   return (
     <div className="band with-board fade-in">
       <Board plate={plate}>
@@ -81,11 +107,12 @@ export default function Player() {
   const hasBat = (s.bat?.b ?? 0) > 0, hasBowl = (s.bowl?.b ?? 0) > 0;
   const r = role === 'bowl' && !hasBowl ? 'bat' : role === 'bat' && !hasBat ? 'bowl' : role;
   const teams: any[] = p.teams ?? [];
-  const ctx = { p, fk, fam, cfg: meta?.zones, zb: zbase?.[fk] };
+  const ctx = { p, fk, fam, cfg: meta?.zones, zb: zbase?.[fk], card };
 
   const body = (
     <>
-      <section className="player-head fade-in">
+      <section className={`player-head fade-in${card ? ' has-card' : ''}${card && new URLSearchParams(location.search).get('layout') === 'b' ? ' hero' : ''}`}>
+        {card && new URLSearchParams(location.search).get('layout') === 'b' && <div className="hero-card"><PlayerCard card={card} /></div>}
         <div className="row" style={{ gap: 18, alignItems: 'center' }}>
           <div className="avatar" aria-hidden="true">{initials(p.name)}</div>
           <div className="stack" style={{ gap: 6 }}>
@@ -110,22 +137,10 @@ export default function Player() {
       {r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}
     </>
   );
-  // With a card, it sits top-left and stays in view while the stats scroll past on the right.
-  if (!card) return body;
-  return (
-    <div className="player-layout">
-      <aside className="player-card-col">
-        <PlayerCard card={card} />
-        <div className="row" style={{ justifyContent: 'center', gap: 8 }}>
-          <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
-        </div>
-      </aside>
-      <div className="player-main">{body}</div>
-    </div>
-  );
+  return body;
 }
 
-type Ctx = { p: any; fk: string; fam: string; cfg: any; zb: any };
+type Ctx = { p: any; fk: string; fam: string; cfg: any; zb: any; card?: CardData | null };
 
 // Year series from either the format-wide year split or one competition's seasons
 function useYears(p: any, fk: string, role: 'bat' | 'bowl', comp: string) {
@@ -142,7 +157,7 @@ function useYears(p: any, fk: string, role: 'bat' | 'bowl', comp: string) {
 }
 const yLabel = (k: string) => (/^\d{4}$/.test(k) ? `'${k.slice(2)}` : k.replace(/^20(\d\d)\/(\d\d)$/, '$1/$2'));
 
-function Batting({ p, fk, fam, cfg, zb }: Ctx) {
+function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
   const s = bat(p.summary[fk].bat);
   const sp = p.splits?.[fk]?.bat ?? {};
   const pc = p.pct?.[fk];
@@ -177,7 +192,8 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`}
+      <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`} card={card}
+        side={card ? <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} /> : undefined}
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
           { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
@@ -194,7 +210,7 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
-      <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />
+      {!card && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
 
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
@@ -371,7 +387,7 @@ function OppVenue({ rows, ov, setOv, kind }: { rows: any[]; ov: 'opp' | 'venue';
   );
 }
 
-function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
+function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
   const s = bowl(p.summary[fk].bowl);
   const sp = p.splits?.[fk]?.bowl ?? {};
   const pc = p.pct?.[fk];
@@ -402,7 +418,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`}
+      <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`} card={card}
         hero={[
           { l: 'Wickets', v: n0(s.w), h: `${n0(s.i)} innings · ${overs(s.b)} overs`, k: 'w' },
           { l: 'Economy', v: d2(s.econ), h: `${n0(s.r)} runs conceded`, k: 'econ' },

@@ -10,13 +10,13 @@ export function usePlayerCard(p: any, fk: string) {
   return useMemo(() => (p && fk && photos.data && p.id in photos.data ? buildCard(p, fk, photos.data[p.id], `${BASE_URL}photos/${p.id}.webp`) : null), [p, fk, photos.data]);
 }
 
-export default function PlayerCard({ card }: { card: NonNullable<ReturnType<typeof usePlayerCard>> }) {
+export default function PlayerCard({ card, back = false, hint = true }: { card: NonNullable<ReturnType<typeof usePlayerCard>>; back?: boolean; hint?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (ref.current) mountCard(ref.current, card); }, [card.id, card.fmt]); // eslint-disable-line
+  useEffect(() => { if (ref.current) mountCard(ref.current, card, back); }, [card.id, card.fmt, back]); // eslint-disable-line
   return (
     <div className="pcard">
       <div className="stage" ref={ref} />
-      <div className="pcard-hint">Tap the card to reveal all the stats</div>
+      {hint && <div className="pcard-hint">{back ? 'Tap to turn it over' : 'Tap the card to reveal all the stats'}</div>}
     </div>
   );
 }
