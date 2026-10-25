@@ -24,7 +24,7 @@ report = {"players_in_register": len(people), "with_cricinfo_id": len(set(ci.val
 
 # coverage among players who appeared in a recent senior international or major league is checked by the site build later;
 # here we sample three named players
-sample = {"ba607b88": "kohli", "462411b3": "bumrah", "5d2eda89": "mandhana"}
+sample = {"ba607b88": "kohli", "462411b3": "bumrah", "5d2eda89": "mandhana", "dbe50b21": "pandya", "fe93fd9d": "jadeja"}
 from rembg import remove
 from PIL import Image
 for pid, name in sample.items():
