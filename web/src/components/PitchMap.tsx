@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { divColor, seqColor, useTip } from './charts';
+import { divColor, inkOn, seqColor, seqGradient, useTip } from './charts';
 import { DCAT, PHASES } from '../lib/labels';
 import { Mini } from './ui';
 
@@ -46,9 +46,9 @@ function grid(v: Vec, base: Vec, cfg: ZoneCfg, mode: Mode) {
     baseOut: { sr: (100 * at(base, 'runs')) / bb, dot: at(base, 'dot') / bb, bnd: (at(base, 'four') + at(base, 'six')) / bb } };
 }
 
-export function PitchMap({ role, zc, base, cfg, fam, hand, btype }: {
+export function PitchMap({ role, zc, base, cfg, fam, hand, btype, compact }: {
   role: 'bat' | 'bowl'; zc: Record<string, Vec>; base: Record<string, Vec>; cfg: ZoneCfg; fam: string;
-  hand?: string | null; btype?: string | null;
+  hand?: string | null; btype?: string | null; compact?: boolean;
 }) {
   const bat = role === 'bat';
   const [split, setSplit] = useState('all');
@@ -56,6 +56,7 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype }: {
   const [mode, setMode] = useState<Mode>(bat ? 'danger' : 'share');
   const [rel, setRel] = useState<'avg' | 'own'>('own');
   const { tip, show, hide } = useTip();
+  const [hov, setHov] = useState<string | null>(null);
 
   const splits: [string, string][] = bat
     ? [['all', 'All'], ['pace', 'Pace'], ['spin', 'Spin']]
@@ -119,36 +120,36 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype }: {
           options={[['all', 'All'], ...(['0', '1', '2'].filter((k) => avail(sp, k)).map((k) => [k, phases[+k].split(' (')[0]] as [string, string]))]} />
         {mode === 'danger' && bat && <Mini label="Compare" value={rel} onChange={setRel} options={[['avg', 'Vs average'], ['own', 'Own game']]} />}
       </div>
-      <div className="pitch-wrap">
+      <div className={`pitch-wrap ${compact ? 'compact' : ''}`}>
         <div className="pitch-stage">
           <svg className="chart pitch" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Inferred pitch map" onPointerLeave={hide}>
             <defs>
               <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#0d1a1f" /><stop offset="1" stopColor="#0b1324" />
+                <stop offset="0" stopColor="var(--turf-2)" /><stop offset="1" stopColor="var(--turf)" />
               </linearGradient>
-              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" /></filter>
             </defs>
             <polygon points={`${cx - wTop / 2 - 26},${top - 46} ${cx + wTop / 2 + 26},${top - 46} ${cx + wBot / 2 + 34},${bot + 24} ${cx - wBot / 2 - 34},${bot + 24}`}
               fill="url(#turf)" stroke="var(--line)" />
             {/* batting crease and stumps */}
-            <line x1={cx - wTop / 2 - 20} x2={cx + wTop / 2 + 20} y1={top - 6} y2={top - 6} stroke="#41507a" strokeWidth={1.5} />
-            <line x1={cx - wTop / 2 + 8} x2={cx - wTop / 2 + 8} y1={top - 40} y2={top - 6} stroke="#2d3a5c" />
-            <line x1={cx + wTop / 2 - 8} x2={cx + wTop / 2 - 8} y1={top - 40} y2={top - 6} stroke="#2d3a5c" />
+            <line x1={cx - wTop / 2 - 20} x2={cx + wTop / 2 + 20} y1={top - 6} y2={top - 6} stroke="var(--line-2)" strokeWidth={1.5} />
+            <line x1={cx - wTop / 2 + 8} x2={cx - wTop / 2 + 8} y1={top - 40} y2={top - 6} stroke="var(--line-2)" />
+            <line x1={cx + wTop / 2 - 8} x2={cx + wTop / 2 - 8} y1={top - 40} y2={top - 6} stroke="var(--line-2)" />
             {(() => {
               const sx = cx - wTop / 2 + (wTop * ((lefty ? 1 : 2) + 0.5)) / 4;
-              return [-6, 0, 6].map((d) => <rect key={d} x={sx + d - 1.5} y={top - 34} width={3} height={26} rx={1.5} fill="#d8deef" />);
+              return [-6, 0, 6].map((d) => <rect key={d} x={sx + d - 1.5} y={top - 34} width={3} height={26} rx={1.5} fill="var(--text-2)" />);
             })()}
             {cells.map((c) => {
               const isHot = hot.has(`${c.i}-${c.j}`);
               return (
                 <g key={`${c.i}-${c.j}`} className="cell" style={{ animationDelay: `${c.i * 70 + c.c * 30}ms` }}
+                  onPointerEnter={() => setHov(`${c.i}-${c.j}`)} onPointerLeave={() => setHov(null)}
                   onPointerMove={(e) => show({ x: e.clientX, y: e.clientY, title: `${cfg.lengths[c.i]} · ${lineName(c.j)}`, rows: [
                     { label: mode === 'share' ? 'Share' : 'Index vs average', value: valFmt(c.v) },
                     ...(mode !== 'share' ? [{ label: bat ? 'Share of dismissals' : 'Share of wickets', value: `${(c.s * 100).toFixed(1)}%` }] : []),
                   ] })}>
-                  {isHot && <polygon points={c.pts} fill="none" stroke={mode === 'share' ? 'var(--accent)' : color(c.v)} strokeWidth={6} filter="url(#glow)" className="hot-ring" />}
-                  <polygon points={c.pts} fill={color(c.v)} stroke="#0b1020" strokeWidth={2} strokeLinejoin="round" />
-                  <text x={c.cxm} y={c.cym + 4} textAnchor="middle" className="cell-val">{c.v < 0.005 && mode === 'share' ? '–' : valFmt(c.v)}</text>
+                  <polygon className="fill" points={c.pts} fill={color(c.v)} stroke="var(--surface)" strokeWidth={2} strokeLinejoin="round" />
+                  {isHot && <polygon points={c.pts} fill="none" stroke="var(--text)" strokeWidth={2} strokeDasharray="5 3" strokeLinejoin="round" />}
+                  <text x={c.cxm} y={c.cym + 4} textAnchor="middle" className="cell-val" style={{ fill: inkOn(color(c.v)) }}>{c.v < 0.005 && mode === 'share' ? '–' : valFmt(c.v)}</text>
                 </g>
               );
             })}
@@ -160,10 +161,22 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype }: {
               const x = cx - wBot / 2 + (wBot * (c + 0.5)) / 4;
               return <text key={j} x={x} y={bot + 17} textAnchor="middle" style={{ fontSize: 10 }}>{['Wide off', 'Corridor', 'Stumps', 'Leg'][j]}</text>;
             })}
+            {hov && (() => {
+              const c = cells.find((x) => `${x.i}-${x.j}` === hov);
+              if (!c) return null;
+              const sx = cx - wTop / 2 + (wTop * ((lefty ? 1 : 2) + 0.5)) / 4;
+              const d = `M${cx + 40},${H - 14} Q${(cx + 40 + c.cxm) / 2},${c.cym + 40} ${c.cxm},${c.cym} Q${(c.cxm + sx) / 2},${(c.cym + top) / 2 - 30} ${sx},${top - 20}`;
+              return (
+                <g key={hov} pointerEvents="none">
+                  <path className="arc" pathLength={1} d={d} fill="none" stroke="var(--red)" strokeWidth={2} strokeDasharray="1" strokeLinecap="round" />
+                  <circle cx={c.cxm} cy={c.cym} r={5} fill="var(--red)" stroke="var(--surface)" strokeWidth={1.5} />
+                </g>
+              );
+            })()}
             <text x={cx} y={H - 8} textAnchor="middle" style={{ fontSize: 10 }}>bowler's end ↓</text>
           </svg>
           <div className="stack" style={{ gap: 4 }}>
-            <div className="scale" style={mode === 'share' ? { background: 'linear-gradient(90deg, rgb(22,28,46), rgb(12,156,203), rgb(140,236,255))' } : undefined} />
+            <div className="scale" style={{ background: mode === 'share' ? seqGradient() : `linear-gradient(90deg, ${divColor(0.5)}, ${divColor(1)}, ${divColor(2)})` }} />
             <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 11 }}>{legend.map((l, i) => <span key={i}>{l}</span>)}</div>
           </div>
         </div>

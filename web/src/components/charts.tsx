@@ -79,7 +79,7 @@ export function LineChart({ labels, series, fmt = (v) => compact(v), height = 22
         ))}
         {refLine != null && (
           <g>
-            <line x1={L} x2={W - R} y1={y(refLine)} y2={y(refLine)} stroke="var(--text-2)" strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />
+            <line x1={L} x2={W - R} y1={y(refLine)} y2={y(refLine)} stroke="var(--muted)" strokeWidth={1} strokeDasharray="4 4" />
             {refLabel && <text x={W - R} y={y(refLine) - 5} textAnchor="end">{refLabel}</text>}
           </g>
         )}
@@ -123,7 +123,7 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
   marks?: (number | null)[];
 }) {
   const { ref: box, w: W } = useWidth();
-  const H = height, L = 40, R = 8, T = 18, B = 26;
+  const H = height, L = 40, R = 8, T = marks ? 34 : 18, B = 26;
   const { tip, show, hide } = useTip();
   const [hi, setHi] = useState<number | null>(null);
   const vals = data.map((d) => d.value).filter(ok) as number[];
@@ -160,7 +160,10 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
                 d={path} fill={d.color ?? color} opacity={hi == null || hi === i ? 1 : 0.55} />}
               {marks && ok(marks[i]) && (marks[i] as number) > 0 && (
                 <g>{Array.from({ length: marks[i] as number }).map((_, k) => (
-                  <circle key={k} cx={cx} cy={yv - 8 - k * 9} r={4} fill="var(--s2)" stroke="var(--surface)" strokeWidth={2} />
+                  <g key={k} className="bails" style={{ animationDelay: `${300 + Math.min(i * 18, 500) + k * 60}ms` }} transform={`translate(${cx - 5}, ${yv - 14 - k * 13})`}>
+                    <rect x={0} y={3} width={1.8} height={8} fill="var(--red)" /><rect x={4.1} y={3} width={1.8} height={8} fill="var(--red)" /><rect x={8.2} y={3} width={1.8} height={8} fill="var(--red)" />
+                    <rect x={-0.5} y={0.5} width={5.5} height={1.6} rx={0.8} fill="var(--red)" transform="rotate(-14 2 1)" /><rect x={5} y={0.5} width={5.5} height={1.6} rx={0.8} fill="var(--red)" transform="rotate(12 8 1)" />
+                  </g>
                 ))}</g>
               )}
               {(i === maxI || i === data.length - 1) && ok(v) && !marks && (
@@ -196,9 +199,9 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
             rows: [{ label: 'Value', value: ok(r.value) ? fmt(r.value) : '–' }, ...(r.tipRows ?? [])] })}>
           <div className="lab">{r.label}{r.note && <small>{r.note}</small>}</div>
           <div className="pct-track" style={{ ['--ref' as string]: `${(refV / max) * 100}%` }}>
-            <div style={{ position: 'absolute', left: `${(refV / max) * 100}%`, top: -4, bottom: -4, width: 1, background: 'var(--text-2)', opacity: 0.6 }} />
+            <div style={{ position: 'absolute', left: `${(refV / max) * 100}%`, top: -4, bottom: -4, width: 2, background: 'var(--text)', opacity: 0.55, zIndex: 1 }} />
             {ok(r.value) && <div className="pct-fill sweep" style={{ width: `${Math.max(1, Math.min(100, (r.value / max) * 100))}%`,
-              background: r.value >= refV ? 'var(--s1)' : 'var(--div-mid)' }} />}
+              background: r.value >= refV ? 'var(--s1)' : 'var(--line-2)' }} />}
           </div>
           <div className="pct-val">{ok(r.value) ? fmt(r.value) : '–'}</div>
         </div>
@@ -211,15 +214,15 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
 
 // ---------- percentile bars ----------
 export function PctBars({ items }: { items: { label: string; pct: number | null | undefined; value: string; tip?: string }[] }) {
-  const color = (p: number) => (p >= 90 ? 'linear-gradient(90deg, var(--s1), var(--accent))' : p >= 50 ? 'var(--s1)' : 'var(--div-mid)');
+  const color = (p: number) => (p >= 90 ? 'var(--accent)' : p >= 50 ? 'var(--s1)' : 'var(--line-2)');
   return (
     <div className="pct">
       {items.map((i) => (
         <div className="pct-row" key={i.label} title={i.tip}>
           <div className="lab">{i.label}<small>{i.value}</small></div>
           <div className="pct-track">
-            {i.pct != null && <div className="pct-fill sweep" style={{ width: `${Math.max(2, i.pct)}%`, background: color(i.pct),
-              boxShadow: i.pct >= 90 ? '0 0 14px rgba(94,231,255,.45)' : undefined }} />}
+            <div style={{ position: 'absolute', left: '50%', top: -3, bottom: -3, width: 1, background: 'var(--line-2)' }} />
+            {i.pct != null && <div className="pct-fill sweep" style={{ width: `${Math.max(2, i.pct)}%`, background: color(i.pct) }} />}
           </div>
           <div className="pct-val">{i.pct ?? '–'}</div>
         </div>
@@ -228,25 +231,179 @@ export function PctBars({ items }: { items: { label: string; pct: number | null 
   );
 }
 
-// ---------- diverging colour for index values (1 = average) ----------
+// ---------- theme-aware colour scales ----------
+export const isDark = () => {
+  if (typeof document === 'undefined') return false;
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t === 'dark') return true;
+  if (t === 'light') return false;
+  return !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+};
+const mix = (a: number[], b: number[], k: number) => a.map((x, i) => Math.round(x + (b[i] - x) * k));
+const rgb = (c: number[]) => `rgb(${c.join(',')})`;
+
+// diverging colour for index values (1 = average): blue = lower, red = higher. Log scale, clamped at 0.5x and 2x.
 export function divColor(v: number) {
-  // log-scale around 1; clamp at 0.5x and 2x
   const t = Math.max(-1, Math.min(1, Math.log2(v)));
-  const mix = (a: number[], b: number[], k: number) => a.map((x, i) => Math.round(x + (b[i] - x) * k));
-  const neg = [12, 156, 203], mid = [56, 58, 69], pos = [226, 80, 143];
-  const c = t < 0 ? mix(mid, neg, -t) : mix(mid, pos, t);
-  return `rgb(${c.join(',')})`;
+  const d = isDark();
+  const neg = d ? [74, 134, 232] : [37, 99, 201], mid = d ? [30, 39, 55] : [236, 239, 243], pos = d ? [240, 89, 107] : [194, 37, 58];
+  return rgb(t < 0 ? mix(mid, neg, -t) : mix(mid, pos, t));
 }
 
-// sequential cyan scale for shares (0 = surface, 1 = brightest)
+// sequential blue scale for shares (0 = surface, 1 = darkest / brightest)
 export function seqColor(t: number) {
   const k = Math.max(0, Math.min(1, t));
-  const a = [22, 28, 46], b = [12, 156, 203], c = [140, 236, 255];
-  const mix = (x: number[], y: number[], f: number) => x.map((v, i) => Math.round(v + (y[i] - v) * f));
-  return `rgb(${(k < 0.7 ? mix(a, b, k / 0.7) : mix(b, c, (k - 0.7) / 0.3)).join(',')})`;
+  const d = isDark();
+  const a = d ? [23, 32, 48] : [241, 244, 248], b = d ? [74, 134, 232] : [37, 99, 201], c = d ? [169, 199, 247] : [18, 53, 122];
+  return rgb(k < 0.7 ? mix(a, b, k / 0.7) : mix(b, c, (k - 0.7) / 0.3));
+}
+export const seqGradient = () => `linear-gradient(90deg, ${seqColor(0)}, ${seqColor(0.7)}, ${seqColor(1)})`;
+
+// readable label colour on top of an rgb() fill
+export function inkOn(fill: string) {
+  const m = fill.match(/\d+/g);
+  if (!m) return 'var(--text)';
+  const [r, g, b] = m.map(Number);
+  const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return l > 0.56 ? '#0B1726' : '#FFFFFF';
 }
 
 export function ChartBox({ children, legend, foot }: { children: ReactNode; legend?: ReactNode; foot?: ReactNode }) {
   return <div className="stack">{legend}{children}{foot && <div className="muted" style={{ fontSize: 12 }}>{foot}</div>}</div>;
 }
 
+
+// ---------- grouped horizontal bars: several series per row ----------
+export function MultiBars({ rows, series, fmt, base, baseLabel }: {
+  rows: { label: string; note?: string; values: (number | null)[] }[];
+  series: { name: string; color: string }[]; fmt: (v: number) => string; base?: number; baseLabel?: string;
+}) {
+  const { tip, show, hide } = useTip();
+  const vals = rows.flatMap((r) => r.values).filter(ok) as number[];
+  if (!vals.length) return <div className="empty">No data.</div>;
+  const max = Math.max(...vals, base ?? 0) * 1.08;
+  return (
+    <div className="pct" onPointerLeave={hide}>
+      {rows.map((r) => (
+        <div className="pct-row" key={r.label} style={{ alignItems: 'start' }}
+          onPointerMove={(e) => show({ x: e.clientX, y: e.clientY, title: r.label, rows: series.map((s, i) => ({ label: s.name, value: ok(r.values[i]) ? fmt(r.values[i] as number) : '–', color: s.color })) })}>
+          <div className="lab" style={{ paddingTop: 1 }}>{r.label}{r.note && <small>{r.note}</small>}</div>
+          <div className="stack" style={{ gap: 3, position: 'relative' }}>
+            {base != null && <div style={{ position: 'absolute', left: `${(base / max) * 100}%`, top: -3, bottom: -3, width: 1.5, background: 'var(--text)', opacity: 0.5, zIndex: 1 }} />}
+            {series.map((s, i) => (
+              <div key={s.name} className="pct-track" style={{ height: 8, background: 'transparent' }}>
+                {ok(r.values[i]) && <div className="pct-fill sweep" style={{ width: `${Math.max(1, ((r.values[i] as number) / max) * 100)}%`, background: s.color, animationDelay: `${i * 60}ms` }} />}
+              </div>
+            ))}
+          </div>
+          <div className="stack" style={{ gap: 0 }}>
+            {series.map((s, i) => <span key={s.name} className="mono" style={{ fontSize: 11, lineHeight: '11px', textAlign: 'right', color: 'var(--text-2)' }}>{ok(r.values[i]) ? fmt(r.values[i] as number) : '–'}</span>)}
+          </div>
+        </div>
+      ))}
+      {base != null && <div className="muted" style={{ fontSize: 11 }}>Dark line = {baseLabel ?? 'average'} ({fmt(base)}).</div>}
+      {tip}
+    </div>
+  );
+}
+
+// ---------- scatter ----------
+export function Scatter({ points, xLabel, yLabel, fmtX, fmtY, refX, refY, aria, height = 300 }: {
+  points: { label: string; x: number; y: number; color: string; r?: number; href?: string }[];
+  xLabel: string; yLabel: string; fmtX: (v: number) => string; fmtY: (v: number) => string; refX?: number; refY?: number; aria: string; height?: number;
+}) {
+  const { ref: box, w: W } = useWidth();
+  const { tip, show, hide } = useTip();
+  const H = height, L = 48, R = 16, T = 14, B = 40;
+  const pts = points.filter((p) => ok(p.x) && ok(p.y));
+  if (!pts.length) return <div className="empty">Not enough balls to plot.</div>;
+  const xs = pts.map((p) => p.x).concat(refX ?? []), ys = pts.map((p) => p.y).concat(refY ?? []);
+  const pad = (lo: number, hi: number) => { const d = (hi - lo) || Math.abs(hi) * 0.2 || 1; return [lo - d * 0.18, hi + d * 0.18]; };
+  const [x0, x1] = niceDomain(...(pad(Math.min(...xs), Math.max(...xs)) as [number, number]));
+  const [y0, y1] = niceDomain(...(pad(Math.min(...ys), Math.max(...ys)) as [number, number]));
+  const x = scaleLinear().domain([x0, x1]).range([L, W - R]);
+  const y = scaleLinear().domain([y0, y1]).range([H - B, T]);
+  return (
+    <div ref={box}>
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria} onPointerLeave={hide}>
+        {y.ticks(4).map((t) => <g key={t}><line className="gridline" x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text x={L - 8} y={y(t) + 4} textAnchor="end">{fmtY(t)}</text></g>)}
+        {x.ticks(5).map((t) => <text key={t} x={x(t)} y={H - B + 16} textAnchor="middle">{fmtX(t)}</text>)}
+        {refX != null && <line x1={x(refX)} x2={x(refX)} y1={T} y2={H - B} stroke="var(--muted)" strokeDasharray="4 4" />}
+        {refY != null && <line x1={L} x2={W - R} y1={y(refY)} y2={y(refY)} stroke="var(--muted)" strokeDasharray="4 4" />}
+        <line className="axis" x1={L} x2={W - R} y1={H - B} y2={H - B} />
+        <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" className="label-ink">{xLabel}</text>
+        <text x={12} y={(T + H - B) / 2} textAnchor="middle" className="label-ink" transform={`rotate(-90 12 ${(T + H - B) / 2})`}>{yLabel}</text>
+        {pts.map((p, i) => (
+          <g key={p.label + i} onPointerMove={(e) => show({ x: e.clientX, y: e.clientY, title: p.label, rows: [{ label: xLabel, value: fmtX(p.x) }, { label: yLabel, value: fmtY(p.y) }] })}>
+            <circle className="fade-in" cx={x(p.x)} cy={y(p.y)} r={p.r ?? 7} fill={p.color} stroke="var(--surface)" strokeWidth={2} style={{ animationDelay: `${i * 80}ms` }} />
+            <text x={x(p.x) + (p.r ?? 7) + 5} y={y(p.y) + 4} className="label-strong" style={{ fontSize: 11.5 }}>{p.label}</text>
+          </g>
+        ))}
+      </svg>
+      {tip}
+    </div>
+  );
+}
+
+// ---------- wagon wheel: scoring mix as spokes around a field ----------
+export function WagonMix({ parts, compare, aria }: {
+  parts: { label: string; value: number; color: string }[]; compare?: number[]; aria: string;
+}) {
+  const tot = parts.reduce((a, p) => a + p.value, 0) || 1;
+  const S = 260, c = S / 2, R = 108;
+  let a0 = -Math.PI / 2;
+  const arcs = parts.map((p, i) => {
+    const share = p.value / tot, a1 = a0 + share * Math.PI * 2;
+    const mid = (a0 + a1) / 2;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const rr = R * (0.55 + 0.45 * Math.sqrt(share / Math.max(...parts.map((q) => q.value / tot))));
+    const pt = (a: number, r: number) => `${(c + r * Math.cos(a)).toFixed(1)},${(c + r * Math.sin(a)).toFixed(1)}`;
+    const d = `M${c},${c} L${pt(a0, rr)} A${rr},${rr} 0 ${large} 1 ${pt(a1, rr)} Z`;
+    const out = { ...p, d, share, mid, rr, i, prev: compare?.[i] };
+    a0 = a1;
+    return out;
+  });
+  return (
+    <div className="row" style={{ gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+      <svg className="chart wagon" viewBox={`0 0 ${S} ${S}`} role="img" aria-label={aria} style={{ maxWidth: 240, flex: '0 0 auto' }}>
+        <circle cx={c} cy={c} r={R + 10} fill="var(--turf)" stroke="var(--line)" />
+        <circle cx={c} cy={c} r={R * 0.5} fill="none" stroke="var(--line)" strokeDasharray="3 4" />
+        {arcs.map((a) => <path key={a.label} className="fade-in" d={a.d} fill={a.color} opacity={0.92} stroke="var(--surface)" strokeWidth={2} style={{ animationDelay: `${a.i * 90}ms` }} />)}
+        {arcs.map((a) => (
+          <line key={'s' + a.label} className="spoke" pathLength={1} strokeDasharray="1" x1={c} y1={c} x2={c + (R + 8) * Math.cos(a.mid)} y2={c + (R + 8) * Math.sin(a.mid)}
+            stroke="var(--surface)" strokeWidth={1} opacity={0.6} style={{ animationDelay: `${a.i * 90}ms` }} />
+        ))}
+        <rect x={c - 4} y={c - 14} width={8} height={28} rx={2} fill="var(--strip)" stroke="var(--line-2)" />
+      </svg>
+      <div className="stack" style={{ gap: 8, flex: '1 1 160px', minWidth: 160 }}>
+        {arcs.map((a) => (
+          <div key={a.label} className="kv">
+            <span className="row" style={{ gap: 8 }}><i className="key-box" style={{ background: a.color }} />{a.label}</span>
+            <b>{(a.share * 100).toFixed(1)}%{ok(a.prev) && <small className="muted" style={{ fontWeight: 400, marginLeft: 6 }}>{a.share * 100 - (a.prev as number) >= 0 ? '+' : '−'}{Math.abs(a.share * 100 - (a.prev as number)).toFixed(1)}</small>}</b>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- two-sided bars (e.g. runs scored vs conceded by phase) ----------
+export function Butterfly({ rows, left, right, fmt }: {
+  rows: { label: string; a: number | null; b: number | null }[]; left: { name: string; color: string }; right: { name: string; color: string }; fmt: (v: number) => string;
+}) {
+  const max = Math.max(...rows.flatMap((r) => [r.a, r.b]).filter(ok) as number[], 1e-9);
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 12 }}><span>{left.name}</span><span>{right.name}</span></div>
+      {rows.map((r) => (
+        <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr) 120px minmax(0,1fr) 48px', gap: 8, alignItems: 'center', fontSize: 13 }}>
+          <b className="mono" style={{ textAlign: 'right' }}>{ok(r.a) ? fmt(r.a) : '–'}</b>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{ok(r.a) && <i className="sweep" style={{ display: 'block', height: 12, width: `${(r.a / max) * 100}%`, background: left.color, borderRadius: '2px 0 0 2px', transformOrigin: '100% 50%' }} />}</div>
+          <span style={{ textAlign: 'center', color: 'var(--text-2)', fontSize: 12 }}>{r.label}</span>
+          <div>{ok(r.b) && <i className="sweep" style={{ display: 'block', height: 12, width: `${(r.b / max) * 100}%`, background: right.color, borderRadius: '0 2px 2px 0' }} />}</div>
+          <b className="mono">{ok(r.b) ? fmt(r.b) : '–'}</b>
+        </div>
+      ))}
+    </div>
+  );
+}

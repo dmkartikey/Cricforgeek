@@ -1,212 +1,272 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
-import { Chips, CountUp, ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, Seg, SERIES } from '../components/ui';
-import { HBars, LineChart } from '../components/charts';
-import { d1, d2, n0, plus, signed } from '../lib/fmt';
+import { FMTS, LEVELS, useSettings } from '../lib/settings';
+import { MULTI, PHASES } from '../lib/labels';
+import { d1, d2, dateShort, n0, plus, signed } from '../lib/fmt';
+import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, SERIES } from '../components/ui';
+import { HBars, LineChart, WagonMix } from '../components/charts';
+import { Table } from '../components/Table';
+import Tests from './Tests';
 
-type Row = [string, string, number, Record<string, any>];
-type Board = { key: string; metric: string; title: string; desc: string; scope: string; scope_label: string; window: string;
-  kind: 'bat' | 'bowl'; unit: string; min_balls: number; rows: Row[] };
+type Stats = { b: number; r: number; o?: number; w?: number; imp: number; wpa: number; xr: number; t: string };
+type Row = [string, string, number, Stats];
+export type Board = { key: string; metric: string; title: string; desc: string; window: string; kind: 'bat' | 'bowl'; unit: string; min_balls: number; rows: Row[] };
 type Breakout = [string, string, number, number, number, number, number, string];
-type Home = { boards: Board[]; breakouts: Record<string, { bat: Breakout[]; bowl: Breakout[] }>;
-  trend: { comp: string; year: number; rpo: number; six_pm: number; four_pm: number; dot_pct: number; bpw: number }[];
-  chase: { comp: string; label: string; fam: string; gender: string; chase_win: number; n: number }[];
-  cut365: string; data_to: string; scopes: [string, string, string][] };
+type Pulse = { m: number; rpo: number; rpw: number; dot: number; six_pm: number; four_pm: number; bpw: number; pace_share: number; n_dot: number; n_r13: number; n_four: number; n_six: number; n_faced: number };
+type Scope = { fmt: string; boards: Board[]; breakouts: { bat: Breakout[]; bowl: Breakout[] }; pulse: { now: Pulse; prev: Pulse; all: Pulse };
+  years: { year: number; m: number; rpo: number; rpw: number; dot: number; six_pm: number }[]; phases: { year: number; phase: number; rpo: number; bpw: number }[];
+  chase: { comp: string; label: string; chase_win: number; n: number }[]; comps: { comp: string; m: number; last: string }[] };
+type HomeIdx = { scopes: { key: string; fmt: string; gender: string; level: string; level_label: string; matches: number }[]; cut365: string; data_to: string;
+  trend: { comp: string; year: number; rpo: number; six_pm: number; four_pm: number; dot_pct: number; bpw: number }[] };
 
-const GROUPS: [string, string, string[]][] = [
-  ['impact', 'Impact', ['bat_imp', 'bowl_imp', 'bat_srplus', 'bowl_econplus', 'bat_avgplus', 'hardest_out']],
-  ['wp', 'Win probability', ['bat_wpa', 'bowl_wpa', 'clutch']],
-  ['phase', 'Phases', ['death_srplus', 'pp_econplus', 'death_econplus']],
-  ['match', 'Pace & spin', ['pace_srplus', 'spin_srplus']],
-  ['zones', 'Vulnerability', ['full_straight', 'corridor']],
-];
-
-export const fmtBoard = (metric: string, v: number) => {
-  if (metric.endsWith('_imp') || metric === 'clutch') return signed(v, 1);
-  if (metric.endsWith('_wpa')) return signed(v, 2);
-  if (metric === 'full_straight' || metric === 'corridor') return d2(v);
-  return plus(v);
+const BAT_LIM = ['bat_imp', 'bat_srplus', 'bat_avgplus', 'hardest_out', 'pp_srplus', 'death_srplus', 'pace_srplus', 'spin_srplus', 'bat_wpa'];
+const BOWL_LIM = ['bowl_imp', 'bowl_econplus', 'bowl_wktplus', 'pp_econplus', 'death_econplus', 'bowl_wpa'];
+const BAT_MD = ['bat_imp', 'bat_avgplus', 'hardest_out', 'bat_srplus', 'newball_srplus', 'inn4_bat', 'pace_srplus', 'spin_srplus'];
+const BOWL_MD = ['bowl_imp', 'bowl_wktplus', 'bowl_econplus', 'newball_wktplus', 'inn4_bowl'];
+const SHORT: Record<string, string> = {
+  bat_imp: 'Impact', bat_srplus: 'SR+', bat_avgplus: 'Avg+', hardest_out: 'Hardest out', pp_srplus: 'Powerplay', death_srplus: 'Death', pace_srplus: 'v Pace',
+  spin_srplus: 'v Spin', bat_wpa: 'Win prob.', bowl_imp: 'Impact', bowl_econplus: 'Econ+', bowl_wktplus: 'Wkts+', pp_econplus: 'Powerplay', death_econplus: 'Death',
+  bowl_wpa: 'Win prob.', newball_srplus: 'New ball', inn4_bat: '4th innings', newball_wktplus: 'New ball', inn4_bowl: '4th innings',
 };
 
-const COMP_NAME: Record<string, string> = { ipl: 'IPL', bbl: 'BBL', psl: 'PSL', 't20-blast': 'T20 Blast', cpl: 'CPL', 'men-t20i': "Men's T20Is",
-  sa20: 'SA20', 'hundred-men': 'The Hundred', wpl: 'WPL', wbbl: 'WBBL', 'women-t20i': "Women's T20Is", smat: 'SMAT', bpl: 'BPL',
-  lpl: 'LPL', ilt20: 'ILT20', mlc: 'MLC', 'super-smash': 'Super Smash' };
+export const fmtBoard = (b: Pick<Board, 'metric' | 'unit'>, v: number) => {
+  if (b.unit === 'runs') return signed(v, 0);
+  if (b.unit === 'wins') return signed(v, 2);
+  if (b.metric === 'full_straight' || b.metric === 'corridor') return d1(v);
+  return plus(v);
+};
+const unitText = (b: Board) => (b.unit === 'runs' ? 'runs vs average' : b.unit === 'wins' ? 'wins added' :
+  b.metric === 'full_straight' || b.metric === 'corridor' ? 'per 1,000 balls' : 'index · 100 = average');
+const baseOf = (b: Board) => (b.unit === 'runs' || b.unit === 'wins' || b.metric === 'full_straight' || b.metric === 'corridor' ? 0 : 100);
+const metaOf = (b: Board, s: Stats) => (b.kind === 'bat'
+  ? `${s.t} · ${n0(s.r)} runs · ${n0(s.b)} balls`
+  : `${s.t} · ${n0(s.w)} wkts · ${n0(s.b)} balls`);
 
-export function BoardCard({ b }: { b: Board }) {
-  const [top, setTop] = useState<'10' | '25'>('10');
+// One leaderboard with a tab per metric, its own filters, and a list / table switch
+function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board>; keys: string[]; kind: 'bat' | 'bowl'; scopeLabel: string }) {
+  const avail = keys.filter((k) => boards.get(k)?.rows.length);
+  const [tab, setTab] = useState(avail[0] ?? '');
+  const [top, setTop] = useState<'10' | '25' | '50'>('10');
   const [mult, setMult] = useState<'1' | '2' | '4'>('1');
   const [team, setTeam] = useState('all');
-  const ballsKey = 'b';
-  const teams = useMemo(() => [...new Set(b.rows.map((r) => r[3].t).filter(Boolean))].sort() as string[], [b]);
+  const [view, setView] = useState<'list' | 'table'>('list');
+  const b = boards.get(avail.includes(tab) ? tab : avail[0]);
+  const teams = useMemo(() => (b ? [...new Set(b.rows.map((r) => r[3].t).filter(Boolean))].sort() : []), [b]);
+  if (!b) return <Panel title={kind === 'bat' ? 'Batting leaders' : 'Bowling leaders'}><div className="empty">No leaderboard for this selection.</div></Panel>;
   const minB = b.min_balls * +mult;
-  const rows = b.rows.filter((r) => (team === 'all' || r[3].t === team) && (!b.min_balls || (r[3][ballsKey] ?? 0) >= minB));
-  const shown = rows.slice(0, +top);
-  const max = Math.max(...shown.map((r) => Math.abs(r[2])), 1e-9);
-  const inverse = b.metric === 'full_straight' || b.metric === 'corridor';
+  const rows = b.rows.filter((r) => (team === 'all' || r[3].t === team) && (!b.min_balls || (r[3].b ?? 0) >= minB)).slice(0, +top);
   return (
-    <Panel flush title={b.title} sub={b.desc} eyebrow={`${b.scope_label} · ${b.window === '365' ? 'last 365 days' : 'all time'}`}
-      tools={<>
-        <Mini label="Show" value={top} onChange={setTop} options={[['10', 'Top 10'], ['25', 'Top 25']]} />
+    <Panel flush title={kind === 'bat' ? 'Batting leaders' : 'Bowling leaders'} sub={b.desc}
+      pin={{ id: `board:${scopeLabel}:${b.key}`, title: `${b.title}`, ctx: scopeLabel, href: '/', rows: rows.slice(0, 5).map((r) => ({ l: r[1], v: fmtBoard(b, r[2]),
+        w: Math.abs(r[2] - baseOf(b)) / Math.max(1e-9, Math.abs(rows[0][2] - baseOf(b))), href: `/player/${r[0]}` })) }}>
+      <div className="tabs" role="tablist" style={{ padding: '0 14px' }}>
+        {avail.map((k) => <button key={k} role="tab" aria-selected={k === b.key.split(':')[0]} onClick={() => { setTab(k); setTeam('all'); }}>{SHORT[k] ?? k}</button>)}
+      </div>
+      <div className="mini-bar" role="toolbar" style={{ padding: '14px 22px' }}>
+        <Mini label="Show" value={top} onChange={setTop} options={[['10', '10'], ['25', '25'], ['50', '50']]} />
         {b.min_balls > 0 && <Mini label="Min balls" value={mult} onChange={setMult} options={[['1', n0(b.min_balls)], ['2', n0(b.min_balls * 2)], ['4', n0(b.min_balls * 4)]]} />}
         <MiniSelect label="Team" value={team} onChange={setTeam} options={[['all', 'All teams'], ...teams.map((t) => [t, t] as [string, string])]} />
-      </>}>
-      <div className="lb stagger" key={`${top}-${mult}-${team}`}>
-        {shown.map((r, i) => (
-          <Link className={`lb-row ${i === 0 ? 'first' : ''}`} key={r[0]} to={`/player/${r[0]}`}>
-            <span className="lb-rank">{i + 1}</span>
-            <span className="lb-name">{r[1]}</span>
-            <span className="lb-val">{fmtBoard(b.metric, r[2])}</span>
-            <span className="lb-meta">{r[3].t}{r[3].b ? ` · ${n0(r[3].b)} balls` : ''}</span>
-            <span className="lb-bar" aria-hidden="true"><i className="sweep" style={{ width: `${Math.max(3, (Math.abs(r[2]) / max) * 100)}%`,
-              background: inverse ? 'linear-gradient(90deg, var(--s2), var(--accent-2))' : undefined }} /></span>
-          </Link>
-        ))}
-        {!shown.length && <div className="empty">Nobody qualifies with these filters.</div>}
+        <span className="spacer" />
+        <Mini label="View" value={view} onChange={setView} options={[['list', 'Ranked'], ['table', 'Table']]} />
       </div>
+      {view === 'list'
+        ? <RankList unit={unitText(b)} base={baseOf(b)} rows={rows.map((r) => ({ id: r[0], name: r[1], meta: metaOf(b, r[3]), value: r[2], text: fmtBoard(b, r[2]), href: `/player/${r[0]}` }))} />
+        : <Table rank rows={rows} cols={[
+            { key: 'n', label: kind === 'bat' ? 'Batter' : 'Bowler', left: true, sortable: false, get: (r: Row) => r[1], fmt: (v, r: Row) => <Link className="link" to={`/player/${r[0]}`}>{v}</Link> },
+            { key: 't', label: 'Team', left: true, get: (r: Row) => r[3].t },
+            { key: 'v', label: SHORT[b.metric] ?? 'Value', get: (r: Row) => r[2], fmt: (v) => <b>{fmtBoard(b, v)}</b> },
+            { key: 'b', label: 'Balls', get: (r: Row) => r[3].b, fmt: n0 },
+            ...(kind === 'bat'
+              ? [{ key: 'r', label: 'Runs', get: (r: Row) => r[3].r, fmt: n0 }, { key: 'o', label: 'Outs', get: (r: Row) => r[3].o },
+                 { key: 'sr', label: 'SR', get: (r: Row) => (100 * r[3].r) / r[3].b, fmt: d1 }, { key: 'srp', label: 'SR+', get: (r: Row) => (100 * r[3].r) / r[3].xr, fmt: plus }]
+              : [{ key: 'w', label: 'Wkts', get: (r: Row) => r[3].w }, { key: 'e', label: 'Econ', get: (r: Row) => (6 * r[3].r) / r[3].b, fmt: d2 },
+                 { key: 'ep', label: 'Econ+', get: (r: Row) => (100 * r[3].xr) / r[3].r, fmt: plus }]),
+            { key: 'imp', label: 'Impact', get: (r: Row) => r[3].imp, fmt: (v) => signed(v, 0) },
+          ]} />}
+      <div className="panel-foot">{b.min_balls > 0 ? `Minimum ${n0(minB)} balls. ` : ''}{unitText(b)}.</div>
     </Panel>
   );
 }
 
-function Breakouts({ data, scopes }: { data: Home['breakouts']; scopes: [string, string, string][] }) {
-  const [scope, setScope] = useState('t20-men');
-  const [kind, setKind] = useState<'bat' | 'bowl'>('bat');
-  const rows = data[scope]?.[kind] ?? [];
-  const lo = Math.min(0, ...rows.flatMap((r) => [r[2], r[3]])), hi = Math.max(1, ...rows.flatMap((r) => [r[2], r[3]]));
-  const pos = (v: number) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
-  return (
-    <Panel flush title="Breakout players" sub="Biggest rise in impact per 100 balls: the last 365 days compared with the two years before."
-      tools={<>
-        <Mini label="Role" value={kind} onChange={setKind} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />
-        <MiniSelect label="Cricket" value={scope} onChange={setScope} options={scopes.map((s) => [s[0], s[1]])} />
-      </>}>
-      <div className="stagger" key={scope + kind}>
-        {rows.slice(0, 10).map((r, i) => (
-          <Link key={r[0]} to={`/player/${r[0]}`} className="bo-row">
-            <span className="lb-rank">{i + 1}</span>
-            <span className="lb-name">{r[1]}<div className="muted" style={{ fontSize: 11, fontWeight: 400 }}>{r[7]} · {n0(r[5])} balls this year</div></span>
-            <span className="bo-track" title={`${signed(r[3], 1)} → ${signed(r[2], 1)} per 100 balls`}>
-              <span style={{ left: pos(Math.min(r[2], r[3])), width: `calc(${pos(Math.max(r[2], r[3]))} - ${pos(Math.min(r[2], r[3]))})` }} />
-              <i style={{ left: pos(r[3]), background: 'var(--text-2)' }} />
-              <i style={{ left: pos(r[2]), background: 'var(--accent)', boxShadow: '0 0 10px var(--accent)' }} />
-            </span>
-            <span className="delta">{signed(r[4], 1)}</span>
-          </Link>
-        ))}
-        {!rows.length && <div className="empty">No breakouts with enough balls in both periods.</div>}
-      </div>
-      <div className="muted" style={{ padding: '10px 22px 16px', fontSize: 12 }}>Grey tick = the two years before, cyan = last 365 days. Numbers are impact per 100 balls.</div>
-    </Panel>
-  );
+function Delta({ now, prev, fmt, invert }: { now: number; prev: number; fmt: (v: number) => string; invert?: boolean }) {
+  if (!isFinite(now) || !isFinite(prev) || !prev) return <span className="d flat">no previous year</span>;
+  const d = now - prev, up = d > 0;
+  const cls = Math.abs(d / prev) < 0.01 ? 'flat' : (up !== !!invert ? 'up' : 'down');
+  return <span className={`d ${cls}`}>{up ? '▲' : d < 0 ? '▼' : '■'} {fmt(Math.abs(d))} vs prior 365 days</span>;
 }
 
 export default function Home() {
-  const { data, error } = useData<Home>('home.json');
-  const meta = useData<any>('meta.json').data;
-  const [scope, setScope] = useState('t20-men');
+  const s = useSettings();
+  const idx = useData<HomeIdx>('home.json');
+  const scopes = idx.data?.scopes ?? [];
+  const want = `${s.fmt}-${s.gender}-${s.level}`;
+  const fallback = scopes.find((x) => x.key === want) ?? ['top', 'intl', 'all'].map((l) => scopes.find((x) => x.key === `${s.fmt}-${s.gender}-${l}`)).find(Boolean);
+  const { data, error } = useData<Scope>(fallback ? `home/${fallback.key}.json` : null);
   const [win, setWin] = useState<'365' | 'all'>('365');
-  const [group, setGroup] = useState('impact');
+  const [boKind, setBoKind] = useState<'bat' | 'bowl'>('bat');
+  const [clKind, setClKind] = useState<'bat' | 'bowl'>('bat');
+  const [ym, setYm] = useState<'rpo' | 'rpw' | 'dot' | 'six_pm'>('rpo');
+  const [pm, setPm] = useState<'rpo' | 'bpw'>('rpo');
+  const [zone, setZone] = useState<'full_straight' | 'corridor'>('full_straight');
   const [leagues, setLeagues] = useState<string[]>(['ipl', 'bbl', 'psl', 't20-blast']);
-  const [tm, setTm] = useState<'rpo' | 'six_pm' | 'four_pm' | 'dot_pct' | 'bpw'>('rpo');
-  const [cf, setCf] = useState('T20');
-  const [cg, setCg] = useState('all');
-  const [cmin, setCmin] = useState<'40' | '100' | '250'>('40');
+  const [tm, setTm] = useState<'rpo' | 'six_pm' | 'dot_pct' | 'bpw'>('rpo');
+  const [cmin, setCmin] = useState<'30' | '100' | '250'>('30');
 
-  const byKey = useMemo(() => new Map((data?.boards ?? []).map((b) => [b.key, b])), [data]);
+  const boards = useMemo(() => {
+    const m = new Map<string, Board>();
+    for (const b of data?.boards ?? []) if (b.window === win) m.set(b.metric, b);
+    return m;
+  }, [data, win]);
+
+  if (idx.error) return <ErrorBox error={idx.error} />;
+  if (idx.data && !fallback) {
+    return <div className="notice">There is not enough {s.gender === 'female' ? "women's" : "men's"} {FMTS.find((f) => f.k === s.fmt)?.l} cricket in the data for an overview yet. Pick another format in the sidebar.</div>;
+  }
   if (error) return <ErrorBox error={error} />;
-  if (!data) return <Loader text="Loading insights" />;
-  const get = (m: string, s: string, w: string) => byKey.get(`${m}:${s}:${w}`);
+  if (!data || !idx.data || !fallback) return <Loader text="Loading overview" />;
 
-  const insights = [
-    { b: get('bat_imp', 't20-men', '365'), say: (r: Row) => <>added <b className="mono">{signed(r[2], 0)}</b> runs above an average batter in the same situations in men's T20 over the last year. Nobody added more.</> },
-    { b: get('bowl_imp', 'test-men', '365'), say: (r: Row) => <>saved <b className="mono">{signed(r[2], 0)}</b> runs against an average Test bowler in the last year, counting the run value of every wicket.</> },
-    { b: get('clutch', 't20-men', '365'), say: (r: Row) => <>is the most clutch batter in men's T20: <b className="mono">{signed(r[2], 0)}</b> runs of impact on the balls where the result was most on the line.</> },
-    { b: get('full_straight', 'test-men', 'all'), say: (r: Row) => <>is out bowled or LBW <b className="mono">{d2(r[2])}</b> times per 1,000 balls in Tests, the most of any batter with 2,000+ balls faced. Full and straight is the plan.</> },
-  ].filter((x) => x.b && x.b.rows.length);
-
-  const scopeOpts = data.scopes.map((s) => [s[0], s[1]] as [string, string]);
-  const scopeFam = data.scopes.find((s) => s[0] === scope)?.[2];
-  const groupBoards = (GROUPS.find((g) => g[0] === group)?.[2] ?? []).map((m) => get(m, scope, win)).filter(Boolean) as Board[];
-
-  const years = [...new Set(data.trend.filter((t) => leagues.includes(t.comp)).map((t) => t.year))].sort();
-  const series = leagues.map((c, i) => ({ name: COMP_NAME[c] ?? c, color: SERIES[i],
-    values: years.map((y) => (data.trend.find((t) => t.comp === c && t.year === y) as any)?.[tm] ?? null) }));
-  const allLeagues = [...new Set(data.trend.map((t) => t.comp))];
-  const TM: Record<string, [string, (v: number) => string]> = {
-    rpo: ['Runs per over', d1], six_pm: ['Sixes per match', d1], four_pm: ['Fours per match', d1], dot_pct: ['Dot-ball %', (v) => `${d1(v)}%`], bpw: ['Balls per wicket', d1] };
-  const chase = data.chase.filter((c) => c.fam === cf && (cg === 'all' || c.gender === cg) && c.n >= +cmin);
+  const multi = MULTI(s.fmt);
+  const fl = FMTS.find((f) => f.k === s.fmt)!;
+  const g = s.gender === 'male' ? "Men's" : "Women's";
+  const scopeLabel = `${fl.l} · ${s.gender === 'male' ? 'Men' : 'Women'} · ${fallback.level_label}`;
+  const P = data.pulse;
+  const share = (p: Pulse) => [p.n_dot, p.n_r13, p.n_four, p.n_six].map((v) => (100 * v) / Math.max(1, p.n_faced));
+  const prevShare = share(P.prev);
+  const years = data.years.filter((y) => y.m >= (multi ? 5 : 10));
+  const phaseYears = [...new Set(data.phases.map((p) => p.year))].filter((y) => years.some((x) => x.year === y)).sort();
+  const phNames = PHASES[s.fmt] ?? PHASES.T20;
+  const YM: Record<string, [string, (v: number) => string]> = { rpo: ['Runs per over', d2], rpw: ['Runs per wicket', d1], dot: ['Dot-ball %', (v) => `${d1(v)}%`], six_pm: ['Sixes per match', d1] };
+  const bo = (data.breakouts[boKind] ?? []).slice(0, 10);
+  const clutch = boards.get(clKind === 'bat' ? 'clutch' : 'clutch_bowl');
+  const zb = boards.get(zone);
+  const inScope = new Set(data.comps.map((c) => c.comp));
+  const trendComps = [...new Set(idx.data.trend.map((t) => t.comp))].filter((c) => inScope.has(c));
+  const tyears = [...new Set(idx.data.trend.filter((t) => leagues.includes(t.comp)).map((t) => t.year))].sort();
+  const TM: Record<string, [string, (v: number) => string]> = { rpo: ['Runs per over', d2], six_pm: ['Sixes per match', d1], dot_pct: ['Dot-ball %', (v) => `${d1(v)}%`], bpw: ['Balls per wicket', d1] };
+  const compName = (c: string) => data.chase.find((x) => x.comp === c)?.label ?? c.toUpperCase().replace(/-/g, ' ');
+  const chase = data.chase.filter((c) => c.n >= +cmin);
 
   return (
     <>
-      <section className="hero fade-in">
-        <div>
-          <div className="eyebrow">Ball-by-ball cricket intelligence</div>
-          <h1 style={{ marginTop: 10 }}>Every ball, <span className="glow">in context.</span></h1>
-          <p className="lede">Impact, win probability, matchups and inferred pitch-zone weaknesses for {meta ? n0(meta.comps.length) : '…'} competitions,
-            adjusted for era, format, over and wickets in hand. Updated nightly from Cricsheet.</p>
+      <section className="phead fade-in">
+        <div className="stack">
+          <div className="eyebrow">Overview · {fallback.level_label}</div>
+          <h1>{g} {fl.l} cricket</h1>
+          <p className="lede">{n0(fallback.matches)} matches with ball-by-ball records, adjusted for era, phase and wickets in hand.
+            Data to {dateShort(idx.data.data_to)}. Change format, gender and level in the sidebar.</p>
         </div>
-        {meta && (
-          <div className="kpis stagger">
-            <div className="kpi"><span className="v"><CountUp value={meta.counts.matches} format={n0} /></span><span className="l">Matches</span></div>
-            <div className="kpi"><span className="v"><CountUp value={meta.counts.balls / 1e6} format={(v) => `${v.toFixed(1)}M`} /></span><span className="l">Balls</span></div>
-            <div className="kpi"><span className="v"><CountUp value={meta.counts.players} format={n0} /></span><span className="l">Players</span></div>
-          </div>
-        )}
+        <Seg label="Time window" value={win} onChange={setWin} options={[['365', 'Last 365 days'], ['all', 'All time']]} />
       </section>
+      {fallback.key !== want && <div className="notice info">No {LEVELS.find((l) => l[0] === s.level)?.[1].toLowerCase()} data for this format, so this shows {fallback.level_label.toLowerCase()}.</div>}
 
-      <div className="grid g3">
-        {insights.map(({ b, say }) => {
-          const r = b!.rows[0];
-          return (
-            <Panel key={b!.key} className="insight" eyebrow={`${b!.title} · ${b!.scope_label}`}>
-              <Link to={`/player/${r[0]}`} className="who" style={{ color: 'var(--text)' }}>{r[1]}</Link>
-              <p className="sub">{say(r)}</p>
-              <div className="row muted" style={{ fontSize: 12 }}>
-                Runner-up: {b!.rows[1] ? <Link to={`/player/${b!.rows[1][0]}`}>{b!.rows[1][1]}</Link> : '–'} ({b!.rows[1] ? fmtBoard(b!.metric, b!.rows[1][2]) : ''})
-              </div>
-            </Panel>
-          );
-        })}
+      <div className="pulse stagger" aria-label="Last 365 days">
+        <div><span className="l">Matches, last 365 days</span><span className="v">{n0(P.now.m)}</span><span className="d flat">{n0(P.all.m)} all time</span></div>
+        <div><span className="l">Runs per over</span><span className="v">{d2(P.now.rpo)}</span><Delta now={P.now.rpo} prev={P.prev.rpo} fmt={d2} /></div>
+        <div><span className="l">Runs per wicket</span><span className="v">{d1(P.now.rpw)}</span><Delta now={P.now.rpw} prev={P.prev.rpw} fmt={d1} /></div>
+        <div><span className="l">Dot-ball %</span><span className="v">{d1(P.now.dot)}%</span><Delta now={P.now.dot} prev={P.prev.dot} fmt={(v) => d1(v) + ' pts'} invert /></div>
+        <div><span className="l">{multi ? 'Balls per wicket' : 'Sixes per match'}</span><span className="v">{multi ? d1(P.now.bpw) : d1(P.now.six_pm)}</span>
+          {multi ? <Delta now={P.now.bpw} prev={P.prev.bpw} fmt={d1} /> : <Delta now={P.now.six_pm} prev={P.prev.six_pm} fmt={d1} />}</div>
+        <div><span className="l">Wickets to pace</span><span className="v">{d1(P.now.pace_share)}%</span><Delta now={P.now.pace_share} prev={P.prev.pace_share} fmt={(v) => d1(v) + ' pts'} /></div>
       </div>
 
-      <Panel title="Leaderboards" sub="Deep metrics, adjusted for situation and era. Each board has its own filters. Tap a name for the full profile."
-        right={<Seg label="Time window" value={win} onChange={setWin} options={[['365', 'Last 365 days'], ['all', 'All time']]} />}>
-        <Chips label="Competition" value={scope} onChange={setScope} options={scopeOpts} />
-        <div className="tabs" role="tablist">
-          {GROUPS.filter((g) => scopeFam !== 'MD' || (g[0] !== 'wp' && g[0] !== 'phase')).map((g) => (
-            <button key={g[0]} role="tab" aria-selected={group === g[0]} onClick={() => setGroup(g[0])}>{g[1]}</button>
-          ))}
-        </div>
-        <div className="grid g3">
-          {groupBoards.map((b) => <BoardCard key={b.key} b={b} />)}
-        </div>
-        {group === 'zones' && <div className="notice info">Vulnerability boards are inferred from dismissal types (bowled, LBW, caught behind), not ball-tracking. See the methodology page.</div>}
-        {!groupBoards.length && <div className="empty">No data for this window.</div>}
-      </Panel>
-
+      <SectionHead title="Leaders" sub={`${win === '365' ? 'Last 365 days' : 'All time'}. Every number is adjusted for the situation it came in. Tap a name for the full profile.`} />
       <div className="grid g2">
-        <Breakouts data={data.breakouts} scopes={data.scopes} />
-        <Panel title="Chasing advantage by league" sub="Share of decided matches won by the side batting second."
-          tools={<>
-            <Mini label="Format" value={cf} onChange={setCf} options={[['T20', 'T20'], ['ODI', 'One-day'], ['HUN', 'Hundred']]} />
-            <Mini label="Gender" value={cg} onChange={setCg} options={[['all', 'All'], ['male', 'Men'], ['female', 'Women']]} />
-            <Mini label="Min matches" value={cmin} onChange={setCmin} options={[['40', '40'], ['100', '100'], ['250', '250']]} />
-          </>}>
-          <HBars base={0.5} refLabel="even" fmt={(v) => `${(v * 100).toFixed(1)}%`} max={0.75}
-            rows={chase.slice(0, 14).map((c) => ({ label: c.label, value: c.chase_win, note: `${n0(c.n)} matches` }))} />
-          {!chase.length && <div className="empty">No league has that many decided matches.</div>}
+        <Leaders key={`bat-${win}-${fallback.key}`} boards={boards} keys={multi ? BAT_MD : BAT_LIM} kind="bat" scopeLabel={scopeLabel} />
+        <Leaders key={`bowl-${win}-${fallback.key}`} boards={boards} keys={multi ? BOWL_MD : BOWL_LIM} kind="bowl" scopeLabel={scopeLabel} />
+      </div>
+
+      <SectionHead title="Movers and pressure" sub="Who is improving fastest, and who delivers when the result is on the line." />
+      <div className="grid g2">
+        <Panel flush title="Breakouts" sub="Impact per 100 balls: the last 365 days against the two years before."
+          tools={<Mini label="Role" value={boKind} onChange={setBoKind} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
+          pin={bo.length ? { id: `breakouts:${fallback.key}:${boKind}`, title: `Breakouts · ${boKind === 'bat' ? 'batting' : 'bowling'}`, ctx: scopeLabel, href: '/',
+            rows: bo.slice(0, 5).map((r) => ({ l: r[1], v: signed(r[4], 1), w: r[4] / Math.max(1e-9, bo[0][4]), href: `/player/${r[0]}` })) } : null}
+          foot={<Legend items={[{ label: 'Two years before', color: 'var(--muted)', kind: 'dot' }, { label: 'Last 365 days', color: 'var(--accent)', kind: 'dot' }]} />}>
+          <Dumbbell fmt={(v) => d1(v)} thenLabel="Before" nowLabel="Last 365 days"
+            rows={bo.map((r) => ({ id: r[0], name: r[1], meta: `${r[7] ?? ''} · ${n0(r[5])} balls this year`, then: r[3], now: r[2], href: `/player/${r[0]}` }))} />
+        </Panel>
+        {!multi && clutch ? (
+          <Panel flush title={clKind === 'bat' ? 'Clutch batting' : 'Clutch bowling'} sub="Impact on high-leverage balls only: the moments where win probability swings most."
+            tools={<Mini label="Role" value={clKind} onChange={setClKind} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
+            pin={{ id: `clutch:${fallback.key}:${clKind}:${win}`, title: clKind === 'bat' ? 'Clutch batting' : 'Clutch bowling', ctx: scopeLabel, href: '/',
+              rows: clutch.rows.slice(0, 5).map((r) => ({ l: r[1], v: signed(r[2], 0), w: r[2] / Math.max(1e-9, clutch.rows[0][2]), href: `/player/${r[0]}` })) }}
+            foot="Leverage ≥ 1.5: balls where the win chance typically moves at least 1.5 times more than an average ball.">
+            <Lollipop fmt={(v) => signed(v, 0)} rows={clutch.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} high-leverage balls`,
+              value: r[2], sub: `${signed(r[3].wpa, 2)} wins`, href: `/player/${r[0]}` }))} />
+          </Panel>
+        ) : zb ? (
+          <Panel flush title="Vulnerability" sub="Dismissals inferred from type (bowled, LBW, caught behind), per 1,000 balls. Higher = easier to get out this way."
+            tools={<Mini label="Zone" value={zone} onChange={setZone} options={[['full_straight', 'Full & straight'], ['corridor', 'Corridor']]} />}>
+            <Lollipop fmt={d1} rows={zb.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} balls`, value: r[2], href: `/player/${r[0]}` }))} />
+          </Panel>
+        ) : null}
+      </div>
+
+      <SectionHead title="How the game is played" sub={`${g} ${fl.l} cricket, ball by ball.`} />
+      <div className="grid g2">
+        <Panel title="Scoring mix" sub="What happens to each ball faced in the last 365 days. Small numbers show the change from the year before.">
+          <WagonMix aria="Scoring mix of balls faced" compare={prevShare} parts={[
+            { label: 'Dot balls', value: P.now.n_dot, color: 'var(--line-2)' },
+            { label: '1, 2 or 3 runs', value: P.now.n_r13, color: 'var(--s1)' },
+            { label: 'Fours', value: P.now.n_four, color: 'var(--s4)' },
+            { label: 'Sixes', value: P.now.n_six, color: 'var(--s2)' },
+          ]} />
+        </Panel>
+        <Panel title="Year by year" sub={YM[ym][0]} tools={<Mini label="Metric" value={ym} onChange={setYm} options={Object.entries(YM).map(([k, v]) => [k as typeof ym, v[0]])} />}
+          pin={{ id: `years:${fallback.key}:${ym}`, title: `${YM[ym][0]} by year`, ctx: scopeLabel, href: '/', rows: years.slice(-5).reverse().map((y) => ({ l: String(y.year), v: YM[ym][1]((y as any)[ym]),
+            w: (y as any)[ym] / Math.max(...years.map((x) => (x as any)[ym])) })) }}>
+          <LineChart key={ym} aria={`${YM[ym][0]} by year`} labels={years.map((y) => String(y.year))} fmt={YM[ym][1]} height={240}
+            series={[{ name: YM[ym][0], color: 'var(--s1)', wash: true, values: years.map((y) => (y as any)[ym]) }]} />
         </Panel>
       </div>
+      <div className="grid g2">
+        <Panel title="By phase of the innings" sub={pm === 'rpo' ? 'Runs per over in each phase, by year.' : 'Balls per wicket in each phase, by year.'}
+          tools={<Mini label="Metric" value={pm} onChange={setPm} options={[['rpo', 'Run rate'], ['bpw', 'Balls per wicket']]} />}>
+          <Legend items={phNames.map((p, i) => ({ label: p, color: SERIES[i] }))} />
+          <LineChart key={pm} aria="Phase trends" labels={phaseYears.map(String)} fmt={pm === 'rpo' ? d2 : d1} height={240}
+            series={[0, 1, 2].map((ph) => ({ name: phNames[ph].split(' (')[0], color: SERIES[ph],
+              values: phaseYears.map((y) => (data.phases.find((p) => p.year === y && p.phase === ph) as any)?.[pm] ?? null) }))} />
+        </Panel>
+        {!multi && data.chase.length > 0 ? (
+          <Panel title="Chasing advantage" sub="Share of decided matches won by the side batting second."
+            tools={<Mini label="Min matches" value={cmin} onChange={setCmin} options={[['30', '30'], ['100', '100'], ['250', '250']]} />}>
+            <HBars base={0.5} refLabel="even" fmt={(v) => `${(v * 100).toFixed(0)}%`} max={0.75}
+              rows={chase.slice(0, 12).map((c) => ({ label: c.label, value: c.chase_win, note: `${n0(c.n)} matches` }))} />
+          </Panel>
+        ) : (
+          <Panel flush title="Competitions in this view" sub="Where these matches come from.">
+            {data.comps.slice(0, 10).map((c) => (
+              <Link key={c.comp} className="list-row" to={`/league/${c.comp}`}>
+                <span className="t">{compName(c.comp)}</span><span className="v">{n0(c.m)} <small className="muted">matches</small></span>
+              </Link>
+            ))}
+          </Panel>
+        )}
+      </div>
 
-      <Panel title="How the game is changing" sub="League trends by year. Pick a metric and up to four leagues."
-        tools={<Mini label="Metric" value={tm} onChange={setTm} options={Object.entries(TM).map(([k, v]) => [k as typeof tm, v[0]])} />}>
-        <div className="chips">{allLeagues.map((c) => (
-          <button key={c} className="chip" aria-pressed={leagues.includes(c)}
-            onClick={() => setLeagues(leagues.includes(c) ? leagues.filter((x) => x !== c) : leagues.length >= 4 ? [...leagues.slice(1), c] : [...leagues, c])}>
-            {COMP_NAME[c] ?? c}</button>))}</div>
-        <Legend items={series.map((s) => ({ label: s.name, color: s.color }))} />
-        <LineChart aria={`${TM[tm][0]} by year`} labels={years.map(String)} series={series} fmt={TM[tm][1]} height={260} />
-      </Panel>
+      {s.fmt === 'T20' && s.gender === 'male' && (
+        <Panel title="League trends" sub="Pick up to four leagues and a metric."
+          tools={<Mini label="Metric" value={tm} onChange={setTm} options={Object.entries(TM).map(([k, v]) => [k as typeof tm, v[0]])} />}>
+          <div className="chips">{trendComps.map((c) => (
+            <button key={c} className="chip" aria-pressed={leagues.includes(c)}
+              onClick={() => setLeagues(leagues.includes(c) ? leagues.filter((x) => x !== c) : leagues.length >= 4 ? [...leagues.slice(1), c] : [...leagues, c])}>
+              {c.toUpperCase().replace(/-/g, ' ')}</button>))}</div>
+          <Legend items={leagues.map((c, i) => ({ label: c.toUpperCase().replace(/-/g, ' '), color: SERIES[i] }))} />
+          <LineChart aria={`${TM[tm][0]} by year`} labels={tyears.map(String)} fmt={TM[tm][1]} height={260}
+            series={leagues.map((c, i) => ({ name: c.toUpperCase().replace(/-/g, ' '), color: SERIES[i],
+              values: tyears.map((y) => (idx.data!.trend.find((t) => t.comp === c && t.year === y) as any)?.[tm] ?? null) }))} />
+        </Panel>
+      )}
+
+      {multi && zb && (
+        <Panel flush title="Vulnerability: full and straight" sub="Bowled and LBW dismissals per 1,000 balls (inferred zones). Higher = more likely to be beaten on the stumps."
+          tools={<Mini label="Zone" value={zone} onChange={setZone} options={[['full_straight', 'Full & straight'], ['corridor', 'Corridor']]} />}>
+          <Lollipop fmt={d1} rows={zb.rows.slice(0, 10).map((r) => ({ id: r[0], name: r[1], meta: `${r[3].t} · ${n0(r[3].b)} balls`, value: r[2], href: `/player/${r[0]}` }))} />
+        </Panel>
+      )}
+
+      {s.fmt === 'TEST' && <Tests key={s.gender} gender={s.gender} />}
     </>
   );
 }

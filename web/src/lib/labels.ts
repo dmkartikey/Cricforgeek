@@ -1,4 +1,5 @@
-export const FAM_LABEL: Record<string, string> = { T20: 'T20', HUN: 'The Hundred', ODI: 'One-day', MD: 'Multi-day' };
+export const FAM_LABEL: Record<string, string> = { TEST: 'Test', FC: 'First-class', ODI: 'ODI', LA: 'List A', T20: 'T20', HUN: 'The Hundred', MD: 'Multi-day' };
+export const MULTI = (f: string) => f === 'TEST' || f === 'FC' || f === 'MD';
 export const GENDER_LABEL: Record<string, string> = { male: 'Men', female: 'Women' };
 
 export const famKeyLabel = (key: string) => {
@@ -12,6 +13,7 @@ export const PHASES: Record<string, [string, string, string]> = {
   ODI: ['Powerplay (1–10)', 'Middle (11–40)', 'Death (41–50)'],
   MD: ['New ball (1–20)', 'Middle (21–80)', 'Old ball (81+)'],
 };
+PHASES.TEST = PHASES.MD; PHASES.FC = PHASES.MD; PHASES.LA = PHASES.ODI;
 
 export const BGRP: Record<string, string> = {
   RF: 'Right-arm fast', RM: 'Right-arm medium', LF: 'Left-arm fast', LM: 'Left-arm medium',

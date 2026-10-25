@@ -3,8 +3,40 @@ import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
-import { BGRP, famKeyLabel, INN, LEV, PHASES, POS, STYLE } from '../lib/labels';
-import { CountUp, ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
+import { ErrorBox, Flip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { useSettings } from '../lib/settings';
+import { BAT_METRICS, BOWL_METRICS, Drill, DrillMetric } from '../components/Drill';
+import { ReactNode } from 'react';
+
+type BandItem = { l: string; v: string; h?: string; k?: string };
+function StatBand({ hero, groups, metrics, onDrill }: { hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
+  const m = (k?: string) => metrics.find((x) => x.key === k);
+  const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
+    : <div className="kv"><span>{it.l}</span><b>{it.v}</b></div>);
+  return (
+    <div className="band fade-in">
+      <div className="band-hero">
+        {hero.map((h) => (
+          <div key={h.l} className="big">
+            <span className="l">{h.l}</span>
+            {m(h.k) ? <button type="button" className="v drill" style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', borderBottom: '1px dotted var(--line-2)', alignSelf: 'flex-start' }}
+              onClick={() => onDrill(m(h.k)!)} title="Break this number down"><Flip text={h.v} /></button> : <span className="v"><Flip text={h.v} /></span>}
+            {h.h && <span className="h">{h.h}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="band-groups">
+        {groups.map((g) => (
+          <div key={g.t} className="band-group">
+            <h3>{g.t}</h3>
+            {g.items.map((it) => <div key={it.l}>{val(it)}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 import { Columns, HBars, LineChart, PctBars } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
 import { Table } from '../components/Table';
@@ -16,6 +48,7 @@ const phaseShort = (fam: string, k: string) => (PHASES[fam] ?? PHASES.T20)[+k].s
 export default function Player() {
   const { id } = useParams();
   const { data: p, error } = useData<any>(`players/${id}.json`);
+  const st = useSettings();
   const meta = useData<any>('meta.json').data;
   const zbase = useData<any>('zbase.json').data;
   const [fk, setFk] = useState<string>('');
@@ -28,7 +61,8 @@ export default function Player() {
   }, [p]);
   useEffect(() => {
     if (!p || !fks.length) return;
-    const k = fks[0];
+    const want = `${st.fmt}-${st.gender}`;
+    const k = fks.includes(want) ? want : fks[0];
     setFk(k);
     const s = p.summary[k];
     setRole((s.bowl?.b ?? 0) > (s.bat?.b ?? 0) * 1.2 ? 'bowl' : 'bat');
@@ -61,7 +95,10 @@ export default function Player() {
         </div>
         <div className="stack" style={{ alignItems: 'flex-end' }}>
           {fks.length > 1 && <Seg label="Format" value={fk} onChange={setFk} options={fks.map((k) => [k, famKeyLabel(k)])} />}
-          {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
+          <div className="row">
+            {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
+            <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
+          </div>
         </div>
       </section>
       {r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}
@@ -90,7 +127,8 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
   const s = bat(p.summary[fk].bat);
   const sp = p.splits?.[fk]?.bat ?? {};
   const pc = p.pct?.[fk];
-  const limited = fam !== 'MD';
+  const limited = !MULTI(fam);
+  const [drill, setDrill] = useState<DrillMetric | null>(null);
   const comps = p.comps.filter((c: any) => `${c.fam}-${c.g}` === fk && c.bat);
   const compOpts: [string, string][] = [['all', 'All competitions'], ...comps.map((c: any) => [c.comp, c.label] as [string, string])];
   const [yc, setYc] = useState('all');
@@ -120,18 +158,22 @@ function Batting({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <Tiles items={[
-        { l: 'Runs', v: <CountUp value={s.r ?? 0} format={n0} />, h: `${n0(s.i)} inns` },
-        { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} outs` },
-        { l: 'Strike rate', v: d1(s.sr), h: `${n0(s.b)} balls` },
-        { l: 'SR+', v: plus(s.srPlus), hot: s.srPlus >= 115, tip: 'Strike rate vs an average batter in the same situations. 100 = average.' },
-        { l: 'Average+', v: plus(s.avgPlus), hot: s.avgPlus >= 120, tip: 'Runs per dismissal vs expected. 100 = average.' },
-        { l: 'Impact', v: <CountUp value={s.imp ?? 0} format={(v) => signed(v, 0)} />, h: `${signed(s.imp100, 2)} / 100 balls`, hot: (s.imp ?? 0) > 0 },
-        ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), h: 'wins', tip: 'Sum of win-probability swings on balls faced.' }] : []),
-        { l: '50s / 100s', v: `${s.c50 ?? 0} / ${s.c100 ?? 0}`, h: `HS ${s.hs ?? '–'}` },
-        { l: 'Boundary %', v: pct(s.bnd), h: `${n0(s.f4)} 4s · ${n0(s.s6)} 6s` },
-        { l: 'Dot %', v: pct(s.dotp) },
-      ]} />
+      <StatBand metrics={BAT_METRICS} onDrill={setDrill}
+        hero={[
+          { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
+          { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
+          { l: 'Strike rate', v: d1(s.sr), h: `HS ${s.hs ?? '–'}`, k: 'sr' },
+        ]}
+        groups={[
+          { t: 'Adjusted for context', items: [
+            { l: 'SR+', v: plus(s.srPlus), k: 'srPlus' }, { l: 'Average+', v: plus(s.avgPlus), k: 'avgPlus' },
+            { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
+          { t: 'Scoring', items: [
+            { l: '50s · 100s', v: `${s.c50 ?? 0} · ${s.c100 ?? 0}` }, { l: 'Fours · sixes', v: `${n0(s.f4)} · ${n0(s.s6)}` },
+            { l: 'Boundary %', v: pct(s.bnd), k: 'bnd' }, { l: 'Dot %', v: pct(s.dotp), k: 'dotp' } ] },
+        ]} />
+      <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap any underlined or highlighted number to break it down by phase, bowling type, innings, year, opposition and venue.</div>
+      {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
@@ -308,7 +350,8 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   const s = bowl(p.summary[fk].bowl);
   const sp = p.splits?.[fk]?.bowl ?? {};
   const pc = p.pct?.[fk];
-  const limited = fam !== 'MD';
+  const limited = !MULTI(fam);
+  const [drill, setDrill] = useState<DrillMetric | null>(null);
   const comps = p.comps.filter((c: any) => `${c.fam}-${c.g}` === fk && c.bowl);
   const compOpts: [string, string][] = [['all', 'All competitions'], ...comps.map((c: any) => [c.comp, c.label] as [string, string])];
   const [yc, setYc] = useState('all');
@@ -334,18 +377,22 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
-      <Tiles items={[
-        { l: 'Wickets', v: <CountUp value={s.w ?? 0} format={n0} />, h: `${n0(s.i)} inns` },
-        { l: 'Economy', v: d2(s.econ), h: `${overs(s.b)} overs` },
-        { l: 'Average', v: d1(s.avg) },
-        { l: 'Strike rate', v: d1(s.sr), h: 'balls / wkt' },
-        { l: 'Economy+', v: plus(s.econPlus), hot: s.econPlus >= 110, tip: 'Expected runs conceded / actual. 100 = average.' },
-        { l: 'Wickets+', v: plus(s.wktPlus), hot: s.wktPlus >= 115, tip: 'Wickets vs expected for the same overs and situations.' },
-        { l: 'Impact', v: <CountUp value={s.imp ?? 0} format={(v) => signed(v, 0)} />, h: `${signed(s.imp100, 2)} / 100 balls`, hot: (s.imp ?? 0) > 0 },
-        ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), h: 'wins' }] : []),
-        { l: 'Best', v: s.best ?? '–', h: `${s.w3 ?? 0}×3w · ${s.w5 ?? 0}×5w` },
-        { l: 'Dot %', v: pct(s.dotp) },
-      ]} />
+      <StatBand metrics={BOWL_METRICS} onDrill={setDrill}
+        hero={[
+          { l: 'Wickets', v: n0(s.w), h: `${n0(s.i)} innings · ${overs(s.b)} overs`, k: 'w' },
+          { l: 'Economy', v: d2(s.econ), h: `${n0(s.r)} runs conceded`, k: 'econ' },
+          { l: 'Average', v: d1(s.avg), h: `SR ${d1(s.sr)} balls / wkt`, k: 'avg' },
+        ]}
+        groups={[
+          { t: 'Adjusted for context', items: [
+            { l: 'Economy+', v: plus(s.econPlus), k: 'econPlus' }, { l: 'Wickets+', v: plus(s.wktPlus), k: 'wktPlus' },
+            { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
+          { t: 'Hauls', items: [
+            { l: 'Best figures', v: s.best ?? '–' }, { l: '3-fors · 5-fors', v: `${s.w3 ?? 0} · ${s.w5 ?? 0}` },
+            { l: 'Strike rate', v: d1(s.sr), k: 'sr' }, { l: 'Dot %', v: pct(s.dotp), k: 'dotp' } ] },
+        ]} />
+      <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap any number to break it down by phase, batter hand, innings, year, opposition and venue.</div>
+      {drill && <Drill p={p} fk={fk} role="bowl" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
       <div className="grid g2">
         <PercentileCard pc={pc?.bowl} n={pc?.n_bowl} fk={fk} role="bowlers" items={pc?.bowl ? [
           { label: 'Economy+', pct: pc.bowl.econ_plus, value: plus(s.econPlus) },

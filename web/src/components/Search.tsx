@@ -41,7 +41,7 @@ export function Search() {
     let t = 0;
     for (const x of idx.teams) { if (t >= 5) break; if (hit(x[1])) { t++; out.push({ href: `/team/${x[0]}`, label: x[1] + (x[2] === 'female' ? ' (women)' : ''), meta: `${x[3]} matches`, group: 'Teams' }); } }
     let c = 0;
-    for (const x of idx.comps) { if (c >= 5) break; if (hit(x[1] + ' ' + x[2])) { c++; out.push({ href: `/league/${x[0]}`, label: x[1], meta: x[2], group: 'Leagues' }); } }
+    for (const x of idx.comps) { if (c >= 5) break; if (hit(x[1] + ' ' + x[2])) { c++; out.push({ href: `/league/${x[0]}`, label: x[1], meta: x[2], group: 'Competitions' }); } }
     return out;
   }, [idx, q]);
 
@@ -50,7 +50,7 @@ export function Search() {
   return (
     <div className="search">
       <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-      <input ref={input} value={q} placeholder="Search players, teams, leagues" aria-label="Search"
+      <input ref={input} value={q} placeholder="Search players, teams…" aria-label="Search"
         onFocus={() => { ensure(); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={(e) => { setQ(e.target.value); setHl(0); setOpen(true); }}
         onKeyDown={(e) => {

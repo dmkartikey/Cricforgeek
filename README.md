@@ -2,13 +2,15 @@
 
 Cricket stats for geeks. Ball-by-ball analytics for every format: impact, win probability, matchups, phase splits and inferred pitch-zone weaknesses, rebuilt every night from [Cricsheet](https://cricsheet.org) and published as a free static site.
 
-- **Home**: headline insights and leaderboards (impact, SR+, Average+, Economy+, WPA, clutch, death overs, pace vs spin, vulnerability).
-- **Player**: percentiles, competition and year trends, phase and bowling-type splits, batting and bowling pitch maps (inferred), matchups, entry point, recent form. Every card has its own filters.
-- **Tests**: the Test match lab: results by year, innings by innings, fourth-innings chases by target, follow-ons, the toss, home advantage, the ageing ball, conditions by country and innings specialists.
-- **Team**: competitions, win % by season, batting first vs chasing, phase run rates, top players, head to head.
-- **League**: scoring trends, tables with net run rate, leaders by season, venues, records, every match.
-- **Match**: worm, win-probability chart, Manhattan, scorecards with impact and WPA, turning points.
-- **Explorer**: Statsguru-style query builder (format, competitions, years, minimum balls, any metric, CSV export).
+The sidebar sets the context for every page: **format** (Test, ODI, T20, first-class, List A, The Hundred), **men or women**, and **level** (full members + major leagues, internationals only, or everything). Light and dark themes.
+
+- **Overview**: the pulse of the format (run rate, runs per wicket, dot %, pace share, each against the previous year), batting and bowling leaders with a tab per metric, breakouts (dumbbell), clutch performers, scoring mix, year and phase trends, chasing advantage. Choosing Test adds the Test match lab (chases by target, follow-ons, toss, home advantage, the ageing ball, conditions by country).
+- **Players** and **Player**: directory, then a profile with a stat band where any number opens a breakdown by phase, bowling type or hand, innings, leverage, year, opposition and venue. Percentiles, year trends, splits, pitch maps (inferred), matchups, recent form.
+- **Compare**: up to four players overlaid: head-to-head table, yearly lines, phase bars, pace v spin scatter, side-by-side pitch maps, common opponents, and a same-years mode.
+- **Teams** and **Team**: record band and form, win % and run rates by season, phase butterfly, batting order, pace v spin, attack mix, how they get out, leaders and appearances, highest and lowest totals, biggest wins, venues, head to head, recent results.
+- **Competitions**, **Matches** and **Match**: full scorecards for every innings (dismissals with fielders, extras, total, did not bat, fall of wickets, maidens, wides and no-balls, partnerships), over-by-over Manhattan, worm, win probability and turning points.
+- **Explorer**: Statsguru-style query builder with CSV export.
+- **My pinboard**: pin any leaderboard or breakdown; boards are saved in your browser.
 - **Methodology**: every model explained, with live calibration charts.
 
 ## How it works

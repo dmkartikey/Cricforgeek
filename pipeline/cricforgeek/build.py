@@ -47,9 +47,9 @@ def main():
         report = {}
         build_models(con, report)
         log("models built")
-        prepare(con)
-        log("derived tables built")
         rep_file.write_text(json.dumps(report))
+    prepare(con)
+    log("derived tables built")
     res = export_all(con, a.out, report)
     log(f"export {json.dumps(res)}")
 

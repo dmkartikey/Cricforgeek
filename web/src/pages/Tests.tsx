@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { d1, n0, pct, signed } from '../lib/fmt';
-import { CountUp, ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { CountUp, ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, SectionHead, Tiles } from '../components/ui';
 import { Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 
@@ -24,8 +24,7 @@ const eraOpts = ERAS.map((e) => [e[0], e[1]] as [string, string]);
 const BANDS: [string, number, number][] = [['< 150', 0, 149], ['150–199', 150, 199], ['200–249', 200, 249], ['250–299', 250, 299], ['300–349', 300, 349], ['350+', 350, 9999]];
 const INN_NAME = ['', '1st innings', '2nd innings', '3rd innings', '4th innings'];
 
-export default function Tests() {
-  const [g, setG] = useState<'male' | 'female'>('male');
+export default function Tests({ gender: g }: { gender: 'male' | 'female' }) {
   const { data: t, error } = useData<T>(`tests/${g}.json`);
   const [era, setEra] = useState('all');
   const [ym, setYm] = useState<'res' | 'rpw' | 'pace' | 'dot'>('res');
@@ -85,15 +84,8 @@ export default function Tests() {
 
   return (
     <>
-      <section className="player-head fade-in">
-        <div className="stack" style={{ gap: 8 }}>
-          <div className="eyebrow">Test cricket · ball by ball since {t.yearly[0]?.year}</div>
-          <h1>The Test match lab</h1>
-          <p className="sub" style={{ maxWidth: 720 }}>Every {g === 'male' ? "men's" : "women's"} Test with ball-by-ball records: fourth-innings chases, follow-ons,
-            declarations, the toss, home advantage, the ageing ball and how conditions change from country to country.</p>
-        </div>
-        <Seg label="Gender" value={g} onChange={(v) => { setG(v); setCTeam('all'); }} options={[['male', "Men's Tests"], ['female', "Women's Tests"]]} />
-      </section>
+      <SectionHead title="The Test match lab" sub={`Every ${g === 'male' ? "men's" : "women's"} Test with ball-by-ball records since ${t.yearly[0]?.year}: fourth-innings chases, follow-ons,
+            declarations, the toss, home advantage, the ageing ball and how conditions change from country to country.`} />
 
       <Panel tools={<Mini label="Era" value={era} onChange={setEra} options={eraOpts} />} title="At a glance" sub={`${sum.first}–${sum.last}`}>
         <Tiles items={[

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
-import { PHASES, TIER } from '../lib/labels';
+import { MULTI, PHASES, TIER } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SERIES, Tiles } from '../components/ui';
 import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
@@ -31,7 +31,7 @@ export default function League() {
   if (!c) return <Loader text="Loading league" />;
   const m = c.meta;
   const fam = m.fam;
-  const limited = fam !== 'MD';
+  const limited = !MULTI(fam);
   const trends: any[] = c.trends ?? [];
   const seasons = trends.map((t) => t.season);
   const last = trends[trends.length - 1] ?? {};

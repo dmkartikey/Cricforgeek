@@ -11,8 +11,27 @@ def zones_config() -> dict:
     return json.loads((SEEDS / "zones.json").read_text())
 
 
+FULL_MEMBERS = ("Afghanistan", "Australia", "Bangladesh", "England", "India", "Ireland", "New Zealand", "Pakistan",
+                "South Africa", "Sri Lanka", "West Indies", "Zimbabwe")
+TOP_DOMESTIC = ("Australia", "Bangladesh", "England", "India", "Ireland", "New Zealand", "Pakistan", "South Africa",
+                "Sri Lanka", "West Indies", "UAE", "USA")
+# Presentation formats, as cricket records them: Tests, first-class, ODIs, List A, T20 (T20Is + leagues), The Hundred
+FMT_SQL = """case when {c} in ('men-test', 'women-test') then 'TEST' when {f} = 'MD' then 'FC'
+                  when {c} in ('men-odi', 'women-odi') then 'ODI' when {f} = 'ODI' then 'LA' else {f} end"""
+
+
 def prepare(con):
     cfg = zones_config()
+    full = ", ".join(f"'{t}'" for t in FULL_MEMBERS)
+    dom = ", ".join(f"'{t}'" for t in TOP_DOMESTIC)
+    con.execute(f"""
+    create or replace table MATCHES_T as
+    select m.*, {FMT_SQL.format(c='m.comp', f='m.family')} as fmt,
+           m.team_type = 'international' as lvl_intl,
+           case when m.team_type = 'international' then m.team1 in ({full}) and m.team2 in ({full})
+                else m.country in ({dom}) end as lvl_top
+    from matches m""")
+    con.execute("create or replace view matches as select * from MATCHES_T")
     style_rows = [(s, g, v["type"]) for g, v in cfg["bowler_groups"].items() for s in v["styles"]]
     con.execute("create or replace table STYLEMAP (style varchar, grp varchar, btype varchar)")
     con.executemany("insert into STYLEMAP values (?,?,?)", style_rows)
@@ -42,9 +61,10 @@ def prepare(con):
     from mk full outer join cand using (match_id, team)
     """)
 
-    con.execute("""
+    fmt_b = FMT_SQL.format(c="b.comp", f="b.fam")
+    con.execute(f"""
     create or replace table BXE as
-    select b.*,
+    select b.* replace ({fmt_b} as fam), b.fam as mfam, mt.lvl_intl, mt.lvl_top, mt.team_type,
       pb.bgrp, pb.btype, pk.hand as bat_hand,
       case when b.wkt_kind is null or not b.striker_out then null
            when b.wkt_kind = 'bowled' then 'bowled'
@@ -64,6 +84,7 @@ def prepare(con):
     left join P pb on pb.player = b.bowler
     left join P pk on pk.player = b.batter
     left join KEEPER k on k.match_id = b.match_id and k.team = b.bowl_team
+    left join MATCHES_T mt on mt.match_id = b.match_id
     """)
 
     # Batting innings
@@ -78,7 +99,7 @@ def prepare(con):
       from (select match_id, inn, player, min(s) s from app group by all)),
     outs as (
       select match_id, inn, out_id as player, any_value(wkt_kind) kind, any_value(bowler) by_bowler,
-             any_value(dcat) dcat
+             any_value(dcat) dcat, any_value(fielders) fielders
       from BXE where out_id is not null and wkt_kind not in ('retired hurt', 'retired not out')
       group by all),
     entry as (
@@ -96,7 +117,7 @@ def prepare(con):
         sum(bat_val) imp, sum(bat_wpa) wpa
       from BXE group by all)
     select pos.match_id, pos.inn, pos.player, a.* exclude (match_id, inn, player),
-           pos.pos, o.kind, o.by_bowler, o.dcat, o.player is not null as is_out,
+           pos.pos, o.kind, o.by_bowler, o.dcat, o.fielders, o.player is not null as is_out,
            e.e_balls, e.e_score, e.e_wkts
     from pos
     left join agg a on a.match_id = pos.match_id and a.inn = pos.inn and a.player = pos.player

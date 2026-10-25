@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PREVIEW, useData } from '../lib/data';
+import { useSettings } from '../lib/settings';
 import { bat, bowl } from '../lib/stats';
 import { d1, d2, n0, pct, plus, signed } from '../lib/fmt';
-import { famKeyLabel } from '../lib/labels';
+import { famKeyLabel, MULTI } from '../lib/labels';
 import { ErrorBox, Loader, Panel, Seg } from '../components/ui';
 import { Col, Table } from '../components/Table';
 
-const FKS = ['T20-male', 'T20-female', 'ODI-male', 'ODI-female', 'MD-male', 'MD-female', 'HUN-male', 'HUN-female'];
+const FKS = ['TEST-male', 'TEST-female', 'ODI-male', 'ODI-female', 'T20-male', 'T20-female', 'FC-male', 'LA-male', 'LA-female', 'HUN-male', 'HUN-female'];
 const yearOf = (s: string) => +String(s).slice(0, 4);
 
 export default function Explorer() {
-  const [fk, setFk] = useState('T20-male');
+  const st = useSettings();
+  const [fk, setFk] = useState(FKS.includes(`${st.fmt}-${st.gender}`) ? `${st.fmt}-${st.gender}` : 'T20-male');
   const [disc, setDisc] = useState<'bat' | 'bowl'>('bat');
   const [by, setBy] = useState<'player' | 'season' | 'comp'>('player');
   const [comps, setComps] = useState<string[]>([]);
@@ -63,7 +65,7 @@ export default function Explorer() {
     return out;
   }, [ex.data, idx, disc, by, comps, from, to, minB]);
 
-  const limited = !fk.startsWith('MD');
+  const limited = !MULTI(fk.split('-')[0]);
   const who: Col<any> = { key: 'n', label: 'Player', left: true, get: (x) => names.get(x.player) ?? x.player,
     fmt: (v, x) => <><Link to={`/player/${x.player}`}>{v}</Link>{x.season && <span className="muted"> · {x.season}</span>}{x.comp && <span className="muted"> · {compLabel.get(x.comp) ?? x.comp}</span>}</> };
   const batCols: Col<any>[] = [who,
