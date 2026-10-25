@@ -12,7 +12,7 @@ import duckdb
 UA = {"User-Agent": "cricforgeek-photos/1.0 (https://cricforgeek.site)"}
 people_csv, work, out, cache = sys.argv[1:5]
 os.makedirs(f"{out}/photos", exist_ok=True); os.makedirs(cache, exist_ok=True)
-LIMIT = int(os.environ.get("PHOTO_LIMIT", "400"))  # new downloads per night, to stay polite to Commons
+LIMIT = int(os.environ.get("PHOTO_LIMIT", "900"))  # new downloads per night, to stay polite to Commons
 
 def get(url):
     with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=90) as r:
@@ -28,9 +28,10 @@ for p in csv.DictReader(open(people_csv, encoding="utf-8")):
         if p.get(k):
             ci[p[k]] = p["identifier"]
 con = duckdb.connect(f"{work}/cricforgeek.duckdb", read_only=True)
-top = {r[0] for r in con.execute("""
-    select distinct a.player from appearances a join matches m using (match_id)
-    where m.lvl_top and m.year >= 2015""").fetchall()}
+# top-team players since 2015, best known first (most top-level matches), so famous players get cards first
+top = {r[0]: r[1] for r in con.execute("""
+    select a.player, count(*) n from appearances a join matches m using (match_id)
+    where m.lvl_top and m.year >= 2015 group by a.player""").fetchall()}
 con.close()
 q = "SELECT ?ci ?img WHERE { ?p wdt:P2697 ?ci . ?p wdt:P18 ?img . }"
 rows = json.loads(get("https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(q)))["results"]["bindings"]
@@ -47,7 +48,7 @@ from rembg import new_session, remove
 from PIL import Image
 session = None
 new = 0
-for pid, url in sorted(want.items()):
+for pid, url in sorted(want.items(), key=lambda kv: -top[kv[0]]):
     dst = f"{cache}/{pid}.webp"
     if not os.path.exists(dst) and new < LIMIT:
         try:
