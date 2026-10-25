@@ -1,0 +1,35 @@
+{
+ "players_in_register": 18651,
+ "with_cricinfo_id": 18606,
+ "with_photo": 2189,
+ "kohli": "http://commons.wikimedia.org/wiki/Special:FilePath/Virat%20Kohli%20during%20the%20India%20vs%20Aus%204th%20Test%20match%20at%20Narendra%20Modi%20Stadium%20on%2009%20March%202023.jpg",
+ "kohli_credit": {
+  "Artist": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Prime_Minister%27s_Office_(India)\" class=\"extiw\" title=\"w:en:Prime Minister's Office (India)\"><span title=\"Office of the Prime Minister of India\">Prime Minister's Office</span></a>\n</bdi>",
+  "LicenseShortName": "GODL-India",
+  "LicenseUrl": "https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf"
+ },
+ "bumrah": "http://commons.wikimedia.org/wiki/Special:FilePath/Jasprit%20Bumrah%20in%20PMO%20New%20Delhi.jpg",
+ "bumrah_credit": {
+  "Artist": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Prime_Minister%27s_Office_(India)\" class=\"extiw\" title=\"w:en:Prime Minister's Office (India)\"><span title=\"Office of the Prime Minister of India\">Prime Minister's Office</span></a>\n</bdi>",
+  "LicenseShortName": "GODL-India",
+  "LicenseUrl": "https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf"
+ },
+ "mandhana": "http://commons.wikimedia.org/wiki/Special:FilePath/Ms.%20Smriti%20Mandhana%2C%20Arjun%20Awardee%20%28Cricket%29%2C%20in%20New%20Delhi%20on%20July%2016%2C%202019%20%28cropped%29.jpg",
+ "mandhana_credit": {
+  "Artist": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Ministry_of_Youth_Affairs_and_Sports\" class=\"extiw\" title=\"w:en:Ministry of Youth Affairs and Sports\"><span title=\"Indian government ministry\">Ministry of Youth Affairs and Sports</span></a>\n</bdi>",
+  "LicenseShortName": "GODL-India",
+  "LicenseUrl": "https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf"
+ },
+ "pandya": "http://commons.wikimedia.org/wiki/Special:FilePath/Hardik%20Pandya%20in%20PMO%20New%20Delhi.jpg",
+ "pandya_credit": {
+  "Artist": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Prime_Minister%27s_Office_(India)\" class=\"extiw\" title=\"w:en:Prime Minister's Office (India)\"><span title=\"Office of the Prime Minister of India\">Prime Minister's Office</span></a>\n</bdi>",
+  "LicenseShortName": "GODL-India",
+  "LicenseUrl": "https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf"
+ },
+ "jadeja": "http://commons.wikimedia.org/wiki/Special:FilePath/Ravindra%20Jadeja%20in%202018.jpg",
+ "jadeja_credit": {
+  "Artist": "SR Vlogs",
+  "LicenseShortName": "CC BY 3.0",
+  "LicenseUrl": "https://creativecommons.org/licenses/by/3.0"
+ }
+}
