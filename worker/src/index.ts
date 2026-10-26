@@ -237,7 +237,8 @@ export async function tick(env: Env, now = new Date()) {
     // a scan that stopped at its limit picks up again 20 minutes later; otherwise twice a day
     // after a fresh search the first scan may run on fewer spare calls (it is a one-off catch-up)
     const spare = b.lastSeriesScan && b.lastSeriesScan > (b.lastSeriesSearch ?? 0) ? 40 : 15;
-    if (now.getTime() - (b.lastSeriesScan ?? 0) >= (b.seriesMore ? 20 * 60_000 : 12 * HOUR) && left() > spare && (spare === 15 || liveNow.length === 0 || left() > 60)) {
+    const fresh = (b.lastSeriesSearch ?? 0) > (b.lastSeriesScan ?? 0); // new search results not yet read
+    if ((fresh || now.getTime() - (b.lastSeriesScan ?? 0) >= (b.seriesMore ? 20 * 60_000 : 12 * HOUR)) && left() > spare && (spare === 15 || liveNow.length === 0 || left() > 60)) {
       b.lastSeriesScan = now.getTime(); budgetChanged = true;
       const series: { id: string; name: string; s: number; e: number }[] = (await env.LIVE.get('series', 'json')) ?? [];
       const done: Done[] = (await env.LIVE.get('done', 'json')) ?? [];
