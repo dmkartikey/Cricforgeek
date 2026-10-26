@@ -34,5 +34,5 @@ jobs:
           git init -q -b check-done-results && git config user.name check && git config user.email check@users.noreply.github.com
           git add -A && git commit -q -m results && git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" check-done-results
           cd ..
-          echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{hitsToday,hitsLimit,lastScores,errors}')"
+          echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{hitsToday,hitsLimit,lastScores,errors,seriesMore,series}')"
           echo "::notice::live $(curl -sS -m 20 $W/live | jq -c '[.matches[] | .start[0:10] + " " + .teams[0] + " v " + .teams[1] + " | " + .status]')"
