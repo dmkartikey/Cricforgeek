@@ -6,7 +6,7 @@ import type { CardData } from '../lib/card';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
-import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SectionHead, Seg, Tiles } from '../components/ui';
 import { useSettings } from '../lib/settings';
 import { usePageMeta } from '../lib/meta';
 
@@ -15,7 +15,7 @@ import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
 
 type BandItem = { l: string; v: string; h?: string; k?: string };
-function StatBand({ hero, groups, metrics, onDrill, plate, card }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void; card?: CardData | null }) {
+function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
     : <div className="kv"><span>{it.l}</span><b>{it.v}</b></div>);
@@ -41,25 +41,10 @@ function StatBand({ hero, groups, metrics, onDrill, plate, card }: { plate: stri
       ))}
     </div>
   );
-  // With a player card, the card takes the scoreboard's place and the numbers and current form sit beside it.
-  // With a player card: the card on the left; the split-flap scoreboard and the context numbers beside it.
-  if (card) return (
-    <div className="band with-card fade-in">
-      <PlayerCard card={card} />
-      <div className="band-side">{boardEl}{groupsEl}</div>
-    </div>
-  );
   return (
     <div className="band with-board fade-in">
       {boardEl}
-      <div className="band-groups">
-        {groups.map((g) => (
-          <div key={g.t} className="band-group">
-            <h3>{g.t}</h3>
-            {g.items.map((it) => <div key={it.l}>{val(it)}</div>)}
-          </div>
-        ))}
-      </div>
+      {groupsEl}
     </div>
   );
 }
@@ -107,9 +92,10 @@ export default function Player() {
 
   const body = (
     <>
-      <section className={`player-head fade-in${card ? ' has-card' : ''}`}>
-        <div className="row" style={{ gap: 18, alignItems: 'center' }}>
-          <div className="avatar" aria-hidden="true">{initials(p.name)}</div>
+      <section className={`player-head fade-in${card ? ' has-card hero' : ''}`}>
+        {card && <div className="hero-card"><PlayerCard card={card} /></div>}
+        <div className="row hero-id" style={{ gap: 18, alignItems: 'center' }}>
+          {!card && <div className="avatar" aria-hidden="true">{initials(p.name)}</div>}
           <div className="stack" style={{ gap: 6 }}>
             <div className="eyebrow">Player profile</div>
             <h1>{p.name}</h1>
@@ -128,8 +114,9 @@ export default function Player() {
             <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
           </div>
         </div>
+        {card && <HeroForm p={p} fk={fk} role={r} />}
       </section>
-      {r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}
+      <div className="player-body">{r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}</div>
     </>
   );
   return body;
@@ -187,7 +174,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`} card={card}
+      <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`}
         
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
@@ -205,8 +192,9 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
 
-      {<FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
+      {!card && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
 
+      <SectionHead title="Career shape" sub="How they rank among qualified batters, and how the runs have built up over the years." />
       <div className="grid g2">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
           { label: 'Strike rate', pct: pc.bat.sr, value: d1(s.sr) },
@@ -254,6 +242,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         </Panel>
       </div>
 
+      <SectionHead title="How the runs come" sub="Scoring by phase of the innings and against each type of bowling." />
       <div className="grid g2">
         <Panel title="Phase of the innings" sub="Hover a bar for the raw numbers."
           tools={<>
@@ -275,12 +264,14 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         </Panel>
       </div>
 
+      {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && <SectionHead title="Where the risk is" sub="Inferred from how they get out and how they score; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && (
         <Panel title="Pitch map" eyebrow="Inferred zones · batting" sub="Where this batter is most at risk, where the runs come from, and where the dot balls pile up.">
           <PitchMap role="bat" zc={p.zc[fk].bat} base={zb.bat} cfg={cfg} fam={fam} hand={p.bat} />
         </Panel>
       )}
 
+      <SectionHead title="Role in the side" sub="Where they bat, when they walk in, and how they handle pressure." />
       <div className="grid g3">
         <Panel title="Batting position" flush tools={<Mini label="Min inns" value={minInn} onChange={setMinInn} options={[['1', '1'], ['5', '5'], ['20', '20']]} />}>
           <Table rows={(sp.pos ?? []).filter((x: any) => x[1] >= +minInn)} sort="i" cols={[
@@ -311,6 +302,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         </Panel>
       </div>
 
+      <SectionHead title="Form and matchups" sub="Recent innings, the bowlers they face most, and how they go against each opponent." />
       <Panel title="Recent innings" sub="Oldest to newest. Hover for details."
         tools={<>
           <Mini label="Metric" value={rm} onChange={setRm} options={[['runs', 'Runs'], ['imp', 'Impact']]} />
@@ -382,7 +374,7 @@ function OppVenue({ rows, ov, setOv, kind }: { rows: any[]; ov: 'opp' | 'venue';
   );
 }
 
-function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
+function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   const s = bowl(p.summary[fk].bowl);
   const sp = p.splits?.[fk]?.bowl ?? {};
   const pc = p.pct?.[fk];
@@ -413,7 +405,7 @@ function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
 
   return (
     <>
-      <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`} card={card}
+      <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`}
         hero={[
           { l: 'Wickets', v: n0(s.w), h: `${n0(s.i)} innings · ${overs(s.b)} overs`, k: 'w' },
           { l: 'Economy', v: d2(s.econ), h: `${n0(s.r)} runs conceded`, k: 'econ' },
@@ -429,6 +421,7 @@ function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
         ]} />
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap any number to break it down by phase, batter hand, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bowl" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
+      <SectionHead title="Career shape" sub="How they rank among qualified bowlers, and how the wickets have come over the years." />
       <div className="grid g2">
         <PercentileCard pc={pc?.bowl} n={pc?.n_bowl} fk={fk} role="bowlers" items={pc?.bowl ? [
           { label: 'Economy', pct: pc.bowl.econ, value: d2(s.econ) },
@@ -469,6 +462,7 @@ function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
             : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
+      <SectionHead title="How the wickets come" sub="Economy and strike by phase of the innings, and against right- and left-handers." />
       <div className="grid g2">
         <Panel title="Phase of the innings" sub={phM === 'econ' ? 'Runs per over. Lower is better.' : phM === 'avg' ? 'Runs per wicket. Lower is better.' : 'Balls per wicket. Lower is better.'}
           tools={<>
@@ -486,11 +480,13 @@ function Bowling({ p, fk, fam, cfg, zb, card }: Ctx) {
             tipRows: [{ label: 'Wickets', value: n0(x.w) }, { label: 'Strike rate', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }] }))} />
         </Panel>
       </div>
+      {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && <SectionHead title="Where the wickets fall" sub="Inferred from how batters get out against them; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && (
         <Panel title="Pitch map" eyebrow="Inferred zones · bowling" sub="Where the wickets come from, where the runs leak, and where the dot balls build pressure.">
           <PitchMap role="bowl" zc={p.zc[fk].bowl} base={zb.bowl} cfg={cfg} fam={fam} btype={p.btype} />
         </Panel>
       )}
+      <SectionHead title="Form and matchups" sub="Recent bowling, the batters they bowl to most, and how they go against each opponent." />
       <Panel title="Recent bowling" sub="Wickets per innings, oldest to newest."
         tools={<MiniSelect label="In" value={rc} onChange={setRc} options={compOpts} />}>
         {recent.length ? <Columns key={rc} aria="Recent bowling" fmt={n0} highlightMax={false} data={recent.map((x: any) => ({
@@ -549,5 +545,34 @@ function FormStrip({ rows, careerAvg, careerSr }: { rows: any[]; careerAvg: numb
         </div>
       </div>
     </Panel>
+  );
+}
+
+// Last 10 innings as split-flap tiles inside the hero band, with average and strike rate against the career figures.
+function HeroForm({ p, fk, role }: { p: any; fk: string; role: 'bat' | 'bowl' }) {
+  const [fam, g] = fk.split('-');
+  const comps = new Set((p.comps ?? []).filter((c: any) => c.fam === fam && c.g === g).map((c: any) => c.comp));
+  const bowl = role === 'bowl';
+  const rows = ((bowl ? p.recent?.bowl : p.recent?.bat) ?? []).filter((x: any) => comps.has(x[1])).slice(-10);
+  if (rows.length < 3) return null;
+  const s = p.summary[fk]?.[bowl ? 'bowl' : 'bat'] ?? {};
+  // bat rows: [date, comp, opp, runs, balls, out, ...]; bowl rows: [date, comp, opp, balls, runs, wkts, ...]
+  const sum = (i: number) => rows.reduce((a: number, x: any) => a + (+x[i] || 0), 0);
+  const kpis = bowl
+    ? [['Wickets', String(sum(5)), `${(s.w / Math.max(s.i, 1) * rows.length).toFixed(0)} usual`], ['Economy', (6 * sum(4) / Math.max(sum(3), 1)).toFixed(2), `career ${(6 * s.r / Math.max(s.b, 1)).toFixed(2)}`]]
+    : [['Average', rows.filter((x: any) => x[5]).length ? (sum(3) / rows.filter((x: any) => x[5]).length).toFixed(1) : '–', `career ${(s.r / Math.max(s.o, 1)).toFixed(1)}`], ['Strike rate', (100 * sum(3) / Math.max(sum(4), 1)).toFixed(1), `career ${(100 * s.r / Math.max(s.b, 1)).toFixed(1)}`]];
+  const opp = (t: string) => String(t).split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+  return (
+    <div className="hero-form">
+      <div className="hf-label">Last {rows.length} {bowl ? 'bowling innings' : 'innings'}, newest on the right</div>
+      <div className="hf-tiles">
+        {rows.map((x: any, i: number) => {
+          const v = bowl ? `${x[5]}/${x[4]}` : `${x[3]}${x[5] ? '' : '*'}`;
+          const big = bowl ? x[5] >= 3 : x[3] >= 50;
+          return <Link key={i} to={`/match/${x[8]}`} className={`hf-tile${big ? ' big' : ''}`} title={`${x[0]} v ${x[2]}`} style={{ animationDelay: `${i * 70}ms` }}><b>{v}</b><span>{opp(x[2])}</span></Link>;
+        })}
+      </div>
+      <div className="hf-kpis">{kpis.map(([l, v, h]) => <div key={l}><span>{l}</span><b>{v}</b><i>{h}</i></div>)}</div>
+    </div>
   );
 }

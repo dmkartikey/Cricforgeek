@@ -198,16 +198,30 @@ export function mountCard(stage, p, startBack = false) {
     card.querySelectorAll('.pane').forEach((x) => { x.hidden = x.dataset.pane !== b.dataset.t; });
   }));
   card.querySelectorAll('.pane[data-pane="bowl"]').forEach((x) => { if (p.role === 'all') x.hidden = true; });
+  // Show only the face turned towards the viewer. Safari on iPhone does not always honour backface-visibility,
+  // so the face is picked from the card's real angle: the z part of its transform tells which side faces us.
+  const backEl = card.querySelector('.back');
+  const syncFaces = () => {
+    const t = getComputedStyle(card).transform;
+    let showBack = false;
+    if (t && t !== 'none') { try { showBack = new DOMMatrix(t).m33 < 0; } catch { showBack = card.classList.contains('on-back'); } }
+    front.style.visibility = showBack ? 'hidden' : 'visible';
+    backEl.style.visibility = showBack ? 'visible' : 'hidden';
+  };
+  let raf = 0;
+  const watch = () => { syncFaces(); raf = requestAnimationFrame(watch); };
+  const stopWatch = () => { cancelAnimationFrame(raf); syncFaces(); };
+  syncFaces();
   let busy = false;
   const back = () => card.classList.contains('on-back');
   stage.reveal = async (k) => {
-    if (busy) return; busy = true;
+    if (busy) return; busy = true; watch();
     await settle(card, false);
-    if (reduce) { await anim(card, [{ opacity: 1 }, { opacity: 0 }], { duration: 120 }); await settle(card, true); card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 }); busy = false; return; }
+    if (reduce) { await anim(card, [{ opacity: 1 }, { opacity: 0 }], { duration: 120 }); await settle(card, true); card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 }); busy = false; stopWatch(); return; }
     const o = OPTIONS.find((x) => x.k === (k || revealFor(p)));
-    await o.run(card, stage); await settle(card, true); stage.querySelector('.fx').innerHTML = ''; busy = false;
+    await o.run(card, stage); await settle(card, true); stage.querySelector('.fx').innerHTML = ''; busy = false; stopWatch();
   };
-  const toggle = async () => { if (busy) return; if (back()) { busy = true; await anim(card, [{ transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }], { duration: 600 }); await settle(card, false); busy = false; } else stage.reveal(); };
+  const toggle = async () => { if (busy) return; if (back()) { busy = true; watch(); await anim(card, [{ transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }], { duration: 600 }); await settle(card, false); busy = false; stopWatch(); } else stage.reveal(); };
   card.addEventListener('click', toggle);
   card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
   card.addEventListener('pointermove', (e) => { if (busy || back()) return; const b = card.getBoundingClientRect(); const x = (e.clientX - b.left) / b.width - .5, y = (e.clientY - b.top) / b.height - .5;

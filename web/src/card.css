@@ -1,8 +1,8 @@
 /* Player card: holo scoreboard card with cricket reveals (scoped under .pcard). */
 /* ====== the card ====== */
-.pcard .stage { position: relative; width: 100%; max-width: 320px; margin: 0 auto; perspective: 1100px; }
+.pcard .stage { container-type: inline-size; position: relative; width: 100%; max-width: 320px; margin: 0 auto; perspective: 1100px; }
 .pcard .fx { position: absolute; inset: -40px -40px -30px; pointer-events: none; z-index: 5; }
-.pcard .pc-card { position: relative; width: 100%; aspect-ratio: 5 / 7; transform-style: preserve-3d; cursor: pointer; border-radius: 18px; will-change: transform; container-type: inline-size; }
+.pcard .pc-card { position: relative; width: 100%; aspect-ratio: 5 / 7; transform-style: preserve-3d; cursor: pointer; border-radius: 18px; will-change: transform; -webkit-transform-style: preserve-3d; }
 .pcard .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 18px; overflow: hidden; color: #EFE6CB;
   background: radial-gradient(120% 80% at 50% -10%, #1F5B44 0%, #123B2D 52%, #0B2A1F 100%); border: 6px solid #2B2A22; box-shadow: 0 22px 44px -20px rgba(10, 20, 12, .6), inset 0 0 0 1px rgba(239,230,203,.08); }
 .pcard .face.back { transform: rotateY(180deg); }
