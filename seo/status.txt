@@ -1,0 +1,30 @@
+=== /
+200  text/html; charset=utf-8 6007
+=== /players
+200  text/html; charset=utf-8 7599
+=== /player/ba607b88
+200  text/html; charset=utf-8 4803
+=== /team/india
+200  text/html; charset=utf-8 5179
+=== /league/ipl
+200  text/html; charset=utf-8 5021
+=== /matches
+200  text/html; charset=utf-8 3126
+=== /live
+200  text/html; charset=utf-8 3900
+=== /methodology
+200  text/html; charset=utf-8 3072
+=== /robots.txt
+200  text/plain; charset=utf-8 663
+=== /sitemap.xml
+200  application/xml 646
+=== /sitemap-players.xml
+200  application/xml 1270238
+=== /llms.txt
+200  text/plain; charset=utf-8 5299
+=== /player/does-not-exist
+404  text/html; charset=utf-8 1935
+=== /tests
+404  text/html; charset=utf-8 1935
+=== /leagues
+404  text/html; charset=utf-8 1935

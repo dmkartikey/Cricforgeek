@@ -1,0 +1,19 @@
+HTTP/1.1 301 Moved Permanently
+Connection: keep-alive
+Content-Length: 162
+Server: GitHub.com
+Content-Type: text/html
+Location: https://cricforgeek.site/
+X-GitHub-Request-Id: 127C:163419:345CABB:3992BC5:6ADEE5DD
+x-github-edge-region: iad
+Accept-Ranges: bytes
+Age: 0
+Date: Mon, 26 Oct 2026 05:32:13 GMT
+Via: 1.1 varnish
+X-Served-By: cache-chi-kmdw8640023-CHI
+X-Cache: MISS
+X-Cache-Hits: 0
+X-Timer: S1792992734.845020,VS0,VE47
+Vary: Accept-Encoding
+X-Fastly-Request-ID: 1fd81bec21655528c746303c68af29fab0293124
+
