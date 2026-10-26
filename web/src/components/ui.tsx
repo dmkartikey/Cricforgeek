@@ -1,3 +1,4 @@
+import { badgeColour, flagCode, flagUrl, monogram } from '../lib/teamflags';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PREVIEW } from '../lib/data';
@@ -274,7 +275,7 @@ export function Lollipop({ rows, fmt }: { rows: { id: string; name: string; meta
         <Link key={r.id} className={`rl-row ${i < 3 ? 'podium' : ''}`} to={r.href ?? '#'}>
           <span className="rl-rank">{i + 1}</span>
           <span className="rl-who"><b>{r.name}</b>{r.meta && <small>{r.meta}</small>}</span>
-          <span style={{ position: 'relative', height: 14 }} aria-hidden="true">
+          <span className="rl-lol" style={{ position: 'relative', height: 14 }} aria-hidden="true">
             <span className="sweep" style={{ position: 'absolute', left: 0, top: 6, height: 2, width: `${(Math.abs(r.value) / max) * 100}%`, background: 'var(--line-2)' }} />
             <span style={{ position: 'absolute', top: 1, left: `calc(${(Math.abs(r.value) / max) * 100}% - 6px)`, width: 12, height: 12, borderRadius: '50%',
               background: i < 3 ? 'var(--accent)' : 'var(--s1)', border: '2px solid var(--surface)' }} />
@@ -324,10 +325,10 @@ export const nz = (v: unknown, d = 0) => (ok(v) ? v : d);
 // A tab row that scrolls sideways when it doesn't fit, with a fade and an arrow so hidden tabs are discoverable.
 export function ScrollTabs({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState({ l: false, r: false });
+  const [more, setMore] = useState({ l: false, r: false, o: false });
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const upd = () => setMore({ l: el.scrollLeft > 4, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    const upd = () => setMore({ l: el.scrollLeft > 4, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 4, o: el.scrollWidth > el.clientWidth + 4 });
     upd();
     el.addEventListener('scroll', upd, { passive: true });
     const ro = new ResizeObserver(upd); ro.observe(el);
@@ -338,7 +339,7 @@ export function ScrollTabs({ children, style }: { children: ReactNode; style?: R
   }, []);
   const nudge = (d: number) => ref.current?.scrollBy({ left: d * 160, behavior: 'smooth' });
   return (
-    <div className={`tabs-wrap${more.l ? ' more-l' : ''}${more.r ? ' more-r' : ''}`}>
+    <div className={`tabs-wrap${more.o ? ' over' : ''}${more.l ? ' more-l' : ''}${more.r ? ' more-r' : ''}`}>
       <div ref={ref} className="tabs" role="tablist" style={style}>{children}</div>
       {more.l && <button className="tabs-arrow l" aria-label="Show earlier tabs" onClick={() => nudge(-1)}>‹</button>}
       {more.r && <button className="tabs-arrow r" aria-label="Show more tabs" onClick={() => nudge(1)}>›</button>}
@@ -356,4 +357,11 @@ export function JumpLinks({ items }: { items: [string, string][] }) {
       ))}
     </nav>
   );
+}
+
+// Team mark: a flag for national sides, a monogram badge for everyone else.
+export function TeamMark({ name, national, size = 28 }: { name: string; national?: boolean; size?: number }) {
+  const code = national === false ? null : flagCode(name);
+  if (code) return <img className="tmark flag" src={flagUrl(code)} alt="" width={Math.round(size * 4 / 3)} height={size} loading="lazy" decoding="async" />;
+  return <span className="tmark badge" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.4), background: badgeColour(name) }}>{monogram(name)}</span>;
 }

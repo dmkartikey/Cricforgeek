@@ -42,6 +42,16 @@ const niceDomain = (lo: number, hi: number) => scaleLinear().domain([lo, hi]).ni
 // ---------- line chart with crosshair ----------
 export type Series = { name: string; color: string; values: (number | null)[]; dashed?: boolean; wash?: boolean; weak?: boolean[] };
 
+// Which x-axis labels to draw: spaced by the widest label so none collide, always the last one,
+// and the regular label just before the last is dropped if it would sit on top of it.
+function axisKeep(labels: string[], plotW: number) {
+  const n = labels.length;
+  const longest = Math.max(1, ...labels.map((l) => String(l ?? '').length));
+  const slot = longest * 6.6 + 14; // ~11px mono/sans axis text
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / slot))));
+  return (i: number) => i === n - 1 || (i % every === 0 && n - 1 - i >= Math.ceil(every * 0.75));
+}
+
 export function LineChart({ labels, series, fmt = (v) => compact(v), height = 220, yMin, yMax, refLine, refLabel, aria, xFmt, breaks }: {
   labels: string[]; series: Series[]; fmt?: (v: number) => string; height?: number; yMin?: number; yMax?: number;
   refLine?: number; refLabel?: string; aria: string; xFmt?: (l: string, i: number) => string;
@@ -58,7 +68,7 @@ export function LineChart({ labels, series, fmt = (v) => compact(v), height = 22
   const x = scaleLinear().domain([0, Math.max(labels.length - 1, 1)]).range([L, W - R]);
   const y = scaleLinear().domain([lo, hi]).range([H - B, T]);
   const ticks = y.ticks(4);
-  const every = Math.max(1, Math.ceil(labels.length / Math.max(3, Math.floor(W / 80))));
+  const keep = axisKeep(labels.map((l, i) => String(xFmt ? xFmt(l, i) : l)), W - L - R);
   const onMove = (e: React.PointerEvent) => {
     const rect = svg.current!.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * W;
@@ -118,7 +128,7 @@ export function LineChart({ labels, series, fmt = (v) => compact(v), height = 22
             ))}
           </g>
         )}
-        {labels.map((l, i) => (i % every === 0 || i === labels.length - 1) && (
+        {labels.map((l, i) => keep(i) && (
           <text key={i} x={x(i)} y={H - 6} textAnchor="middle">{xFmt ? xFmt(l, i) : l}</text>
         ))}
         <line className="axis" x1={L} x2={W - R} y1={H - B} y2={H - B} />
@@ -143,7 +153,7 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
   const x = scaleBand<number>().domain(data.map((_, i) => i)).range([L, W - R]).paddingInner(0.25);
   const y = scaleLinear().domain([lo, top]).range([H - B, T]);
   const bw = Math.min(24, x.bandwidth());
-  const every = Math.max(1, Math.ceil(data.length / Math.max(3, Math.floor(W / 56))));
+  const keep = axisKeep(data.map((d) => String(d.label ?? '')), W - L - R);
   const maxI = highlightMax && vals.length ? data.findIndex((d) => d.value === Math.max(...vals)) : -1;
   return (
     <div ref={box}>
@@ -185,7 +195,7 @@ export function Columns({ data, fmt = (v) => compact(v), height = 200, aria, col
               <rect x={x(i)} y={T} width={x.bandwidth()} height={H - T - B} fill="transparent"
                 onPointerMove={(e) => { setHi(i); show({ x: e.clientX, y: e.clientY, title: d.title ?? d.label,
                   rows: [{ label: 'Value', value: ok(v) ? fmt(v) : '–' }, ...(d.extra ?? [])] }); }} />
-              {(i % every === 0 || i === data.length - 1) && <text x={cx} y={H - 8} textAnchor="middle">{d.label}</text>}
+              {keep(i) && <text x={cx} y={H - 8} textAnchor="middle">{d.label}</text>}
             </g>
           );
         })}
@@ -214,7 +224,7 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
           <div className="pct-track" style={{ ['--ref' as string]: `${(refV / max) * 100}%` }}>
             <div style={{ position: 'absolute', left: `${(refV / max) * 100}%`, top: -4, bottom: -4, width: 2, background: 'var(--text)', opacity: 0.55, zIndex: 1 }} />
             {ok(r.value) && <div className="pct-fill sweep" style={{ width: `${Math.max(1, Math.min(100, (r.value / max) * 100))}%`,
-              background: r.value >= refV ? 'var(--s1)' : 'var(--line-2)' }} />}
+              background: r.value >= refV ? 'var(--s1)' : 'var(--neutral)' }} />}
           </div>
           <div className="pct-val">{ok(r.value) ? fmt(r.value) : '–'}</div>
         </div>
@@ -227,7 +237,7 @@ export function HBars({ rows, fmt, base: refV = 100, refLabel = 'average', max: 
 
 // ---------- percentile bars ----------
 export function PctBars({ items }: { items: { label: string; pct: number | null | undefined; value: string; tip?: string }[] }) {
-  const color = (p: number) => (p >= 90 ? 'var(--gold)' : p >= 50 ? 'var(--s1)' : 'var(--line-2)');
+  const color = (p: number) => (p >= 90 ? 'var(--gold)' : p >= 50 ? 'var(--s1)' : 'var(--neutral)');
   return (
     <div className="pct">
       {items.map((i) => (

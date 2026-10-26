@@ -6,7 +6,7 @@ import { usePageMeta } from '../lib/meta';
 
 import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
 import { BGRP, DCAT, FAM_LABEL, MULTI, PHASES, POS } from '../lib/labels';
-import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg } from '../components/ui';
+import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, TeamMark } from '../components/ui';
 import { Butterfly, Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, SbCell } from '../components/Scoreboard';
@@ -85,7 +85,7 @@ export default function Team() {
       <section className="phead fade-in">
         <div className="stack">
           <div className="eyebrow">Team · {t.gender === 'female' ? 'Women' : 'Men'}{span ? ` · ${span}` : ''}</div>
-          <h1>{t.name}</h1>
+          <h1 className="team-h1"><TeamMark name={t.name} size={30} />{t.name}</h1>
           <div className="chips">
             {famComps.slice(0, 6).map((c) => <Link key={c[0]} className="tag" to={`/league/${c[0]}`}>{c[1]} <span className="mono muted">{c[2]}</span></Link>)}
           </div>
@@ -128,7 +128,7 @@ export default function Team() {
             {h2h.slice(0, 25).map((x: any) => (
               <div key={x[0]} className="list-row" style={{ gridTemplateColumns: 'minmax(0,1fr) 110px 48px' }}>
                 <span className="t" style={{ fontWeight: 500 }}>{x[0]}<div className="m">{x[1]} played · {x[2]}–{x[3]}</div></span>
-                <div className="wl-bar" title={`${x[2]} won, ${x[3]} lost`}><i style={{ width: `${(100 * x[2]) / x[1]}%`, background: 'var(--accent)' }} /><i style={{ width: `${(100 * (x[1] - x[2] - x[3])) / x[1]}%`, background: 'var(--line-2)' }} /><i style={{ width: `${(100 * x[3]) / x[1]}%`, background: 'var(--red)' }} /></div>
+                <div className="wl-bar" title={`${x[2]} won, ${x[3]} lost`}><i style={{ width: `${(100 * x[2]) / x[1]}%`, background: 'var(--accent)' }} /><i style={{ width: `${(100 * (x[1] - x[2] - x[3])) / x[1]}%`, background: 'var(--neutral)' }} /><i style={{ width: `${(100 * x[3]) / x[1]}%`, background: 'var(--red)' }} /></div>
                 <span className="v">{pct(x[2] / Math.max(1, x[2] + x[3]), 0)}</span>
               </div>
             ))}
@@ -228,7 +228,7 @@ export default function Team() {
           {venues.slice(0, 10).map((v) => (
             <div key={v[0]} className="list-row" style={{ gridTemplateColumns: 'minmax(0,1fr) 80px 44px' }}>
               <span className="t" style={{ fontWeight: 500 }}>{v[0]}<div className="m">{v[1] ?? ''} · {v[2]} played</div></span>
-              <div className="wl-bar"><i style={{ width: `${(100 * v[3]) / v[2]}%`, background: 'var(--accent)' }} /><i style={{ width: `${(100 * (v[2] - v[3] - v[4])) / v[2]}%`, background: 'var(--line-2)' }} /><i style={{ width: `${(100 * v[4]) / v[2]}%`, background: 'var(--red)' }} /></div>
+              <div className="wl-bar"><i style={{ width: `${(100 * v[3]) / v[2]}%`, background: 'var(--accent)' }} /><i style={{ width: `${(100 * (v[2] - v[3] - v[4])) / v[2]}%`, background: 'var(--neutral)' }} /><i style={{ width: `${(100 * v[4]) / v[2]}%`, background: 'var(--red)' }} /></div>
               <span className="v">{pct(v[3] / Math.max(1, v[3] + v[4]), 0)}</span>
             </div>
           ))}
