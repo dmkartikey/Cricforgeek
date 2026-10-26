@@ -949,3 +949,4 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .team-row .tmark.badge { width: 32px !important; }
 .team-row.head > span:first-child { width: 32px; }
 @media (max-width: 560px) { .nat-grid { gap: 8px; } .nat-card { padding: 11px 14px; gap: 8px 12px; } }
+.team-row.head span { white-space: nowrap; }
