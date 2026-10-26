@@ -1,3 +1,4 @@
+import { badgeColour, flagCode, flagUrl, monogram } from '../lib/teamflags';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PREVIEW } from '../lib/data';
@@ -356,4 +357,11 @@ export function JumpLinks({ items }: { items: [string, string][] }) {
       ))}
     </nav>
   );
+}
+
+// Team mark: a flag for national sides, a monogram badge for everyone else.
+export function TeamMark({ name, national, size = 28 }: { name: string; national?: boolean; size?: number }) {
+  const code = national === false ? null : flagCode(name);
+  if (code) return <img className="tmark flag" src={flagUrl(code)} alt="" width={Math.round(size * 4 / 3)} height={size} loading="lazy" decoding="async" />;
+  return <span className="tmark badge" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.4), background: badgeColour(name) }}>{monogram(name)}</span>;
 }

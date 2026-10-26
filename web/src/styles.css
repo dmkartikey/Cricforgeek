@@ -905,3 +905,47 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .lb-comp .lb-name { grid-column: 1 / -1; white-space: normal; }
   .lb-comp .tag { justify-self: start; }
 }
+
+/* ---- team marks and the Teams directory ---- */
+.tmark { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
+.tmark.flag { border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px var(--line-2); background: var(--sunk); }
+.tmark.badge { display: inline-grid; place-items: center; border-radius: 7px; color: #FFFDF5; font-family: var(--mono); font-weight: 600; letter-spacing: .02em;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 1px 2px rgba(0,0,0,.18); }
+.team-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; border-bottom: 2px solid var(--text); padding-bottom: 8px; position: relative; }
+.team-sec-h::after { content: ""; position: absolute; left: 0; bottom: -2px; width: 56px; height: 2px; background: var(--gold); }
+.team-sec-h h2 { font-size: 22px; }
+.team-sec-h .muted { font-size: 12.5px; }
+.nat-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+.nat-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 10px 12px; align-items: center;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); transition: border-color .15s; }
+.nat-card:hover { border-color: var(--accent); color: inherit; }
+.nat-card .nat-main { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.nat-card .t { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.2; }
+.nat-card .m { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nat-card .nat-pct { font-family: var(--mono); font-weight: 600; font-size: 18px; color: var(--accent); }
+.nat-card .wl-bar { grid-column: 1 / -1; height: 6px; }
+.team-rows.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); column-gap: 0; }
+.team-rows.two .team-row.head { grid-column: 1 / -1; }
+.team-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 52px minmax(48px, 90px) 44px; gap: 12px; align-items: center; padding: 9px 18px; border-top: 1px solid var(--line); min-width: 0; }
+.team-row:hover { background: var(--sunk); color: inherit; }
+.team-row .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row .p, .team-row .v { text-align: right; font-size: 13px; }
+.team-row .v { font-weight: 600; }
+.team-row .wl-bar { height: 6px; }
+.team-row.head { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding-top: 8px; padding-bottom: 8px; }
+.team-row.head:hover { background: none; }
+.team-row.head > span:first-child { width: 24px; }
+.league-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+.link-quiet { color: inherit; }
+.link-quiet:hover { color: var(--accent); }
+@media (max-width: 560px) {
+  .team-row { grid-template-columns: auto minmax(0, 1fr) 40px 40px; padding: 9px 16px; gap: 10px; }
+  .team-row .wl-bar { display: none; }
+  .team-row.head > span:nth-child(4) { display: none; }
+}
+.team-h1 { display: flex; align-items: center; gap: 12px; }
+/* flags are 4:3, so badges in a list take the same width to keep names lined up */
+.nat-card .tmark.badge { width: 40px !important; }
+.team-row .tmark.badge { width: 32px !important; }
+.team-row.head > span:first-child { width: 32px; }
+@media (max-width: 560px) { .nat-grid { gap: 8px; } .nat-card { padding: 11px 14px; gap: 8px 12px; } }

@@ -6,7 +6,7 @@ import { usePageMeta } from '../lib/meta';
 
 import { d1, d2, dateShort, n0, pct, signed } from '../lib/fmt';
 import { BGRP, DCAT, FAM_LABEL, MULTI, PHASES, POS } from '../lib/labels';
-import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg } from '../components/ui';
+import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, TeamMark } from '../components/ui';
 import { Butterfly, Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, SbCell } from '../components/Scoreboard';
@@ -85,7 +85,7 @@ export default function Team() {
       <section className="phead fade-in">
         <div className="stack">
           <div className="eyebrow">Team · {t.gender === 'female' ? 'Women' : 'Men'}{span ? ` · ${span}` : ''}</div>
-          <h1>{t.name}</h1>
+          <h1 className="team-h1"><TeamMark name={t.name} size={30} />{t.name}</h1>
           <div className="chips">
             {famComps.slice(0, 6).map((c) => <Link key={c[0]} className="tag" to={`/league/${c[0]}`}>{c[1]} <span className="mono muted">{c[2]}</span></Link>)}
           </div>
