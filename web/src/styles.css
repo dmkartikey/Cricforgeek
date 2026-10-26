@@ -3,7 +3,7 @@
 :root {
   color-scheme: light;
   --bg: #F2EFE7; --surface: #FFFDF8; --panel: #FFFDF8; --panel-solid: #FFFDF8; --sunk: #F7F3EA;
-  --line: #E4DDCD; --line-2: #CDC4AF; --grid: #EEE8DA;
+  --line: #E4DDCD; --line-2: #CDC4AF; --grid: #EEE8DA; --neutral: #C9BFA8;
   --text: #13202B; --text-2: #3D4A57; --muted: #66665E;
   --accent: #0F6B4F; --accent-ink: #FFFFFF; --accent-soft: #E2EEE6;
   --gold: #9A6F0C; --gold-soft: #F6ECD2;
@@ -28,7 +28,7 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
   --bg: #0A100D; --surface: #111A15; --panel: #111A15; --panel-solid: #111A15; --sunk: #0D1511;
-  --line: #22302A; --line-2: #34473D; --grid: #1A2620;
+  --line: #22302A; --line-2: #34473D; --grid: #1A2620; --neutral: #5F7267;
   --text: #E8EADF; --text-2: #B4BCAE; --muted: #8E978A;
   --accent: #3BBF8C; --accent-ink: #04140E; --accent-soft: rgba(59, 191, 140, .14);
   --gold: #D9AE3F; --gold-soft: rgba(217, 174, 63, .14);
@@ -44,7 +44,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0A100D; --surface: #111A15; --panel: #111A15; --panel-solid: #111A15; --sunk: #0D1511;
-  --line: #22302A; --line-2: #34473D; --grid: #1A2620;
+  --line: #22302A; --line-2: #34473D; --grid: #1A2620; --neutral: #5F7267;
   --text: #E8EADF; --text-2: #B4BCAE; --muted: #8E978A;
   --accent: #3BBF8C; --accent-ink: #04140E; --accent-soft: rgba(59, 191, 140, .14);
   --gold: #D9AE3F; --gold-soft: rgba(217, 174, 63, .14);
@@ -271,7 +271,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .rl-lead .val { font-family: var(--mono); font-size: 30px; font-weight: 600; line-height: 1; text-align: right; color: var(--accent); }
 .rl-lead .meta { color: var(--muted); font-size: 12px; }
 .rl-lead .unit { color: var(--muted); font-size: 11px; font-family: var(--mono); text-align: right; }
-@media (max-width: 560px) { .rl-row { grid-template-columns: 24px minmax(0, 1fr) 58px; padding: 9px 16px; } .rl-bar { display: none; } }
+@media (max-width: 560px) { .rl-row { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 9px 16px; } .rl-bar, .rl-lol { display: none; } .rl-val { min-width: 58px; } }
 
 /* ============ dumbbell (breakouts) ============ */
 .db-axis, .db-row { display: grid; grid-template-columns: minmax(120px, 200px) minmax(0, 1fr) 64px; gap: 14px; align-items: center; padding: 0 22px; }
@@ -366,8 +366,9 @@ button.kv:hover b { color: var(--accent); }
 
 /* ============ pitch map ============ */
 .pitch-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 32px; align-items: start; }
-@media (max-width: 820px) { .pitch-wrap { grid-template-columns: 1fr; } }
-.pitch-stage { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 820px) { .pitch-wrap { grid-template-columns: minmax(0, 1fr); } }
+.pitch-stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pitch-stage svg { max-width: 100%; height: auto; }
 .pitch-wrap.compact { grid-template-columns: minmax(0, 1fr); }
 .pitch-wrap.compact > :nth-child(2) { display: none; }
 .pitch .cell-val { font-size: 12px; font-weight: 600; pointer-events: none; }
@@ -888,3 +889,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .player-body .section-h h2 { color: #F4ECD4; font-size: 20px; letter-spacing: .01em; }
 .player-body .section-h .sub { color: #A9B9A6; }
 @media (max-width: 640px) { .page { gap: 24px; } .player-body { gap: 24px; } .player-body .section-h { padding: 12px 14px; } }
+
+/* ---- audit fixes ---- */
+.lb-comp { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* Labelled button groups scroll sideways instead of being cut off when they do not fit. */
+.mini { max-width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; }
+.mini::-webkit-scrollbar { display: none; }
+.mini > * { flex-shrink: 0; }
+.mini-label { position: sticky; left: 0; z-index: 1; }
+/* Players directory: format tags wrap in a row rather than stacking one per line. */
+.tbl td .fmt-tags { flex-wrap: nowrap; }
+@media (max-width: 560px) {
+  /* Competitions list: name gets the full width, years and match count drop below it. */
+  .lb-comp { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .lb-comp .lb-name { grid-column: 1 / -1; white-space: normal; }
+  .lb-comp .tag { justify-self: start; }
+}

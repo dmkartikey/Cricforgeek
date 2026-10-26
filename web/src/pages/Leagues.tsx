@@ -40,7 +40,7 @@ export default function Leagues() {
         <Panel key={country} title={country} flush>
           <div className="lb">
             {list.map((c: any) => (
-              <Link key={c.key} to={`/league/${c.key}`} className="lb-row" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}>
+              <Link key={c.key} to={`/league/${c.key}`} className="lb-row lb-comp">
                 <span className="lb-name">{c.label} <span className="muted" style={{ fontWeight: 400 }}>· {TIER[c.tier] ?? c.tier}{c.gender === 'female' ? ' · women' : ''}</span></span>
                 <span className="tag">{c.from.slice(0, 4)}–{c.to.slice(0, 4)}</span>
                 <span className="lb-val">{n0(c.matches)} <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>matches</span></span>

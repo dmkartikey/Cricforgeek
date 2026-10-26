@@ -274,7 +274,7 @@ export function Lollipop({ rows, fmt }: { rows: { id: string; name: string; meta
         <Link key={r.id} className={`rl-row ${i < 3 ? 'podium' : ''}`} to={r.href ?? '#'}>
           <span className="rl-rank">{i + 1}</span>
           <span className="rl-who"><b>{r.name}</b>{r.meta && <small>{r.meta}</small>}</span>
-          <span style={{ position: 'relative', height: 14 }} aria-hidden="true">
+          <span className="rl-lol" style={{ position: 'relative', height: 14 }} aria-hidden="true">
             <span className="sweep" style={{ position: 'absolute', left: 0, top: 6, height: 2, width: `${(Math.abs(r.value) / max) * 100}%`, background: 'var(--line-2)' }} />
             <span style={{ position: 'absolute', top: 1, left: `calc(${(Math.abs(r.value) / max) * 100}% - 6px)`, width: 12, height: 12, borderRadius: '50%',
               background: i < 3 ? 'var(--accent)' : 'var(--s1)', border: '2px solid var(--surface)' }} />
