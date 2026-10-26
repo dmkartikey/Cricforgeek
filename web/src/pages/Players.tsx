@@ -12,6 +12,8 @@ import { Table } from '../components/Table';
 
 // search.json players: [id, name, full name, gender, main team, from, to, matches, formats]
 type Row = [string, string, string, string, string, number, number, number, string];
+// short tags keep the formats column narrow enough for phones; the full name is in the tooltip
+const FAM_SHORT: Record<string, string> = { TEST: 'Test', FC: 'FC', ODI: 'ODI', LA: 'List A', T20: 'T20', HUN: '100', MD: 'MD' };
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export default function Players() {
@@ -50,7 +52,7 @@ export default function Players() {
         <Table key={q + scope + active} rank rows={rows} sort="m" limit={50} cols={[
           { key: 'n', label: 'Player', left: true, get: (p: Row) => p[1], fmt: (v, p: Row) => <><Link className="link" to={`/player/${p[0]}`}>{v}</Link>{p[2] !== p[1] && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{p[2]}</span>}</> },
           { key: 't', label: 'Main team', left: true, get: (p: Row) => p[4] },
-          { key: 'f', label: 'Formats', left: true, sortable: false, get: (p: Row) => p[8], fmt: (v: string) => <span className="row" style={{ gap: 4 }}>{v.split(',').map((f) => <span key={f} className={`tag ${f === s.fmt ? 'accent' : ''}`}>{FAM_LABEL[f] ?? f}</span>)}</span> },
+          { key: 'f', label: 'Formats', left: true, sortable: false, get: (p: Row) => p[8], fmt: (v: string) => <span className="row fmt-tags" style={{ gap: 4 }}>{v.split(',').map((f) => <span key={f} title={FAM_LABEL[f] ?? f} className={`tag ${f === s.fmt ? 'accent' : ''}`}>{FAM_SHORT[f] ?? f}</span>)}</span> },
           { key: 's', label: 'Span', get: (p: Row) => p[5], fmt: (_, p: Row) => `${p[5]}–${p[6]}` },
           { key: 'm', label: 'Matches', get: (p: Row) => p[7], fmt: n0 },
         ]} />

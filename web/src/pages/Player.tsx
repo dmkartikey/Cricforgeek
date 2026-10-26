@@ -345,7 +345,7 @@ function PercentileCard({ pc, n, fk, items, role }: { pc: any; n?: number; fk: s
   const [order, setOrder] = useState<'def' | 'pct'>('def');
   const list = order === 'pct' ? [...items].sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1)) : items;
   return (
-    <Panel title="Percentiles" sub={pc ? `Career, among ${n0(n)} qualified ${role} in ${famKeyLabel(fk).toLowerCase()} cricket.` : `Not enough balls to rank yet.`}
+    <Panel title="Percentiles" sub={pc ? `Career, among ${n0(n)} qualified ${role} (${famKeyLabel(fk)}).` : `Not enough balls to rank yet.`}
       tools={pc ? <Mini label="Order" value={order} onChange={setOrder} options={[['def', 'Default'], ['pct', 'Strongest first']]} /> : undefined}>
       {pc && <PctBars key={order} items={list} />}
     </Panel>

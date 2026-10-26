@@ -32,7 +32,8 @@ const ldJson = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 let pages = 0, bytes = 0;
 const urls = { pages: [], players: [], teams: [], comps: [], matches: [] };
 
-function page(path, { title, desc, body, ld, noindex, type = 'website', group = 'pages', lastmod }) {
+const OG_IMAGE = `${SITE}/og.png`;
+function page(path, { title, desc, body, ld, noindex, type = 'website', group = 'pages', lastmod, image }) {
   const url = SITE + (path === '/' ? '/' : path);
   const fullTitle = path === '/' ? title : `${title} · cricforgeek`;
   const head = [
@@ -45,7 +46,11 @@ function page(path, { title, desc, body, ld, noindex, type = 'website', group = 
     `<meta property="og:title" content="${esc(title)}" />`,
     `<meta property="og:description" content="${esc(clip(desc, 200))}" />`,
     `<meta property="og:url" content="${esc(url)}" />`,
-    `<meta name="twitter:card" content="summary" />`,
+    `<meta property="og:image" content="${esc(image || OG_IMAGE)}" />`,
+    ...(image ? [] : ['<meta property="og:image:width" content="1200" />', '<meta property="og:image:height" content="630" />']),
+    `<meta property="og:locale" content="en_GB" />`,
+    `<meta name="twitter:card" content="${image ? 'summary' : 'summary_large_image'}" />`,
+    `<meta name="twitter:image" content="${esc(image || OG_IMAGE)}" />`,
     `<meta name="twitter:title" content="${esc(title)}" />`,
     `<meta name="twitter:description" content="${esc(clip(desc, 200))}" />`,
     ...(ld ? [`<script type="application/ld+json">${ldJson(ld)}</script>`] : []),
@@ -76,6 +81,7 @@ const compIdx = has('comps/index.json') ? J('comps/index.json') : meta.comps;
 const compLabel = Object.fromEntries(compIdx.map((c) => [c.key, c.label]));
 const teamIdx = has('teams/index.json') ? J('teams/index.json') : [];
 const dataTo = meta.data_to;
+const photoIdx = has('photos/index.json') ? J('photos/index.json') : {};
 
 // ---------- section pages ----------
 const topPlayers = [...search.players].sort((a, b) => b[7] - a[7]).slice(0, 60);
@@ -83,7 +89,8 @@ page('/', {
   title: 'cricforgeek: ball-by-ball cricket stats for geeks',
   desc: `Deep cricket stats for Tests, ODIs, T20s, first-class and leagues: impact, win probability, pitch maps, full scorecards and live match predictions. ${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls.`,
   ld: { '@context': 'https://schema.org', '@graph': [
-    { '@type': 'WebSite', name: 'cricforgeek', url: SITE + '/', potentialAction: { '@type': 'SearchAction', target: `${SITE}/players?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
+    { '@type': 'Organization', '@id': SITE + '/#org', name: 'cricforgeek', url: SITE + '/', logo: `${SITE}/icon-512.png` },
+    { '@type': 'WebSite', name: 'cricforgeek', url: SITE + '/', publisher: { '@id': SITE + '/#org' }, inLanguage: 'en', potentialAction: { '@type': 'SearchAction', target: `${SITE}/players?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
     { '@type': 'Dataset', name: 'cricforgeek ball-by-ball cricket statistics', description: 'Player, team and match statistics derived from Cricsheet ball-by-ball data.', url: SITE + '/',
       license: 'https://opendatacommons.org/licenses/by/1-0/', isBasedOn: 'https://cricsheet.org', dateModified: dataTo },
   ] },
@@ -95,17 +102,30 @@ page('/teams', { title: 'Cricket teams: records and stats', desc: `Records for $
   body: `<h1>Teams</h1>${linkList(teamIdx.slice(0, 200).map((t) => [`/team/${t[0]}`, t[1] + (t[2] === 'female' ? ' (women)' : '')]))}` });
 page('/competitions', { title: 'Cricket competitions and leagues', desc: `Every competition with ball-by-ball records: Tests, ODIs, T20 internationals, the IPL, BBL, county cricket, Ranji Trophy and more. ${compIdx.length} competitions.`,
   body: `<h1>Competitions</h1>${linkList(compIdx.map((c) => [`/league/${c.key}`, `${c.label} (${c.from?.slice(0, 4)}–${c.to?.slice(0, 4)})`]))}` });
+const latestRows = [];
+for (const f of (existsSync(join(data, 'matches')) ? readdirSync(join(data, 'matches')) : [])) {
+  if (/^index-[A-Z0-9]+-(male|female)\.json$/.test(f)) for (const r of J(`matches/${f}`).slice(0, 40)) latestRows.push(r);
+}
+latestRows.sort((a, b) => String(b[1]).localeCompare(String(a[1])));
 page('/matches', { title: 'Cricket match scorecards', desc: 'Full ball-by-ball scorecards with fall of wickets, partnerships, worm, win probability and turning points for every recorded match.',
-  body: '<h1>Matches</h1><p>Full scorecards for every recorded match.</p>' });
+  body: `<h1>Matches</h1><p>Full scorecards for every recorded match, newest first.</p><h2>Latest matches</h2>${linkList(latestRows.slice(0, 80).map((r) => [`/match/${r[0]}`, `${r[4]} v ${r[5]}, ${r[3]}, ${dateLong(r[1])}`]))}` });
 page('/live', { title: 'Live cricket predictions: win chances, totals and sessions',
   desc: 'Live win chances, fair odds, innings totals, session runs, wicket and player markets for every Test, ODI and T20I in progress, simulated ball by ball from every recorded international.',
   ld: { '@context': 'https://schema.org', '@type': 'WebApplication', name: 'cricforgeek live predictions', applicationCategory: 'SportsApplication', operatingSystem: 'Any', url: SITE + '/live', offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' } },
   body: '<h1>Live predictions</h1><p>Every international in progress, with each side\'s chance of winning, fair odds next to the market, innings total and session lines, wicket and player markets, and a track record of how often the model is right. Statistical estimates for information only, not betting advice.</p>' });
 page('/predictor', { title: 'Situation predictor has moved to Live predictions', desc: 'The situation predictor is now part of Live predictions.', body: '<h1>The situation predictor is now <a href="/live">Live predictions</a></h1>', noindex: true });
 page('/compare', { title: 'Compare cricket players side by side', desc: 'Compare up to four cricketers: averages, strike rates, impact, year-by-year form, phase splits, pace v spin and pitch maps, over whole careers or the same years.',
-  body: '<h1>Compare players</h1><p>Pick up to four players to compare on the same charts.</p>' });
-page('/explore', { title: 'Cricket stats explorer and query builder', desc: 'Filter cricket stats by format, competition, years and minimum balls, sort by any metric and download CSV.', body: '<h1>Explorer</h1>' });
-page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability, pitch-zone and live prediction models are built, and how accurate they are.', body: '<h1>Methodology</h1>' });
+  body: `<h1>Compare players</h1><p>Pick up to four players and see their averages, strike rates, impact, year-by-year form, phase splits, record against pace and spin, and pitch maps on the same charts. Same-period mode keeps only the years all of them were playing, so different eras are not mixed up.</p><h2>Popular players to compare</h2>${linkList(topPlayers.slice(0, 20).map((p) => [`/player/${p[0]}`, p[1]]))}` });
+page('/explore', { title: 'Cricket stats explorer and query builder', desc: 'Filter cricket stats by format, competition, years and minimum balls, sort by any metric and download CSV.',
+  body: `<h1>Explorer</h1><p>Build your own leaderboard: choose a format, one or more competitions, a range of years and a minimum number of balls, then sort batters or bowlers by runs, average, strike rate, economy, impact or win probability added, and download the table as CSV.</p><h2>Competitions you can filter by</h2>${linkList(compIdx.slice(0, 40).map((c) => [`/league/${c.key}`, c.label]))}` });
+page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability, pitch-zone and live prediction models are built, and how accurate they are.',
+  ld: { '@context': 'https://schema.org', '@type': 'TechArticle', headline: 'How cricforgeek works', url: SITE + '/methodology', dateModified: dataTo, publisher: { '@type': 'Organization', name: 'cricforgeek', url: SITE + '/' } },
+  body: `<h1>Methodology</h1><p>Every number on cricforgeek is built from Cricsheet's ball-by-ball records (${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls, data to ${esc(dateLong(dataTo))}). The pipeline runs every night and rebuilds every model from scratch.</p>`
+    + '<h2>Expected outcome of every ball</h2><p>For each ball we look up what an average batter and bowler produce in the same format, gender, innings, over and wickets down, scaled to the scoring level of that competition and season. That gives expected runs and the expected chance of a dismissal.</p>'
+    + '<h2>Impact (runs added)</h2><p>Impact is runs scored above expected, minus the run cost of getting out more often than expected. In limited-overs cricket the cost of a wicket comes from a run-expectancy table; in multi-day cricket a wicket is worth that season\'s runs per wicket. Bowling impact mirrors it: runs saved plus the value of wickets above expected.</p>'
+    + '<h2>Win probability</h2><p>Logistic models fitted per format and gender on every completed limited-overs match. Win probability added (WPA) credits each ball\'s change in win chance to the batter and the opposite to the bowler.</p>'
+    + '<h2>Inferred pitch zones</h2><p>Free data has no ball-tracking, so line and length zones are inferred from how a batter gets out and scores, compared with the average batter in the same format.</p>'
+    + '<h2>Live predictions</h2><p>Matches in progress are simulated ball by ball from every recorded international, giving win chances, innings totals, session runs and player markets, with a public track record of how often the model is right.</p>' });
 page('/pinboard', { title: 'My pinboard', desc: 'Your saved cricforgeek charts and leaderboards.', body: '<h1>My pinboard</h1>', noindex: true });
 
 // ---------- players ----------
@@ -126,10 +146,12 @@ for (const f of readdirSync(join(data, 'players'))) {
   const teams = (p.teams ?? []).slice(0, 6);
   const role = [p.bat === 'lhb' ? 'Left-hand bat' : p.bat === 'rhb' ? 'Right-hand bat' : '', p.bowl ? `${p.bowl.toUpperCase()} bowler` : ''].filter(Boolean).join(', ');
   const desc = `${p.name}${p.full && p.full !== p.name ? ` (${p.full})` : ''} cricket stats${teams.length ? `, ${teams.slice(0, 2).map((t) => t[0]).join(' and ')}` : ''}: ${bits.slice(0, 3).join('; ') || 'career record'}. Splits, form and pitch maps.`;
+  const lastPlayed = [...(p.recent?.bat ?? []), ...(p.recent?.bowl ?? [])].reduce((m, r) => (r[0] > m ? r[0] : m), '');
+  const photo = photoIdx[p.id] ? `${SITE}/data/photos/${p.id}.webp` : undefined;
   page(`/player/${p.id}`, {
-    title: `${p.name} stats`, desc, type: 'profile', group: 'players', lastmod: dataTo,
+    title: `${p.name} stats`, desc, type: 'profile', group: 'players', lastmod: lastPlayed || undefined, image: photo,
     ld: { '@context': 'https://schema.org', '@graph': [
-      { '@type': 'Person', name: p.full || p.name, alternateName: p.full && p.full !== p.name ? p.name : undefined, url: `${SITE}/player/${p.id}`,
+      { '@type': 'Person', name: p.full || p.name, alternateName: p.full && p.full !== p.name ? p.name : undefined, url: `${SITE}/player/${p.id}`, image: photo, jobTitle: 'Cricketer',
         affiliation: teams.map((t) => ({ '@type': 'SportsTeam', name: t[0], sport: 'Cricket', url: `${SITE}/team/${teamKey(t[0], t[1])}` })) },
       crumbs([['Players', '/players'], [p.name, `/player/${p.id}`]]) ] },
     body: `<h1>${esc(p.name)}</h1><p>${esc(p.full && p.full !== p.name ? p.full + '. ' : '')}${esc(role)}${role ? '. ' : ''}${esc(bits.join('; '))}.</p>`
@@ -203,6 +225,16 @@ for (const f of readdirSync(join(data, 'matches'))) {
       + `<ul>${scores.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><h2>Top scorers</h2>${linkList(top)}<h2>Best bowling</h2>${linkList(topw)}`
       + `<p><a href="/team/${esc(i.team1_key ?? teamKey(i.team1, i.gender))}">${esc(i.team1)}</a> · <a href="/team/${esc(i.team2_key ?? teamKey(i.team2, i.gender))}">${esc(i.team2)}</a></p>`,
   });
+}
+
+// ---------- old addresses: small pages that point to the new one ----------
+for (const [from, to] of [['/tests', '/'], ['/leagues', '/competitions'], ['/explorer', '/explore']]) {
+  const html = template
+    .replace(/<title>[\s\S]*?<\/title>/, '<title>Moved · cricforgeek</title>')
+    .replace(/<meta name="description"[^>]*>/, '')
+    .replace('</head>', `    <link rel="canonical" href="${SITE}${to}" />\n    <meta name="robots" content="noindex, follow" />\n    <meta http-equiv="refresh" content="0; url=${to}" />\n  </head>`)
+    .replace('<div id="root"></div>', `<div id="root"><div class="ssr"><p>This page has moved to <a href="${to}">${SITE}${to}</a>.</p></div></div>`);
+  writeFileSync(join(dist, `${from.slice(1)}.html`), html);
 }
 
 // ---------- 404, sitemaps, robots ----------

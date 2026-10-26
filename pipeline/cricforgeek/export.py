@@ -530,9 +530,20 @@ def _export_teams(con, w, comp_label, names):
             teams[k].setdefault("caps", {}).setdefault(x["fam"], []).append([x["player"], names.get(x["player"], (x["player"],))[0], x["n"], x["f"][:4], x["l"][:4]])
     index = []
     for k, d in teams.items():
-        index.append([k, d.get("name"), d.get("gender"), {f: [v.get("p"), v.get("w")] for f, v in d["fams"].items()}])
+        # 5th field, for the Teams directory: national side or not, main domestic competitions, last match date
+        intl = sum(c[2] for c in d["comps"] if _is_intl(c[0]))
+        total = sum(c[2] for c in d["comps"]) or 1
+        dom = sorted((c for c in d["comps"] if not _is_intl(c[0])), key=lambda c: -c[2])[:2]
+        extra = {"nat": 1 if 2 * intl >= total else 0, "c": [[c[0], c[1]] for c in dom],
+                 "last": max((c[8] for c in d["comps"] if c[8]), default=None)}
+        index.append([k, d.get("name"), d.get("gender"), {f: [v.get("p"), v.get("w")] for f, v in d["fams"].items()}, extra])
         w.write(f"teams/{k}.json", d)
     w.write("teams/index.json", index)
+
+
+def _is_intl(comp_key):
+    """International competitions are keyed by gender first (men-t20i, women-odi, men-icc-fc ...)."""
+    return comp_key.startswith(("men-", "women-", "male-", "female-"))
 
 
 def _tkey(team, gender):

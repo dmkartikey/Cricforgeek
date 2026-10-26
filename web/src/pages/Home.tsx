@@ -177,6 +177,8 @@ export default function Home() {
   const tyears = [...new Set(idx.data.trend.filter((t) => leagues.includes(t.comp)).map((t) => t.year))].sort();
   const TM: Record<string, [string, (v: number) => string]> = { rpo: ['Runs per over', d2], six_pm: ['Sixes per match', d1], dot_pct: ['Dot-ball %', (v) => `${d1(v)}%`], bpw: ['Balls per wicket', d1] };
   const compName = (c: string) => data.chase.find((x) => x.comp === c)?.label ?? c.toUpperCase().replace(/-/g, ' ');
+  // short codes (IPL, BBL) read best as they are; longer keys get the competition's own name
+  const lgName = (c: string) => (!c.includes('-') && c.length <= 5 ? c.toUpperCase() : compName(c));
   const chase = data.chase.filter((c) => c.n >= +cmin);
 
   return (
@@ -250,7 +252,7 @@ export default function Home() {
       <div className="grid g2">
         <Panel title="Scoring mix" sub="What happens to each ball faced in the last 365 days. Small numbers show the change from the year before.">
           <WagonMix aria="Scoring mix of balls faced" compare={prevShare} parts={[
-            { label: 'Dot balls', value: P.now.n_dot, color: 'var(--line-2)' },
+            { label: 'Dot balls', value: P.now.n_dot, color: 'var(--neutral)' },
             { label: '1, 2 or 3 runs', value: P.now.n_r13, color: 'var(--s1)' },
             { label: 'Fours', value: P.now.n_four, color: 'var(--s4)' },
             { label: 'Sixes', value: P.now.n_six, color: 'var(--s2)' },
@@ -294,10 +296,10 @@ export default function Home() {
           <div className="chips">{trendComps.map((c) => (
             <button key={c} className="chip" aria-pressed={leagues.includes(c)}
               onClick={() => setLeagues(leagues.includes(c) ? leagues.filter((x) => x !== c) : leagues.length >= 4 ? [...leagues.slice(1), c] : [...leagues, c])}>
-              {c.toUpperCase().replace(/-/g, ' ')}</button>))}</div>
-          <Legend items={leagues.map((c, i) => ({ label: c.toUpperCase().replace(/-/g, ' '), color: SERIES[i] }))} />
+              {lgName(c)}</button>))}</div>
+          <Legend items={leagues.map((c, i) => ({ label: lgName(c), color: SERIES[i] }))} />
           <LineChart aria={`${TM[tm][0]} by year`} labels={tyears.map(String)} fmt={TM[tm][1]} height={260}
-            series={leagues.map((c, i) => ({ name: c.toUpperCase().replace(/-/g, ' '), color: SERIES[i],
+            series={leagues.map((c, i) => ({ name: lgName(c), color: SERIES[i],
               values: tyears.map((y) => (idx.data!.trend.find((t) => t.comp === c && t.year === y) as any)?.[tm] ?? null) }))} />
         </Panel>
       )}
