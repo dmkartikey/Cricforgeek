@@ -8,6 +8,7 @@ import { MULTI, PHASES } from '../lib/labels';
 import { d1, d2, dateShort, n0, signed } from '../lib/fmt';
 import { Dumbbell, ErrorBox, Legend, Loader, Lollipop, Mini, MiniSelect, Panel, RankList, SectionHead, Seg, SERIES, ScrollTabs, JumpLinks } from '../components/ui';
 import { HBars, LineChart, WagonMix } from '../components/charts';
+import { OnThisDay } from '../components/OnThisDay';
 import { Table } from '../components/Table';
 import Tests from './Tests';
 import { Board as Scoreboard, SbCell } from '../components/Scoreboard';
@@ -213,6 +214,7 @@ export default function Home() {
       })()}
 
       <LiveStrip level={s.level} />
+      <OnThisDay />
       <JumpLinks items={[['leaders', 'Leaders'], ['movers', 'Movers'], ['game', "How it's played"], ...(s.fmt === 'T20' && s.gender === 'male' ? [['trends', 'League trends'] as [string, string]] : []), ...(s.fmt === 'TEST' ? [['testlab', 'Test match lab'] as [string, string]] : [])]} />
 
       <SectionHead id="leaders" title="Leaders" sub={`${win === '365' ? 'Last 365 days' : 'All time'}. Every number is adjusted for the situation it came in. Tap a name for the full profile.`} />

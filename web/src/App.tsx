@@ -19,6 +19,11 @@ import Explorer from './pages/Explorer';
 import Methodology from './pages/Methodology';
 import Pinboard from './pages/Pinboard';
 import Live from './pages/Live';
+import Venue from './pages/Venue';
+import Venues from './pages/Venues';
+import Records from './pages/Records';
+import H2H from './pages/H2H';
+import Play from './pages/Play';
 
 const I = (d: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
@@ -31,6 +36,10 @@ const NAV: [string, string, ReactNode][] = [
   ['/teams', 'Teams', I('M4 21V7l8-4 8 4v14M9 21v-6h6v6')],
   ['/competitions', 'Competitions', I('M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 6h3v2a3 3 0 01-3 3M7 6H4v2a3 3 0 003 3')],
   ['/matches', 'Matches', I('M4 5h16v14H4zM4 10h16M9 5v14')],
+  ['/venues', 'Grounds', I('M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z')],
+  ['/records', 'Records', I('M6 3h12v4a6 6 0 01-12 0V3zM9 21h6M12 13v8')],
+  ['/h2h', 'Head to head', I('M7 7h10M7 7l3-3M7 7l3 3M17 17H7M17 17l-3-3M17 17l-3 3')],
+  ['/play', 'Card battle', I('M5 4h9l5 5v11H5zM14 4v5h5')],
   ['/explore', 'Explorer', I('M4 6h16M7 12h10M10 18h4')],
   ['/pinboard', 'My pinboard', I('M9 3h6l-1 6 4 4H6l4-4-1-6zM12 13v8')],
   ['/methodology', 'Methodology', I('M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v.01M11 12h1v5h1')],
@@ -46,7 +55,7 @@ function Ball() {
 }
 
 const CRUMB: Record<string, string> = { '': 'Overview', player: 'Player', players: 'Players', compare: 'Compare', live: 'Live predictions', predictor: 'Live predictions', team: 'Team', teams: 'Teams',
-  league: 'Competition', competitions: 'Competitions', match: 'Match', matches: 'Matches', explore: 'Explorer', pinboard: 'My pinboard', methodology: 'Methodology' };
+  league: 'Competition', competitions: 'Competitions', venue: 'Ground', venues: 'Grounds', records: 'Records', h2h: 'Head to head', play: 'Card battle', match: 'Match', matches: 'Matches', explore: 'Explorer', pinboard: 'My pinboard', methodology: 'Methodology' };
 
 export default function App() {
   const loc = useLocation();
@@ -127,6 +136,11 @@ export default function App() {
             <Route path="/league/:key" element={<League />} />
             <Route path="/matches" element={<Matches />} />
             <Route path="/match/:id" element={<Match />} />
+            <Route path="/venues" element={<Venues />} />
+            <Route path="/venue/:key" element={<Venue />} />
+            <Route path="/records" element={<Records />} />
+            <Route path="/h2h" element={<H2H />} />
+            <Route path="/play" element={<Play />} />
             <Route path="/tests" element={<Navigate to="/" replace />} />
             <Route path="/explore" element={<Explorer />} />
             <Route path="/explorer" element={<Navigate to="/explore" replace />} />

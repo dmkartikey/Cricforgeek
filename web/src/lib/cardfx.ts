@@ -1,9 +1,11 @@
 // @ts-nocheck -- ported as-is from the approved card mockup: DOM building and Web Animations, no app state.
 // The card is plain markup (every value passes through esc) mounted into a container the React component owns.
+import { GLOSSARY as TIPS } from './geek';
 const SIL = `<svg viewBox="0 0 200 260" aria-hidden="true"><path d="M96 20a20 20 0 1 1 0 40a20 20 0 1 1 0-40zM74 68c16-6 30-6 44 0l10 30 34-40 10 8-38 58-6 30 18 104h-22l-18-82h-8l-16 82H56l14-104-6-34-18 10-8-12z" fill="#2E3D63"/></svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const avgP = (rows) => { const v = rows.map((r) => r[2]).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
 function rating(p) {
+  if (p.rating) return p.rating;
   const b = p.bat ? avgP(p.bat.meters) : 0, w = p.bowl ? avgP(p.bowl.meters) : 0;
   return Math.min(99, Math.round(p.role === 'all' ? Math.max(b, w) + .15 * Math.min(b, w) : Math.max(b, w)));
 }
@@ -25,7 +27,7 @@ function pane(p, d, kind) {
   const ph = d.phases, best = ph.reduce((a, x) => ((kind === 'bat' ? x[1] > a[1] : x[1] < a[1]) ? x : a), ph[0]);
   return `<div class="pane" data-pane="${kind}">
     <div class="hero">${d.hero.map(([l, v, n]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b>${n ? `<i>${esc(n)}</i>` : ''}</div>`).join('')}</div>
-    <div class="meters">${d.meters.map(([l, v, pc]) => `<div class="meter"><span>${esc(l)}<i>${esc(v)}</i></span><span class="segs" style="--c:${segColor(pc)}">${Array.from({ length: 10 }, (_, i) => `<u class="${i < Math.round(pc / 10) ? 'on' : ''}" style="transition-delay:${300 + i * 45}ms"></u>`).join('')}</span><b>${pc}</b></div>`).join('')}</div>
+    <div class="meters">${d.meters.map(([l, v, pc, tip]) => `<div class="meter"${tip && TIPS[tip] ? ` title="${esc(TIPS[tip])}"` : ''}><span>${esc(l)}<i>${esc(v)}</i></span><span class="segs" style="--c:${segColor(pc)}">${Array.from({ length: 10 }, (_, i) => `<u class="${i < Math.round(pc / 10) ? 'on' : ''}" style="transition-delay:${300 + i * 45}ms"></u>`).join('')}</span><b>${pc}</b></div>`).join('')}</div>
     ${spark(d.year, kind === 'bat' ? 'Runs' : 'Wickets', kind === 'bat' ? 'runs' : 'wkts')}
     <div class="insights"><div class="up"><small>${kind === 'bat' ? 'Feasts on' : 'Best phase'}</small>${esc(d.up)}${kind === 'bat' ? `<br><span style="opacity:.8">Best phase: ${esc(best[0].toLowerCase())} · SR ${esc(String(best[1]))}</span>` : ''}</div><div class="dn"><small>${kind === 'bat' ? 'Watch for' : 'Hardest phase'}</small>${esc(d.dn)}</div></div>
   </div>`;
@@ -33,7 +35,7 @@ function pane(p, d, kind) {
 function cardHtml(p) {
   const r = rating(p), [tn, tg] = TIER(r);
   const main = p.role === 'bowl' ? p.bowl : p.bat;
-  const disc = p.role === 'all' ? `<div class="disc"><span>BAT ${Math.round(avgP(p.bat.meters))}</span><span>BOWL ${Math.round(avgP(p.bowl.meters))}</span></div>` : '';
+  const disc = p.role === 'all' ? `<div class="disc"><span>BAT ${Math.round(p.bat.rating ?? avgP(p.bat.meters))}</span><span>BOWL ${Math.round(p.bowl.rating ?? avgP(p.bowl.meters))}</span></div>` : '';
   return `<div class="face front"><span class="beam l"></span><span class="beam r"></span><span class="ring"></span>
       <span class="tier" style="background:${tg}">${tn} · ${esc(p.fmt)}</span><span class="ovr">${r}<small>RATING</small></span>${disc}
       <div class="photo">${p.photo ? `<img src="${p.photo}" alt="">` : SIL}</div>

@@ -30,7 +30,7 @@ const clip = (s, n = 158) => (s.length <= n ? s : s.slice(0, n - 1).replace(/\s+
 const ldJson = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 
 let pages = 0, bytes = 0;
-const urls = { pages: [], players: [], teams: [], comps: [], matches: [] };
+const urls = { pages: [], players: [], teams: [], comps: [], matches: [], venues: [] };
 
 const OG_IMAGE = `${SITE}/og.png`;
 function page(path, { title, desc, body, ld, noindex, type = 'website', group = 'pages', lastmod, image }) {
@@ -68,7 +68,7 @@ function page(path, { title, desc, body, ld, noindex, type = 'website', group = 
   if (!noindex) urls[group].push([url, lastmod]);
 }
 
-const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/live">Live predictions</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
+const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/venues">Grounds</a> · <a href="/records">Records</a> · <a href="/live">Live predictions</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
 const crumbs = (items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + path })) });
 const table = (head, rows) => `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 const linkList = (items) => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`;
@@ -236,6 +236,32 @@ for (const [from, to] of [['/tests', '/'], ['/leagues', '/competitions'], ['/exp
     .replace('<div id="root"></div>', `<div id="root"><div class="ssr"><p>This page has moved to <a href="${to}">${SITE}${to}</a>.</p></div></div>`);
   writeFileSync(join(dist, `${from.slice(1)}.html`), html);
 }
+
+// ---------- grounds, records, head to head, card battle ----------
+const venueIdx = has('venues/index.json') ? J('venues/index.json') : [];
+page('/venues', { title: 'Cricket grounds: pitch, toss and records', desc: `First-innings par scores, toss decisions and results, pace v spin and day-by-day Test pitch behaviour for ${n0(venueIdx.length)} cricket grounds.`,
+  body: `<h1>Cricket grounds</h1>${linkList(venueIdx.slice(0, 200).map((v) => [`/venue/${v[0]}`, `${v[1]}${v[2] ? `, ${v[2]}` : ''} (${v[4]} matches)`]))}` });
+for (const v of venueIdx) {
+  const file = `venues/${v[0]}.json`;
+  if (!has(file)) continue;
+  const d = J(file);
+  const fmts = Object.entries(d.fmts ?? {}).filter(([, f]) => f.sum).sort((a, b) => b[1].sum.n - a[1].sum.n);
+  const lines = fmts.slice(0, 4).map(([k, f]) => { const [fm, g] = k.split('-'); const s = f.sum; const dec = (s.bf_w ?? 0) + (s.ch_w ?? 0);
+    return `${G[g] === 'women' ? "Women's " : ''}${FMT[fm] ?? fm}: ${s.n} matches, average first innings ${d1(s.avg1)}${dec ? `, side batting first won ${Math.round((100 * s.bf_w) / dec)}%` : ''}`; });
+  page(`/venue/${v[0]}`, {
+    title: `${d.name}${d.city ? `, ${d.city}` : ''}: pitch report and records`, group: 'venues', lastmod: d.to,
+    desc: `${d.name}${d.city ? ` in ${d.city}` : ''}: ${n0(d.n)} matches. ${lines[0] ?? ''}. Toss, pace v spin, top run-scorers and wicket-takers, highest totals and best chases.`,
+    ld: { '@context': 'https://schema.org', '@type': 'SportsActivityLocation', name: d.name, address: d.city ? { '@type': 'PostalAddress', addressLocality: d.city, addressCountry: d.host ?? undefined } : undefined, url: `${SITE}/venue/${v[0]}` },
+    body: `<h1>${esc(d.name)}</h1><p>${esc(d.city ?? '')}${d.host ? `, ${esc(d.host)}` : ''} · ${n0(d.n)} recorded matches, ${esc(String(d.from).slice(0, 4))}–${esc(String(d.to).slice(0, 4))}.</p><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`
+      + `<h2>Recent matches</h2>${linkList((d.recent ?? []).slice(0, 10).map((m) => [`/match/${m[0]}`, `${m[4]} v ${m[5]}, ${dateLong(m[1])}`]))}`,
+  });
+}
+page('/records', { title: 'Cricket records and oddities', desc: 'Highest chases, narrowest wins, fastest fifties and hundreds, most ducks, longest innings, best figures and great escapes in Tests, ODIs and T20 internationals.',
+  body: '<h1>Records and oddities</h1><p>The biggest chases, the narrowest wins, the fastest fifties and hundreds, the most ducks, the longest innings and the great comebacks, from every international with ball-by-ball records.</p>' });
+page('/h2h', { title: 'Batter v bowler head to head', desc: 'Every ball a batter has faced from a bowler: runs, strike rate, dismissals and how they fell.',
+  body: '<h1>Batter v bowler</h1><p>Pick a batter and a bowler to see every ball between them: runs, strike rate, dot balls, how often the bowler won and how the dismissals happened.</p>' });
+page('/play', { title: 'Cricket card battle', desc: 'A card game with real international stats: pick runs, average, strike rate, wickets or economy and beat the computer.',
+  body: '<h1>Card battle</h1><p>Pick a stat on your top card. Higher wins, except economy and bowling average. Win the round and take both cards.</p>' });
 
 // ---------- 404, sitemaps, robots ----------
 writeFileSync(join(dist, '404.html'), template

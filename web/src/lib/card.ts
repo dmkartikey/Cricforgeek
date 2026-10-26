@@ -2,12 +2,30 @@
 // matchup notes and the reveal role. Mirrors the approved mockup.
 import { FULL_MEMBERS } from './winline';
 
-type Meter = [string, string, number];
-type Pane = { hero: [string, string, string][]; meters: Meter[]; year: [string, number][]; phases: [string, number][]; up: string; dn: string };
+// [label, value, percentile, glossary key for the tooltip]
+type Meter = [string, string, number, string?];
+type Pane = { hero: [string, string, string][]; meters: Meter[]; year: [string, number][]; phases: [string, number][]; up: string; dn: string; rating: number };
 export type CardData = {
   key: string; id: string; name: string; full: string; fmt: string; role: 'bat' | 'bowl' | 'all'; roleText: string; team: string;
-  span: string; credit: string; photo: string | null; trio: [string, string][]; bat?: Pane; bowl?: Pane;
+  span: string; credit: string; photo: string | null; trio: [string, string][]; bat?: Pane; bowl?: Pane; rating: number;
 };
+
+// Rating weights by format and discipline: what matters most in each. Percentiles are against every qualified
+// player in the same format and gender; missing percentiles drop out and the rest are re-weighted.
+const W: Record<string, Record<string, Record<string, number>>> = {
+  MD: { bat: { adj: 0.35, avg: 0.15, imp100: 0.25, sr: 0.1, bnd: 0.05, dotp: 0.1 },
+        bowl: { adj: 0.3, bavg: 0.15, bsr: 0.25, imp100: 0.2, econ: 0.05, dotp: 0.05 } },
+  ODI: { bat: { adj: 0.15, avg: 0.1, sr: 0.2, imp100: 0.25, wpa100: 0.15, bnd: 0.1, dotp: 0.05 },
+         bowl: { adj: 0.1, econ: 0.2, bavg: 0.1, bsr: 0.15, imp100: 0.25, wpa100: 0.1, dotp: 0.1 } },
+  T20: { bat: { sr: 0.3, imp100: 0.25, wpa100: 0.2, bnd: 0.15, avg: 0.05, dotp: 0.05 },
+         bowl: { econ: 0.3, imp100: 0.25, wpa100: 0.2, dotp: 0.15, bsr: 0.1 } },
+};
+const wclass = (fam: string) => (fam === 'TEST' || fam === 'FC' ? 'MD' : fam === 'ODI' || fam === 'LA' ? 'ODI' : 'T20');
+export function weightedRating(pc: Record<string, number | null | undefined>, fam: string, kind: 'bat' | 'bowl') {
+  let t = 0, ws = 0;
+  for (const [k, wt] of Object.entries(W[wclass(fam)][kind])) { const v = pc?.[k]; if (v != null) { t += v * wt; ws += wt; } }
+  return ws ? t / ws : 0;
+}
 
 const GROUP: Record<string, string> = { RF: 'right-arm fast', RM: 'right-arm medium', LF: 'left-arm fast', LM: 'left-arm medium', OB: 'off-spin', LB: 'leg-spin', SLA: 'left-arm orthodox', LWS: 'left-arm wrist-spin' };
 const BOWL_STYLE: Record<string, string> = {
@@ -33,20 +51,26 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
   const years = (p.teams ?? []).flatMap((t: any) => [+t[2], +t[3]]).filter(Number.isFinite);
   const bowlStyle = BOWL_STYLE[p.bowl] ?? 'Bowler';
   const roleText = role === 'bat' ? (p.bat === 'lhb' ? 'Left-hand bat' : 'Right-hand bat') : role === 'bowl' ? bowlStyle : `Bat · ${bowlStyle.toLowerCase()}`;
+  const fam = fk.split('-')[0];
   const d: CardData = {
     key: p.id, id: p.id, name: p.name, full: p.full && p.full !== p.name ? p.full : p.name, fmt: `${gender === 'female' ? "Women's" : "Men's"} ${fk.split('-')[0] === 'TEST' ? 'Tests' : fk.split('-')[0]}`,
-    role, roleText, team, span: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : '', credit, photo, trio: [],
+    role, roleText, team, span: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : '', credit, photo, trio: [], rating: 0,
   };
   const phaseName = ['POWERPLAY', 'MIDDLE', 'DEATH'];
   if (pc.bat && s.bat?.b) {
     const a = s.bat, b = pc.bat, x = sp.bat ?? {};
     const avg = a.r / Math.max(a.o, 1), sr = (100 * a.r) / a.b;
-    const vs = (x.vs ?? []).filter((r: any) => r[0] !== 'unknown' && r[1] >= 150).map((r: any) => [GROUP[r[0]] ?? r[0], (100 * r[2]) / r[1]] as [string, number]).sort((m: any, n: any) => m[1] - n[1]);
+    // against bowling styles; when too many bowlers have no recorded style, fall back to pace v spin
+    let vs = (x.vs ?? []).filter((r: any) => r[0] !== 'unknown' && r[1] >= 150).map((r: any) => [GROUP[r[0]] ?? r[0], (100 * r[2]) / r[1]] as [string, number]).sort((m: any, n: any) => m[1] - n[1]);
+    if (vs.length < 2) vs = (x.type ?? []).filter((r: any) => r[0] !== 'unknown' && r[1] >= 100).map((r: any) => [r[0] === 'pace' ? 'pace' : 'spin', (100 * r[2]) / r[1]] as [string, number]).sort((m: any, n: any) => m[1] - n[1]);
     const phases = (x.phase ?? []).filter((r: any) => r[1]).sort((m: any, n: any) => +m[0] - +n[0]).map((r: any) => [phaseName[+r[0]] ?? r[0], Math.round((100 * r[2]) / r[1])] as [string, number]);
     d.bat = {
       hero: [['Runs', a.r.toLocaleString('en'), `${a.i} inns`], ['Average', n1(avg), `HS ${a.hs ?? '–'}`], ['Strike rate', n1(sr), `${a.c50 ?? 0}×50 · ${a.c100 ?? 0}×100`]],
-      meters: [['Average', n1(avg), b.avg], ['Strike rate', n1(sr), b.sr], ['Boundary %', `${n1((100 * (a.f4 + a.s6)) / a.b)}%`, b.bnd], ['Dot balls', `${n1((100 * a.d) / a.b)}%`, b.dotp],
-        ['Impact / 100', signed((100 * a.imp) / a.b), b.imp100], ...(b.wpa100 != null ? [['Win prob. added', signed(a.wpa), b.wpa100] as Meter] : [])],
+      meters: ([['Average', n1(avg), b.avg], ...(b.adj != null && a.adj_r != null ? [['Adj. average', n1(a.adj_r / Math.max(a.o, 1)), b.adj, 'adj'] as Meter] : []),
+        ['Strike rate', n1(sr), b.sr], ['Boundary %', `${n1((100 * (a.f4 + a.s6)) / a.b)}%`, b.bnd], ['Dot balls', `${n1((100 * a.d) / a.b)}%`, b.dotp],
+        ['Impact / 100', signed((100 * a.imp) / a.b), b.imp100, 'imp100'], ...(b.wpa100 != null ? [['Win prob. added', signed(a.wpa), b.wpa100, 'wpa'] as Meter] : [])] as Meter[])
+        .filter((m, _i, all) => all.length <= 6 || m[0] !== 'Dot balls').slice(0, 6),
+      rating: weightedRating(b, fam, 'bat'),
       year: (x.year ?? []).map((r: any) => [String(r[0]), r[2]] as [string, number]).sort((m: any, n: any) => m[0].localeCompare(n[0])),
       phases, up: vs.length ? `${cap(vs[vs.length - 1][0])}: SR ${Math.round(vs[vs.length - 1][1])}` : 'Not enough balls yet', dn: vs.length > 1 ? `${cap(vs[0][0])}: SR ${Math.round(vs[0][1])}` : 'Not enough balls yet',
     };
@@ -58,14 +82,19 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
     const lo = [...phases].sort((m, n) => m[1] - n[1])[0], hi = [...phases].sort((m, n) => n[1] - m[1])[0];
     d.bowl = {
       hero: [['Wickets', w.w.toLocaleString('en'), `${w.i} inns`], ['Economy', econ.toFixed(2), `best ${w.best ?? '–'}`], ['Average', n1(bavg), `SR ${n1(bsr)}`]],
-      meters: [['Economy', econ.toFixed(2), b.econ], ['Average', n1(bavg), b.bavg], ['Strike rate', n1(bsr), b.bsr], ['Dot balls', `${n1((100 * w.d) / w.b)}%`, b.dotp],
-        ['Impact / 100', signed((100 * w.imp) / w.b), b.imp100], ...(b.wpa100 != null ? [['Win prob. added', signed(w.wpa), b.wpa100] as Meter] : [])],
+      meters: ([['Economy', econ.toFixed(2), b.econ], ['Average', n1(bavg), b.bavg], ...(b.adj != null && w.adj_r != null && w.w ? [['Adj. average', n1(w.adj_r / w.w), b.adj, 'adjBowl'] as Meter] : []),
+        ['Strike rate', n1(bsr), b.bsr], ['Dot balls', `${n1((100 * w.d) / w.b)}%`, b.dotp],
+        ['Impact / 100', signed((100 * w.imp) / w.b), b.imp100, 'imp100'], ...(b.wpa100 != null ? [['Win prob. added', signed(w.wpa), b.wpa100, 'wpa'] as Meter] : [])] as Meter[])
+        .filter((m, _i, all) => all.length <= 6 || m[0] !== 'Dot balls').slice(0, 6),
+      rating: weightedRating(b, fam, 'bowl'),
       year: (x.year ?? []).map((r: any) => [String(r[0]), r[3]] as [string, number]).sort((m: any, n: any) => m[0].localeCompare(n[0])),
       phases, up: lo ? `${cap(lo[0].toLowerCase())}: econ ${lo[1].toFixed(2)}` : '–', dn: hi ? `${cap(hi[0].toLowerCase())}: econ ${hi[1].toFixed(2)}` : '–',
     };
   }
   const main = role === 'bowl' ? d.bowl : d.bat;
   if (!main || !main.year.length) return null;
+  const rb = d.bat?.rating ?? 0, rw = d.bowl?.rating ?? 0;
+  d.rating = Math.min(99, Math.round(role === 'all' ? Math.max(rb, rw) + 0.15 * Math.min(rb, rw) : role === 'bowl' ? rw : rb));
   const short = (l: string) => l.replace('Strike rate', 'SR').replace('Average', 'Avg').replace('Economy', 'Econ').replace('Wickets', 'Wkts');
   d.trio = role === 'all' && d.bat && d.bowl ? [['Runs', d.bat.hero[0][1]], ['SR', d.bat.hero[2][1]], ['Wkts', d.bowl.hero[0][1]]] : main.hero.map((h) => [short(h[0]), h[1]]);
   return d;

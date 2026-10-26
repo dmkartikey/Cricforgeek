@@ -129,7 +129,28 @@ export default function Methodology() {
             <li>Test cricket has ball-by-ball records from December 2001. Older Tests are not included, so all-time records here mean "since 2001".</li>
             <li>In the Test lab, the home side is the team that plays most international cricket at that ground, so neutral venues (such as the UAE for Pakistan) count as home.</li>
             <li>Super overs are excluded from player stats.</li>
+            <li>Player photos come from Wikimedia Commons, where a free-licence photo exists. Full names come from Wikidata. Players without either keep their scorecard name and no photo.</li>
           </ul>
+        </Panel>
+        <Panel title="7 · Ratings, adjusted averages and par scores">
+          <p className="sub"><b>Context-adjusted average.</b> Every innings is weighted by how hard the opposition was to score against that year (runs per wicket they
+            conceded, against the format's average that year) and by how easy the ground is (runs per wicket there, all time). Both are pulled towards the average
+            until there is enough evidence (30 wickets for a team-year, 60 for a ground), and the combined weight is capped between 0.6 and 1.6. Bowling works the
+            other way round: runs conceded count for less against strong batting sides and at high-scoring grounds.</p>
+          <p className="sub"><b>Card rating.</b> A weighted mix of percentiles against every qualified player in the same format and gender. Test batters: adjusted average 35%,
+            impact per 100 balls 25%, average 15%, strike rate 10%, dot balls 10%, boundaries 5%. ODI batters lean on impact, strike rate and win probability added;
+            T20 batters on strike rate (30%), impact and win probability. Test bowlers: adjusted average 30%, strike rate 25%, impact 20%, average 15%. T20 bowlers: economy 30%,
+            impact 25%, win probability 20%, dot balls 15%. All-rounders get their better rating plus 15% of the other.</p>
+          <p className="sub"><b>Par score.</b> The chase chart uses the Duckworth-Lewis-Stern idea: the first-innings score is scaled by the share of the chasing side's
+            resources (overs and wickets) used so far. The resource table is cricforgeek's own, built from the expected runs still to come in every recorded match,
+            not the official ICC table, so it can differ by a few runs. Rain-reduced matches are left out.</p>
+          <p className="sub"><b>Pressure before wickets.</b> Dot balls in the 12 deliveries before each wicket, and legal balls since the batting side's last four or six.</p>
+          <p className="sub"><b>Estimated Test days and sessions.</b> Cricsheet does not mark when a day or session ended, so days are estimated at 90 overs and sessions at 30.
+            Rain, early finishes and slow over rates shift the real days, so these are labelled as estimates everywhere.</p>
+          <p className="sub"><b>Home and away.</b> Internationals only. The home side is the team that plays most international cricket at the ground; anyone else's ground
+            is away, and a ground that belongs to neither side is neutral.</p>
+          <p className="sub"><b>Freshness.</b> Player numbers come from Cricsheet, which usually publishes a match a few days after it ends. Player pages list the newer
+            internationals the live feed has already seen for that player's national side.</p>
         </Panel>
         <Panel title="Open source">
           <p className="sub">The pipeline (Python + DuckDB) and this site (React + D3) live in one repository. Data: Cricsheet, ODC Attribution licence. Model weights and the pitch-zone

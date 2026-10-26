@@ -10,6 +10,7 @@ import { FAM_LABEL, MULTI, PHASES } from '../lib/labels';
 import { Legend, Mini, MiniSearch, Panel, SectionHead, Seg, SERIES } from '../components/ui';
 import { LineChart, MultiBars, Scatter } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
+import { eraBaseline } from '../lib/geek';
 
 type P = any;
 
@@ -132,6 +133,16 @@ export default function Compare() {
   commonOpp.sort((a, b) => opps.reduce((t, m) => t + (m.get(b)?.i ?? 0), 0) - opps.reduce((t, m) => t + (m.get(a)?.i ?? 0), 0));
 
   const cfg = meta?.zones, zb = zbase?.[fk];
+  // each player against the average of the years they played, weighted by their balls each year
+  const eras = useData<any>('eras.json').data;
+  const eraRows = eras ? has.map((x) => {
+    const yrs = yearRows(x.p).filter((r) => !same || common!.includes(String(r[0]))).map((r) => [String(r[0]), (r[1] as number) ?? 0] as [string, number]).sort((a, b) => a[0].localeCompare(b[0]));
+    const s: any = summary(x.p);
+    return role === 'bat'
+      ? { ...x, a: s.sr, ea: eraBaseline(eras, fk, yrs, 1), b: s.avg, eb: eraBaseline(eras, fk, yrs, 2), span: yrs.length ? `${yrs[0][0]}–${yrs[yrs.length - 1][0]}` : '' }
+      : { ...x, a: s.econ, ea: eraBaseline(eras, fk, yrs, 3), b: s.sr, eb: eraBaseline(eras, fk, yrs, 4), span: yrs.length ? `${yrs[0][0]}–${yrs[yrs.length - 1][0]}` : '' };
+  }) : [];
+  const rel = (v: number, e: number, low = false) => (ok(v) && ok(e) && e ? (low ? e / v - 1 : v / e - 1) : NaN);
 
   return (
     <>
@@ -223,6 +234,32 @@ export default function Compare() {
               </Panel>
             )}
           </div>
+
+          {eraRows.length > 0 && (
+            <Panel flush title="Against their era" sub={role === 'bat'
+              ? 'Strike rate and average next to the average for the years each player was batting, weighted by how much they batted each year. Positive = better than the cricket around them.'
+              : 'Economy and strike rate next to the average for the years each player was bowling, weighted by how much they bowled each year. Positive = better than the cricket around them.'}>
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead><tr><th scope="col">Player</th><th scope="col">Years</th>
+                    {role === 'bat' ? <><th scope="col">SR</th><th scope="col">Era SR</th><th scope="col">v era</th><th scope="col">Avg</th><th scope="col">Era avg</th><th scope="col">v era</th></>
+                      : <><th scope="col">Econ</th><th scope="col">Era econ</th><th scope="col">v era</th><th scope="col">SR</th><th scope="col">Era SR</th><th scope="col">v era</th></>}</tr></thead>
+                  <tbody>
+                    {eraRows.map((x) => {
+                      const r1 = rel(x.a, x.ea, role === 'bowl'), r2 = rel(x.b, x.eb, role === 'bowl');
+                      const f = role === 'bat' ? d1 : d2;
+                      return (
+                        <tr key={x.id}><td style={{ color: x.color, fontWeight: 600 }}>{x.p.name}</td><td className="muted">{x.span}</td>
+                          <td>{f(x.a)}</td><td className="muted">{f(x.ea)}</td><td className={r1 > 0 ? 'pos' : r1 < 0 ? 'neg' : ''}>{ok(r1) ? signed(100 * r1, 0) + '%' : '–'}</td>
+                          <td>{d1(x.b)}</td><td className="muted">{d1(x.eb)}</td><td className={r2 > 0 ? 'pos' : r2 < 0 ? 'neg' : ''}>{ok(r2) ? signed(100 * r2, 0) + '%' : '–'}</td></tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="panel-foot">Era batting figures are for batters in the top seven, so tail-enders don't drag them down. They cover every match in this format with ball-by-ball records, which start in the early 2000s.</div>
+            </Panel>
+          )}
 
           {cfg && zb && (
             <>

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import extras as geek
 from .prep import zones_config
 
 FAMS = ("TEST", "FC", "ODI", "LA", "T20", "HUN")
@@ -116,6 +117,8 @@ def bat_metrics(s):
         "wpa100": 100 * (s.get("wpa") or 0) / b if b else None,
         "bnd": ((s.get("f4") or 0) + (s.get("s6") or 0)) / b if b else None,
         "dotp": (s.get("d") or 0) / b if b else None,
+        # average adjusted for the strength of the bowling faced and how easy the venue is
+        "adj": (s.get("adj_r") or 0) / max(o, 1) if b and s.get("adj_r") is not None else None,
     }
 
 
@@ -129,10 +132,11 @@ def bowl_metrics(s):
         "imp100": 100 * (s.get("imp") or 0) / b if b else None,
         "wpa100": 100 * (s.get("wpa") or 0) / b if b else None,
         "dotp": (s.get("d") or 0) / b if b else None,
+        "adj": (s.get("adj_r") or 0) / w if w and s.get("adj_r") is not None else None,
     }
 
 
-LOWER_BETTER = {("bat", "dotp"), ("bowl", "econ"), ("bowl", "bavg"), ("bowl", "bsr")}
+LOWER_BETTER = {("bat", "dotp"), ("bowl", "econ"), ("bowl", "bavg"), ("bowl", "bsr"), ("bowl", "adj")}
 
 
 def percentiles(groups: dict[str, list[tuple[str, dict]]], kind: str):
@@ -205,6 +209,8 @@ def export_all(con, out: Path, report: dict):
       from matches group by comp order by matches desc""")
     comp_label = {c["key"]: c["label"] for c in comps}
     names = {p: (n, u) for p, n, u in con.execute("select player, name, unique_name from P").fetchall()}
+    _innings_totals(con)
+    geek.prep(con)
 
     _export_players(con, w, cfg, comp_label, names)
     _export_teams(con, w, comp_label, names)
@@ -243,6 +249,10 @@ def export_all(con, out: Path, report: dict):
         "zones_about": cfg["_about"], "zones_about_runs": cfg.get("_about_runs"),
         "models": report,
     }
+    meta["extras"] = {"venues": geek.export_venues(con, w, names), "records": geek.export_records(con, w, names),
+                      "deck": geek.export_deck(con, w, names)}
+    geek.export_onthisday(con, w, names)
+    geek.export_baselines(con, w)
     w.write("meta.json", meta)
     return {"files": w.count, "mb": round(w.bytes / 1e6, 1), "home_boards": len(home["boards"])}
 
@@ -333,7 +343,7 @@ def _export_players(con, w, cfg, comp_label, names):
 
     # matchups
     for kind, me, them, sql in (("bat", "batter", "bowler", BALL_BAT), ("bowl", "bowler", "batter", BALL_BAT)):
-        lim = 15
+        lim = 25
         for x in rows(con, f"""select * from (
               select {me} player, {them} opp, fam, gender, {sql},
                      row_number() over (partition by {me}, fam, gender order by count(*) filter (where faced) desc) rn
@@ -365,6 +375,8 @@ def _export_players(con, w, cfg, comp_label, names):
                           from BW) where rn <= 25 order by date"""):
         prof[x["player"]]["recent"].setdefault("bowl", []).append(
             [x["date"], x["comp"], x["opp"], x["balls"], x["runs"], x["wkts"], r(x["imp"], 1), r(x["wpa"], 3), x["match_id"]])
+
+    geek.player_extras(con, prof, names)
 
     # percentiles within format & gender among qualified players
     gb, gw = defaultdict(list), defaultdict(list)
@@ -678,9 +690,11 @@ def _export_matches(con, w, comp_label, names):
                                  count(*) filter (where is_legal) balls, sum(n_wkts) wkts from BXE group by all"""):
         extras[x["match_id"]][x["inn"]] = [x["wd"], x["nb"], x["b"], x["lb"], x["total"], x["balls"], x["wkts"]]
     fow = defaultdict(list)
+    press, sessions = geek.match_extras(con)
     for x in rows(con, """select match_id, inn, wkts_before + 1 k, score_before + r_tot score, legal_before + is_legal::int balls, out_id
                           from BXE where n_wkts > 0 order by match_id, inn, seq"""):
-        fow[x["match_id"]].append([x["inn"], x["k"], x["score"], x["balls"], x["out_id"]])
+        # [inn, wicket, score, balls, who, dots in the previous 12 balls, balls since the last boundary]
+        fow[x["match_id"]].append([x["inn"], x["k"], x["score"], x["balls"], x["out_id"]] + press.get((x["match_id"], x["inn"], x["k"]), [None, None]))
     pships = defaultdict(list)
     pb = defaultdict(dict)
     for x in rows(con, """select match_id, inn, wkts_before k, batter, sum(r_bat) r, count(*) filter (where faced) b
@@ -694,6 +708,7 @@ def _export_matches(con, w, comp_label, names):
         if len(pair) == 1 and x["ns"] and x["ns"] not in who:
             pair.append((x["ns"], [0, 0]))
         pships[x["match_id"]].append([x["inn"], x["k"] + 1, x["runs"], x["balls"]] + [v for kv in pair for v in (kv[0], kv[1][0], kv[1][1])])
+    vkeys = dict(con.execute("select match_id, vkey from MV").fetchall())
     squads = defaultdict(lambda: defaultdict(list))
     for x in rows(con, "select match_id, team, player from appearances"):
         squads[x["match_id"]][x["team"]].append(x["player"])
@@ -714,7 +729,8 @@ def _export_matches(con, w, comp_label, names):
             "info": {k: v for k, v in m.items() if v is not None}, "comp_label": comp_label.get(m["comp"]),
             "overs": overs.get(mid, []), "bat": bat.get(mid, []), "bowl": bowl.get(mid, []),
             "moments": moments.get(mid, []), "extras": extras.get(mid, {}), "fow": fow.get(mid, []),
-            "partnerships": pships.get(mid, []), "dnb": dnb,
+            "partnerships": pships.get(mid, []), "dnb": dnb, **({"sessions": sessions[mid]} if mid in sessions else {}),
+            "vkey": vkeys.get(mid),
             "names": {p: names.get(p, (p.lstrip("~"),))[0] for p in ids},
         })
     # recent-match lists per format and gender, for the Matches page

@@ -365,3 +365,16 @@ export function TeamMark({ name, national, size = 28 }: { name: string; national
   if (code) return <img className="tmark flag" src={flagUrl(code)} alt="" width={Math.round(size * 4 / 3)} height={size} loading="lazy" decoding="async" />;
   return <span className="tmark badge" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.4), background: badgeColour(name) }}>{monogram(name)}</span>;
 }
+
+// A small (i) button that explains a stat in plain English. Opens on tap or focus, closes on blur or Escape.
+export function InfoTip({ text, label = 'What is this?' }: { text: string; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="infotip" onMouseLeave={() => setOpen(false)}>
+      <button type="button" className="infotip-btn" aria-label={label} aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(!open); }} onBlur={() => setOpen(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}>i</button>
+      {open && <span className="infotip-pop" role="tooltip">{text}</span>}
+    </span>
+  );
+}

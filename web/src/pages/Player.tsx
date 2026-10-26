@@ -6,7 +6,10 @@ import type { CardData } from '../lib/card';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
-import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SectionHead, Seg, Tiles } from '../components/ui';
+import { ErrorBox, InfoTip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SectionHead, Seg, Tiles } from '../components/ui';
+import { FreshLine, HomeAway, HowOut, kindsText, MilestoneChips, RollingForm } from '../components/PlayerGeek';
+import { conversion, GLOSSARY } from '../lib/geek';
+import { shareCard } from '../lib/sharecard';
 import { useSettings } from '../lib/settings';
 import { usePageMeta } from '../lib/meta';
 
@@ -14,7 +17,7 @@ import { BAT_METRICS, BOWL_METRICS, Drill, DrillMetric } from '../components/Dri
 import { ReactNode } from 'react';
 import { Board, Flap } from '../components/Scoreboard';
 
-type BandItem = { l: string; v: string; h?: string; k?: string };
+type BandItem = { l: string; v: string; h?: string; k?: string; tip?: string };
 function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; hero: BandItem[]; groups: { t: string; items: BandItem[] }[]; metrics: DrillMetric[]; onDrill: (m: DrillMetric) => void }) {
   const m = (k?: string) => metrics.find((x) => x.key === k);
   const val = (it: BandItem): ReactNode => (m(it.k) ? <button type="button" className="kv" onClick={() => onDrill(m(it.k)!)} title="Break this number down"><span>{it.l}</span><b>{it.v}</b></button>
@@ -36,7 +39,7 @@ function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; he
       {groups.map((g) => (
         <div key={g.t} className="band-group">
           <h3>{g.t}</h3>
-          {g.items.map((it) => <div key={it.l}>{val(it)}</div>)}
+          {g.items.map((it) => <div key={it.l} className={it.tip ? 'kv-tip' : undefined}>{val(it)}{it.tip && <InfoTip text={it.tip} label={`What is ${it.l}?`} />}</div>)}
         </div>
       ))}
     </div>
@@ -105,6 +108,8 @@ export default function Player() {
                 <Link key={t[0] + t[1]} className="tag" to={`/team/${teamKey(t[0], t[1])}`}>{t[0]} <span className="muted mono">{t[2]}–{t[3]}</span></Link>
               ))}
             </div>
+            <MilestoneChips p={p} fk={fk} />
+            <FreshLine p={p} fk={fk} />
           </div>
         </div>
         <div className="stack" style={{ alignItems: 'flex-end' }}>
@@ -112,6 +117,7 @@ export default function Player() {
           <div className="row">
             {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
             <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
+            {card && <ShareBtn card={card} />}
           </div>
         </div>
         {card && <HeroForm p={p} fk={fk} role={r} />}
@@ -123,6 +129,16 @@ export default function Player() {
 }
 
 type Ctx = { p: any; fk: string; fam: string; cfg: any; zb: any; card?: CardData | null };
+
+function ShareBtn({ card }: { card: CardData }) {
+  const [st, setSt] = useState('');
+  return (
+    <button type="button" className="btn" title="Save or share this player's card as an image"
+      onClick={async () => { setSt('…'); const r = await shareCard(card); setSt(r === 'downloaded' ? 'Saved' : r === 'shared' ? 'Shared' : ''); setTimeout(() => setSt(''), 2000); }}>
+      {st || 'Share card'}
+    </button>
+  );
+}
 
 // Year series from either the format-wide year split or one competition's seasons
 function useYears(p: any, fk: string, role: 'bat' | 'bowl', comp: string) {
@@ -141,7 +157,9 @@ const yLabel = (k: string) => (/^\d{4}$/.test(k) ? `'${k.slice(2)}` : k.replace(
 
 function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
   const s = bat(p.summary[fk].bat);
+  const adjAvg = p.summary[fk].bat.adj_r != null && s.o ? p.summary[fk].bat.adj_r / s.o : null;
   const sp = p.splits?.[fk]?.bat ?? {};
+  const unknownShare = (() => { const v = sp.vs ?? []; const t = v.reduce((a: number, x: any) => a + (x[1] ?? 0), 0); const u = v.find((x: any) => x[0] === 'unknown')?.[1] ?? 0; return t ? u / t : 0; })();
   const pc = p.pct?.[fk];
   const limited = !MULTI(fam);
   const [drill, setDrill] = useState<DrillMetric | null>(null);
@@ -183,10 +201,12 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         ]}
         groups={[
           { t: 'Adjusted for context', items: [
-            { l: 'Runs above average', v: signed(s.rae, 0) }, { l: 'Balls per dismissal', v: d1(s.bpd) },
-            { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
+            ...(adjAvg != null ? [{ l: 'Adjusted average', v: d1(adjAvg), tip: GLOSSARY.adj }] : []),
+            { l: 'Runs above average', v: signed(s.rae, 0), tip: GLOSSARY.rae }, { l: 'Balls per dismissal', v: d1(s.bpd) },
+            { l: 'Impact', v: signed(s.imp, 0), k: 'imp', tip: GLOSSARY.imp }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa', tip: GLOSSARY.wpa }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100', tip: GLOSSARY.imp100 }]) ] },
           { t: 'Scoring', items: [
-            { l: '50s · 100s', v: `${s.c50 ?? 0} · ${s.c100 ?? 0}` }, { l: 'Fours · sixes', v: `${n0(s.f4)} · ${n0(s.s6)}` },
+            { l: '50s · 100s', v: `${s.c50 ?? 0} · ${s.c100 ?? 0}` }, { l: 'Conversion', v: pct(conversion(s.c50, s.c100), 0), tip: GLOSSARY.conv },
+            { l: 'Fours · sixes', v: `${n0(s.f4)} · ${n0(s.s6)}` },
             { l: 'Boundary %', v: pct(s.bnd), k: 'bnd' }, { l: 'Dot %', v: pct(s.dotp), k: 'dotp' } ] },
         ]} />
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
@@ -199,7 +219,8 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
           { label: 'Strike rate', pct: pc.bat.sr, value: d1(s.sr) },
           { label: 'Average', pct: pc.bat.avg, value: d1(s.avg) },
-          { label: 'Impact / 100 balls', pct: pc.bat.imp100, value: signed(s.imp100, 2) },
+          ...(pc.bat.adj != null ? [{ label: 'Adjusted average', pct: pc.bat.adj, value: d1(adjAvg), tip: GLOSSARY.adj }] : []),
+          { label: 'Impact / 100 balls', pct: pc.bat.imp100, value: signed(s.imp100, 2), tip: GLOSSARY.imp100 },
           ...(limited ? [{ label: 'WPA / 100 balls', pct: pc.bat.wpa100, value: signed(s.wpa100, 3) }] : []),
           { label: 'Boundary rate', pct: pc.bat.bnd, value: pct(s.bnd) },
           { label: 'Dot-ball avoidance', pct: pc.bat.dotp, value: pct(s.dotp) },
@@ -242,6 +263,8 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         </Panel>
       </div>
 
+      <RollingForm p={p} fk={fk} role="bat" />
+
       <SectionHead title="How the runs come" sub="Scoring by phase of the innings and against each type of bowling." />
       <div className="grid g2">
         <Panel title="Phase of the innings" sub="Hover a bar for the raw numbers."
@@ -253,7 +276,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
             label: PHASES[fam][+x.k], value: x.b >= 20 ? x[phM] : null, note: `${n0(x.r)} runs · ${n0(x.b)} balls · ${n0(x.o)} outs`,
             tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Impact', value: signed(x.imp, 0) }, { label: 'Dot %', value: pct(x.dotp) }] }))} />
         </Panel>
-        <Panel title="Against bowling types" sub="Strike rate against each bowling style. Tooltips add average and balls per dismissal."
+        <Panel title="Against bowling types" sub={`Strike rate against each bowling style. Tooltips add average and balls per dismissal.${unknownShare > 0.15 ? ` ${pct(unknownShare, 0)} of balls faced came from bowlers whose style is not recorded, so those are left out.` : ''}`}
           tools={<>
             <Mini label="Phase" value={vsP} onChange={setVsP} options={[['all', 'All'], ...phasesAvail.sort().map((k) => [k, phaseShort(fam, k)] as [string, string])]} />
             <Mini label="Sort" value={vsSort} onChange={setVsSort} options={[['b', 'Most faced'], ['sr', 'SR']]} />
@@ -264,9 +287,14 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         </Panel>
       </div>
 
-      {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && <SectionHead title="Where the risk is" sub="Inferred from how they get out and how they score; free data has no ball-tracking." />}
+      <div className="grid g2">
+        <HowOut p={p} fk={fk} role="bat" />
+        <HomeAway p={p} fk={fk} role="bat" />
+      </div>
+
+      {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && <SectionHead title="Where the risk is" sub="Estimated from how they get out and how they score; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && (
-        <Panel title="Pitch map" eyebrow="Inferred zones · batting" sub="Where this batter is most at risk, where the runs come from, and where the dot balls pile up.">
+        <Panel title={<>Pitch map <span className="est-badge">Estimated</span> <InfoTip text={GLOSSARY.zones} /></>} eyebrow="Inferred zones · batting" sub="Where this batter is most at risk, where the runs come from, and where the dot balls pile up. Estimated, not ball-tracking.">
           <PitchMap role="bat" zc={p.zc[fk].bat} base={zb.bat} cfg={cfg} fam={fam} hand={p.bat} />
         </Panel>
       )}
@@ -332,7 +360,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
             { key: 'o', label: 'Outs', get: (x: any) => x[4] },
             { key: 'sr', label: 'SR', get: (x: any) => (100 * x[3]) / x[2], fmt: d1 },
             { key: 'avg', label: 'Avg', get: (x: any) => (x[4] ? x[3] / x[4] : NaN), fmt: d1 },
-            { key: 'imp', label: 'Impact', get: (x: any) => x[9], fmt: (v) => signed(v, 1) },
+            { key: 'how', label: 'How out', left: true, sortable: false, get: (x: any) => kindsText(x[10], true), fmt: (v, x: any) => <Link className="link" to={`/h2h?bat=${p.id}&bowl=${x[0]}`} title={`${kindsText(x[10])}. Open the full head to head.`}>{v}</Link> },
           ]} />
         </Panel>
         <OppVenue rows={sp[ov] ?? []} ov={ov} setOv={setOv} kind="bat" />
@@ -341,7 +369,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
   );
 }
 
-function PercentileCard({ pc, n, fk, items, role }: { pc: any; n?: number; fk: string; items: { label: string; pct: number | null; value: string }[]; role: string }) {
+function PercentileCard({ pc, n, fk, items, role }: { pc: any; n?: number; fk: string; items: { label: string; pct: number | null; value: string; tip?: string }[]; role: string }) {
   const [order, setOrder] = useState<'def' | 'pct'>('def');
   const list = order === 'pct' ? [...items].sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1)) : items;
   return (
@@ -376,6 +404,7 @@ function OppVenue({ rows, ov, setOv, kind }: { rows: any[]; ov: 'opp' | 'venue';
 
 function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
   const s = bowl(p.summary[fk].bowl);
+  const adjAvg = p.summary[fk].bowl.adj_r != null && s.w ? p.summary[fk].bowl.adj_r / s.w : null;
   const sp = p.splits?.[fk]?.bowl ?? {};
   const pc = p.pct?.[fk];
   const limited = !MULTI(fam);
@@ -413,8 +442,9 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
         ]}
         groups={[
           { t: 'Adjusted for context', items: [
-            { l: 'Runs saved v average', v: signed(s.saved, 0) }, { l: 'Wickets per innings', v: d2((s.w ?? 0) / Math.max(s.i ?? 1, 1)) },
-            { l: 'Impact', v: signed(s.imp, 0), k: 'imp' }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa' }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100' }]) ] },
+            ...(adjAvg != null ? [{ l: 'Adjusted average', v: d1(adjAvg), tip: GLOSSARY.adjBowl }] : []),
+            { l: 'Runs saved v average', v: signed(s.saved, 0), tip: GLOSSARY.saved }, { l: 'Wickets per innings', v: d2((s.w ?? 0) / Math.max(s.i ?? 1, 1)) },
+            { l: 'Impact', v: signed(s.imp, 0), k: 'imp', tip: GLOSSARY.imp }, ...(limited ? [{ l: 'Win prob. added', v: signed(s.wpa, 2), k: 'wpa', tip: GLOSSARY.wpa }] : [{ l: 'Impact / 100 balls', v: signed(s.imp100, 2), k: 'imp100', tip: GLOSSARY.imp100 }]) ] },
           { t: 'Hauls', items: [
             { l: 'Best figures', v: s.best ?? '–' }, { l: '3-fors · 5-fors', v: `${s.w3 ?? 0} · ${s.w5 ?? 0}` },
             { l: 'Strike rate', v: d1(s.sr), k: 'sr' }, { l: 'Dot %', v: pct(s.dotp), k: 'dotp' } ] },
@@ -427,7 +457,8 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
           { label: 'Economy', pct: pc.bowl.econ, value: d2(s.econ) },
           { label: 'Average', pct: pc.bowl.bavg, value: d1(s.avg) },
           { label: 'Strike rate', pct: pc.bowl.bsr, value: d1(s.sr) },
-          { label: 'Impact / 100 balls', pct: pc.bowl.imp100, value: signed(s.imp100, 2) },
+          ...(pc.bowl.adj != null ? [{ label: 'Adjusted average', pct: pc.bowl.adj, value: d1(adjAvg), tip: GLOSSARY.adjBowl }] : []),
+          { label: 'Impact / 100 balls', pct: pc.bowl.imp100, value: signed(s.imp100, 2), tip: GLOSSARY.imp100 },
           ...(limited ? [{ label: 'WPA / 100 balls', pct: pc.bowl.wpa100, value: signed(s.wpa100, 3) }] : []),
           { label: 'Dot-ball rate', pct: pc.bowl.dotp, value: pct(s.dotp) },
         ] : []} />
@@ -462,6 +493,8 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
+      <RollingForm p={p} fk={fk} role="bowl" />
+
       <SectionHead title="How the wickets come" sub="Economy and strike by phase of the innings, and against right- and left-handers." />
       <div className="grid g2">
         <Panel title="Phase of the innings" sub={phM === 'econ' ? 'Runs per over. Lower is better.' : phM === 'avg' ? 'Runs per wicket. Lower is better.' : 'Balls per wicket. Lower is better.'}
@@ -480,9 +513,13 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             tipRows: [{ label: 'Wickets', value: n0(x.w) }, { label: 'Strike rate', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }] }))} />
         </Panel>
       </div>
-      {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && <SectionHead title="Where the wickets fall" sub="Inferred from how batters get out against them; free data has no ball-tracking." />}
+      <div className="grid g2">
+        <HowOut p={p} fk={fk} role="bowl" />
+        <HomeAway p={p} fk={fk} role="bowl" />
+      </div>
+      {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && <SectionHead title="Where the wickets fall" sub="Estimated from how batters get out against them; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && (
-        <Panel title="Pitch map" eyebrow="Inferred zones · bowling" sub="Where the wickets come from, where the runs leak, and where the dot balls build pressure.">
+        <Panel title={<>Pitch map <span className="est-badge">Estimated</span> <InfoTip text={GLOSSARY.zones} /></>} eyebrow="Inferred zones · bowling" sub="Where the wickets come from, where the runs leak, and where the dot balls build pressure. Estimated, not ball-tracking.">
           <PitchMap role="bowl" zc={p.zc[fk].bowl} base={zb.bowl} cfg={cfg} fam={fam} btype={p.btype} />
         </Panel>
       )}
@@ -507,6 +544,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             { key: 'o', label: 'Wkts', get: (x: any) => x[4] },
             { key: 'sr', label: 'Batter SR', get: (x: any) => (100 * x[3]) / x[2], fmt: d1 },
             { key: 'dot', label: 'Dot %', get: (x: any) => x[5] / x[2], fmt: (v) => pct(v, 0) },
+            { key: 'how', label: 'How out', left: true, sortable: false, get: (x: any) => kindsText(x[10], true), fmt: (v, x: any) => <Link className="link" to={`/h2h?bat=${x[0]}&bowl=${p.id}`} title={`${kindsText(x[10])}. Open the full head to head.`}>{v}</Link> },
           ]} />
         </Panel>
         <OppVenue rows={sp[ov] ?? []} ov={ov} setOv={setOv} kind="bowl" />

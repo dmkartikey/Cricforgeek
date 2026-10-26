@@ -9,6 +9,7 @@ import { ErrorBox, Legend, Loader, Mini, Panel, SectionHead, SERIES } from '../c
 import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, Flap } from '../components/Scoreboard';
+import { ParChase, PartnershipTrack, Sessions, TurningCallout, VenueLink } from '../components/MatchGeek';
 
 // bat:  [inn, player, runs, balls, 4s, 6s, kind, bowler, impact, wpa, team, fielder, pos]
 // bowl: [inn, player, balls, runs, wkts, dots, wides, noballs, impact, wpa, maidens]
@@ -85,7 +86,7 @@ export default function Match() {
             <Link to={`/team/${i.team1_key ?? teamKey(i.team1, i.gender)}`}>{i.team1}</Link> <span className="muted" style={{ fontWeight: 400 }}>v</span>{' '}
             <Link to={`/team/${i.team2_key ?? teamKey(i.team2, i.gender)}`}>{i.team2}</Link>
           </h1>
-          <div className="sub">{i.event ? `${i.event} · ` : ''}{i.venue}{i.city ? `, ${i.city}` : ''} · Toss: {i.toss_winner}, chose to {i.toss_decision}</div>
+          <div className="sub">{i.event ? `${i.event} · ` : ''}<VenueLink m={m} />{i.city ? `, ${i.city}` : ''} · Toss: {i.toss_winner}, chose to {i.toss_decision}</div>
         </div>
       </section>
 
@@ -107,6 +108,8 @@ export default function Match() {
           })}
         </div>
       </Board>
+
+      <TurningCallout m={m} team={team} nm={nm} />
 
       <div>
         <div className="inn-tabs" role="tablist" aria-label="Innings">
@@ -211,6 +214,7 @@ export default function Match() {
                   );
                 })}
               </div>
+              <PartnershipTrack ps={ps} fow={fow} nm={nm} bpo={bpo} />
             </div>
           )}
         </div>
@@ -243,6 +247,8 @@ export default function Match() {
           </Panel>
         ) : <Panel title="Win probability" sub="Not modelled for multi-day cricket yet: draws make it a three-way outcome." />}
       </div>
+      {!multi && <ParChase m={m} team={team} />}
+      {multi && <Sessions m={m} />}
       {m.moments.length > 0 && (
         <Panel title="Turning points" sub="The balls that moved win probability the most. Swing is from the batting side's point of view." flush
           tools={<Mini label="Type" value={tpType} onChange={setTpType} options={[['all', 'All'], ['w', 'Wickets'], ['r', 'Runs']]} />}>
