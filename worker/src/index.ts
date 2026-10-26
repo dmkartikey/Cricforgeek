@@ -18,7 +18,7 @@ type Done = { id: string; name: string; fmt: string; gender: string; teams: [str
 const CRIC = 'https://api.cricapi.com/v1';
 const ODDS = 'https://api.the-odds-api.com/v4';
 const HOUR = 3600_000;
-const SEARCH_V = 3;
+const SEARCH_V = 3; // bump to force a fresh search
 
 const winnerOf = (m: LiveMatch) => {
   const s = m.status.toLowerCase();
@@ -226,7 +226,7 @@ export async function tick(env: Env, now = new Date()) {
             const span = seriesSpan(String(x.startDate ?? ''), String(x.endDate ?? ''));
             if (!span) continue;
             oldest = Math.min(oldest, span[0]);
-            if (!x.matches || /\b(A|U19|U-19|Under[- ]19|XI)\b|Emerging|Academy|Legends|Masters/i.test(String(x.name))) continue;
+            if (!x.matches || /\b(A|U19|U-19|Under[- ]19|XI)\b|Emerging|Academy|Legends|Masters|Domestic|One-Day Cup|Premier League|Shield|Blast|County|Ranji|Plunket/i.test(String(x.name))) continue;
             if (span[0] <= now.getTime() + 2 * 864e5 && span[1] >= now.getTime() - 40 * 864e5) found[x.id] = { id: x.id, name: x.name, s: span[0], e: span[1] };
           }
           if (rows.length < 25 || oldest < now.getTime() - 40 * 864e5) break;
