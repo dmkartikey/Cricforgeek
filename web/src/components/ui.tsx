@@ -324,10 +324,10 @@ export const nz = (v: unknown, d = 0) => (ok(v) ? v : d);
 // A tab row that scrolls sideways when it doesn't fit, with a fade and an arrow so hidden tabs are discoverable.
 export function ScrollTabs({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState({ l: false, r: false });
+  const [more, setMore] = useState({ l: false, r: false, o: false });
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const upd = () => setMore({ l: el.scrollLeft > 4, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    const upd = () => setMore({ l: el.scrollLeft > 4, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 4, o: el.scrollWidth > el.clientWidth + 4 });
     upd();
     el.addEventListener('scroll', upd, { passive: true });
     const ro = new ResizeObserver(upd); ro.observe(el);
@@ -338,7 +338,7 @@ export function ScrollTabs({ children, style }: { children: ReactNode; style?: R
   }, []);
   const nudge = (d: number) => ref.current?.scrollBy({ left: d * 160, behavior: 'smooth' });
   return (
-    <div className={`tabs-wrap${more.l ? ' more-l' : ''}${more.r ? ' more-r' : ''}`}>
+    <div className={`tabs-wrap${more.o ? ' over' : ''}${more.l ? ' more-l' : ''}${more.r ? ' more-r' : ''}`}>
       <div ref={ref} className="tabs" role="tablist" style={style}>{children}</div>
       {more.l && <button className="tabs-arrow l" aria-label="Show earlier tabs" onClick={() => nudge(-1)}>‹</button>}
       {more.r && <button className="tabs-arrow r" aria-label="Show more tabs" onClick={() => nudge(1)}>›</button>}

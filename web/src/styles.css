@@ -771,17 +771,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* scrollable tab rows */
 .tabs-wrap { position: relative; }
-.tabs-wrap.more-r .tabs { mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent); }
-.tabs-wrap.more-l .tabs { mask-image: linear-gradient(to left, #000 calc(100% - 56px), transparent); -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 56px), transparent); }
-.tabs-wrap.more-l.more-r .tabs { mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent); }
+/* When the row overflows, keep a gutter for the arrows so they never sit on top of a tab label. */
+.tabs-wrap.over { padding: 0 32px; }
+.tabs-wrap.over .tabs { scroll-padding-inline: 4px; }
+.tabs-wrap.more-r .tabs { mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+.tabs-wrap.more-l .tabs { mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent); -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent); }
+.tabs-wrap.more-l.more-r .tabs { mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent); }
 .tabs-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; display: grid; place-items: center; box-shadow: var(--shadow-1, 0 1px 3px rgba(0,0,0,.12)); }
-.tabs-arrow.r { right: 6px; } .tabs-arrow.l { left: 6px; }
+.tabs-arrow.r { right: 2px; } .tabs-arrow.l { left: 2px; }
 .tabs-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tabs { scroll-snap-type: x proximity; } .tabs > * { scroll-snap-align: start; }
 
 /* overview: jump links and live strip */
-.jump { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 -8px; }
-.jump .chip { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+/* One row that scrolls sideways on narrow screens. Wrapping here broke on iOS Safari: the row was sized for one line,
+   so the second line of chips spilled over the next section heading. */
+.jump { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 4px 0 0; flex-shrink: 0;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.jump::-webkit-scrollbar { display: none; }
+.jump .mini-label { flex: 0 0 auto; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; white-space: nowrap; }
+.jump .chip { flex: 0 0 auto; white-space: nowrap; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
 .jump .chip:hover { border-color: var(--accent); }
 .jump .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .section-h, .panel { scroll-margin-top: 72px; }
