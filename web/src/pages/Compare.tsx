@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { Link, useSearchParams } from 'react-router-dom';
 import { load, useData } from '../lib/data';
+import { fullName, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { bat, bowl, batSplit, bowlSplit, ok, SplitRow } from '../lib/stats';
 import { d1, d2, n0, pct, signed } from '../lib/fmt';
@@ -11,7 +12,6 @@ import { LineChart, MultiBars, Scatter } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
 
 type P = any;
-const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 function sumRows(rows: SplitRow[]) {
   const out = Array(11).fill(0) as number[];
@@ -25,8 +25,7 @@ function Picker({ onPick, exclude }: { onPick: (id: string) => void; exclude: st
   const [q, setQ] = useState('');
   const hits = useMemo(() => {
     if (!idx || q.trim().length < 2) return [];
-    const w = norm(q).split(/\s+/).filter(Boolean);
-    return idx.players.filter((p: any) => p[3] === s.gender && !exclude.includes(p[0]) && w.every((x: string) => norm(p[1] + ' ' + p[2]).includes(x))).slice(0, 8);
+    return searchPlayers(idx.players, q, 8, (p: PlayerRow) => p[3] === s.gender && !exclude.includes(p[0]));
   }, [idx, q, s.gender, exclude]);
   return (
     <div className="stack" style={{ gap: 6, position: 'relative' }}>
@@ -34,7 +33,7 @@ function Picker({ onPick, exclude }: { onPick: (id: string) => void; exclude: st
       {hits.length > 0 && (
         <div className="search-pop" style={{ top: 34, width: '100%' }}>
           {hits.map((p: any) => (
-            <a key={p[0]} href="#" onClick={(e) => { e.preventDefault(); onPick(p[0]); setQ(''); }}><span>{p[1]}</span><small>{p[4]} · {p[5]}–{p[6]}</small></a>
+            <a key={p[0]} href="#" onClick={(e) => { e.preventDefault(); onPick(p[0]); setQ(''); }}><span>{fullName(p) || p[1]}</span><small>{p[1]} · {p[4]} · {p[5]}–{p[6]}</small></a>
           ))}
         </div>
       )}

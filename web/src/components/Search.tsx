@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { load } from '../lib/data';
+import { fullName, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 
 type SearchIdx = {
-  players: [string, string, string, string, string, number, number, number, string][];
+  players: PlayerRow[];
   teams: [string, string, string, number][];
   comps: [string, string, string, number][];
 };
@@ -34,9 +35,9 @@ export function Search() {
     const words = norm(q).split(/\s+/).filter(Boolean);
     const hit = (s: string) => { const n = norm(s); return words.every((w) => n.includes(w)); };
     const out: { href: string; label: string; meta: string; group: string }[] = [];
-    for (const p of idx.players) {
-      if (out.length >= 10) break;
-      if (hit(p[1] + ' ' + p[2])) out.push({ href: `/player/${p[0]}`, label: p[2] !== p[1] ? `${p[1]} (${p[2]})` : p[1], meta: `${p[4]} · ${p[5]}–${p[6]}`, group: 'Players' });
+    for (const p of searchPlayers(idx.players, q, 10)) {
+      const full = fullName(p);
+      out.push({ href: `/player/${p[0]}`, label: full && norm(full) !== norm(p[1]) ? `${full} (${p[1]})` : p[1], meta: `${p[3] === 'female' ? 'Women · ' : ''}${p[4]} · ${p[5]}–${p[6]}`, group: 'Players' });
     }
     let t = 0;
     for (const x of idx.teams) { if (t >= 5) break; if (hit(x[1])) { t++; out.push({ href: `/team/${x[0]}`, label: x[1] + (x[2] === 'female' ? ' (women)' : ''), meta: `${x[3]} matches`, group: 'Teams' }); } }

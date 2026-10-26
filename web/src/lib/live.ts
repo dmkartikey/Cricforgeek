@@ -44,7 +44,7 @@ export function ago(iso?: string) {
 }
 
 // ---------- names in the feed -> our player records ----------
-type SearchIdx = { players: [string, string, string, string, string, number, number, number, string][] };
+type SearchIdx = { players: [string, string, string, string, string, number, number, number, string, string?][] };
 const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z\s-]/g, '').trim();
 
 export function findPlayer(idx: SearchIdx | null, fullName: string, team: string, gender: string) {
@@ -58,10 +58,12 @@ export function findPlayer(idx: SearchIdx | null, fullName: string, team: string
     if (p[3] !== gender) continue;
     const pw = plain(p[1]).split(/\s+/);
     const fw = plain(p[2]).split(/\s+/);
-    const lastHit = pw[pw.length - 1] === last || fw[fw.length - 1] === last;
+    const lastHit = pw[pw.length - 1] === last || fw[fw.length - 1] === last || (!!p[9] && p[9].split('|').some((n) => plain(n).split(/\s+/).pop() === last));
     if (!lastHit) continue;
     let score = 1;
     if (plain(p[2]) === plain(fullName) || plain(p[1]) === plain(fullName)) score += 5;
+    // full names and aliases from Wikidata ("Virat Kohli")
+    if (p[9] && p[9].split('|').some((n) => plain(n) === plain(fullName))) score += 8;
     if (pw[0]?.[0] === first || fw[0]?.[0] === first) score += 2;
     if (p[4] === t) score += 3;
     score += Math.min(2, (p[6] - 2015) / 5); // recently active

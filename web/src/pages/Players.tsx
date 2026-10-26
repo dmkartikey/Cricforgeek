@@ -4,15 +4,15 @@ import { usePageMeta } from '../lib/meta';
 
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
+import { norm, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
 import { n0 } from '../lib/fmt';
 import { ErrorBox, Loader, Mini, MiniSearch, Panel } from '../components/ui';
 import { Table } from '../components/Table';
 
-// search.json players: [id, name, full name, gender, main team, from, to, matches, formats]
-type Row = [string, string, string, string, string, number, number, number, string];
-const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// search.json players: [id, name, register name, gender, main team, from, to, matches, formats, full names]
+type Row = PlayerRow;
 
 export default function Players() {
   const s = useSettings();
@@ -24,10 +24,13 @@ export default function Players() {
   const [active, setActive] = useState<'all' | 'now'>('now');
   const rows = useMemo(() => {
     if (!data) return [];
-    const w = norm(q).split(/\s+/).filter(Boolean);
     const cur = new Date().getFullYear() - 1;
-    return data.players.filter((p) => p[3] === s.gender && (scope === 'any' || p[8].split(',').includes(s.fmt)) && (active === 'all' || p[6] >= cur)
-      && (!w.length || w.every((x) => norm(p[1] + ' ' + p[2] + ' ' + p[4]).includes(x))));
+    const keep = (p: Row) => p[3] === s.gender && (scope === 'any' || p[8].split(',').includes(s.fmt)) && (active === 'all' || p[6] >= cur);
+    if (!norm(q)) return data.players.filter(keep);
+    // names first (full names, short names, typos); a team name lists that team's players
+    const byName = searchPlayers(data.players, q, 300, keep);
+    if (byName.length) return byName;
+    return data.players.filter((p) => keep(p) && norm(p[4]).includes(norm(q)));
   }, [data, q, s.gender, s.fmt, scope, active]);
   if (error) return <ErrorBox error={error} />;
   if (!data) return <Loader text="Loading players" />;
