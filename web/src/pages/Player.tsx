@@ -66,7 +66,8 @@ export default function Player() {
   const st = useSettings();
   usePageMeta(p ? `${p.name} stats` : null);
   const meta = useData<any>('meta.json').data;
-  const zbase = useData<any>('zbase.json').data;
+  // the pitch-map baseline is only needed on the Dismissals tab
+  const zbase = useData<any>(new URLSearchParams(location.search).get('tab') === 'dismissals' ? 'zbase.json' : null).data;
   const [fk, setFk] = useState<string>('');
   const [role, setRole] = useState<'bat' | 'bowl'>('bat');
   const fks = useMemo(() => {
@@ -91,6 +92,21 @@ export default function Player() {
   const viewFk = all ? fks[0] ?? '' : fk; // the card and hero use the main format in the all-formats view
   const card = usePlayerCard(p, viewFk);
   if (error) return <ErrorBox error={error} />;
+  if (p && !fks.length) return (
+    // appeared in matches but never batted or bowled (did not bat, kept wicket briefly, substitute)
+    <section className="player-head fade-in">
+      <div className="row hero-id" style={{ gap: 18, alignItems: 'center' }}>
+        <div className="avatar" aria-hidden="true">{initials(p.name)}</div>
+        <div className="stack" style={{ gap: 6 }}>
+          <div className="eyebrow">Player profile</div>
+          <h1>{p.name}</h1>
+          <div className="sub">{[p.full !== p.name ? p.full : null, STYLE[p.bat], STYLE[p.bowl]].filter(Boolean).join(' · ') || 'Style not recorded'}</div>
+          <div className="chips">{(p.teams ?? []).slice(0, 6).map((t: any) => <Link key={t[0] + t[1]} className="tag" to={`/team/${teamKey(t[0], t[1])}`}>{t[0]} <span className="muted mono">{t[2]}–{t[3]}</span></Link>)}</div>
+          <p className="muted" style={{ margin: 0 }}>Played {n0((p.teams ?? []).reduce((a: number, t: any) => a + (t[4] ?? 0), 0))} recorded matches but never batted or bowled in them, so there are no stats to show.</p>
+        </div>
+      </div>
+    </section>
+  );
   if (!p || !fk) return <Loader text="Loading player" />;
   const s = p.summary[viewFk] ?? {};
   const fam = viewFk.split('-')[0];

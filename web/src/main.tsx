@@ -18,6 +18,10 @@ if (!PREVIEW && location.hash.startsWith('#/')) {
 
 const Router = PREVIEW ? HashRouter : BrowserRouter;
 
+// A page loaded fine: allow one automatic reload again next time a deploy leaves an old file behind.
+window.addEventListener('load', () => setTimeout(() => { try { sessionStorage.removeItem('cfg.reloaded'); } catch { /* ignore */ } }, 5000));
+window.addEventListener('vite:preloadError', () => { try { if (!sessionStorage.getItem('cfg.reloaded')) { sessionStorage.setItem('cfg.reloaded', '1'); location.reload(); } } catch { /* ignore */ } });
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Router>

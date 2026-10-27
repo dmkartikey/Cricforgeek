@@ -6,7 +6,8 @@ import '../card.css';
 
 // The player card: shown for players with a free-licence photo (top teams for now). Tap to reveal the stats.
 export function usePlayerCard(p: any, fk: string) {
-  const photos = useData<Record<string, string>>('photos/index.json');
+  // one of 16 small shards of the photo list (by the first character of the player id)
+  const photos = useData<Record<string, string>>(p?.id ? `photos/index-${String(p.id)[0]}.json` : null);
   return useMemo(() => (p && fk && photos.data && p.id in photos.data ? buildCard(p, fk, photos.data[p.id], `${BASE_URL}photos/${p.id}.webp`) : null), [p, fk, photos.data]);
 }
 

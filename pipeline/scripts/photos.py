@@ -36,6 +36,9 @@ def publish(ids):
                 g.write(f.read())
             index[pid] = credits[pid]
     json.dump(index, open(f"{out}/photos/index.json", "w"), separators=(",", ":"))
+    # 16 small shards by the first character of the id, so a player page loads ~5 KB instead of the whole list
+    for h in "0123456789abcdef":
+        json.dump({k: v for k, v in index.items() if k[0] == h}, open(f"{out}/photos/index-{h}.json", "w"), separators=(",", ":"))
     return index
 
 

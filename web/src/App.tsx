@@ -1,29 +1,39 @@
-import { ReactNode, useEffect, useState } from 'react';
+import React, { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { Search } from './components/Search';
+import { Loader } from './components/ui';
 import { PREVIEW, useData } from './lib/data';
 import { useSettings } from './lib/settings';
 import { useBoards } from './lib/pins';
 import { dateShort } from './lib/fmt';
-import Home from './pages/Home';
-import Player from './pages/Player';
-import Players from './pages/Players';
-import Compare from './pages/Compare';
-import Team from './pages/Team';
-import Teams from './pages/Teams';
-import League from './pages/League';
-import Leagues from './pages/Leagues';
-import Match from './pages/Match';
-import Matches from './pages/Matches';
-import Explorer from './pages/Explorer';
-import Methodology from './pages/Methodology';
-import Pinboard from './pages/Pinboard';
-import Live from './pages/Live';
-import Venue from './pages/Venue';
-import Venues from './pages/Venues';
-import Records from './pages/Records';
-import H2H from './pages/H2H';
-import Play from './pages/Play';
+// Pages load on first visit. After a deploy, an open tab can ask for a page file that no longer exists:
+// reload once to pick up the new site instead of showing a blank page.
+function page<T extends { default: React.ComponentType<any> }>(load: () => Promise<T>) {
+  return lazy(() => load().catch((e) => {
+    const key = 'cfg.reloaded';
+    try { if (!sessionStorage.getItem(key)) { sessionStorage.setItem(key, '1'); location.reload(); return new Promise<T>(() => {}); } } catch { /* storage blocked */ }
+    throw e;
+  }));
+}
+const Home = page(() => import('./pages/Home'));
+const Player = page(() => import('./pages/Player'));
+const Players = page(() => import('./pages/Players'));
+const Compare = page(() => import('./pages/Compare'));
+const Team = page(() => import('./pages/Team'));
+const Teams = page(() => import('./pages/Teams'));
+const League = page(() => import('./pages/League'));
+const Leagues = page(() => import('./pages/Leagues'));
+const Match = page(() => import('./pages/Match'));
+const Matches = page(() => import('./pages/Matches'));
+const Explorer = page(() => import('./pages/Explorer'));
+const Methodology = page(() => import('./pages/Methodology'));
+const Pinboard = page(() => import('./pages/Pinboard'));
+const Live = page(() => import('./pages/Live'));
+const Venue = page(() => import('./pages/Venue'));
+const Venues = page(() => import('./pages/Venues'));
+const Records = page(() => import('./pages/Records'));
+const H2H = page(() => import('./pages/H2H'));
+const Play = page(() => import('./pages/Play'));
 
 const I = (d: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
@@ -61,7 +71,7 @@ export default function App() {
   const loc = useLocation();
   const s = useSettings();
   const [open, setOpen] = useState(false);
-  const meta = useData<any>('home.json').data;
+  const meta = useData<any>('meta.json').data; // small, and the player and match pages need it anyway
   const boards = useBoards();
   const pins = boards.reduce((a, b) => a + b.pins.length, 0);
   useEffect(() => { window.scrollTo(0, 0); setOpen(false); }, [loc.pathname]);
@@ -101,6 +111,7 @@ export default function App() {
           <span className="spacer" />
         </header>
         <main className="page" key={loc.pathname}>
+          <Suspense fallback={<Loader text="Loading page" />}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/players" element={<Players />} />
@@ -127,6 +138,7 @@ export default function App() {
             <Route path="/methodology" element={<Methodology />} />
             <Route path="*" element={<div className="empty">Page not found. <Link className="link" to="/">Go to the overview</Link></div>} />
           </Routes>
+          </Suspense>
         </main>
         <footer className="footer">
           Ball-by-ball data from <a href="https://cricsheet.org" target="_blank" rel="noopener noreferrer">Cricsheet</a> (ODC-By licence).

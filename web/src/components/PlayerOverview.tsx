@@ -39,11 +39,12 @@ function yearSeries(p: any, k: string, kind: 'bat' | 'bowl') {
 }
 
 function Spark({ v }: { v: number[] }) {
+  v = v.map((x) => (Number.isFinite(x) ? x : 0));
   if (v.length < 2) return <span className="fs-spark empty" />;
-  const max = Math.max(...v, 1), W = 100, H = 24;
+  const top = Math.max(...v), max = Math.max(top, 1), W = 100, H = 24;
   const pts = v.map((y, i) => [(i / (v.length - 1)) * W, H - 2 - (y / max) * (H - 4)]);
   const d = pts.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' ');
-  const pk = v.indexOf(max);
+  const pk = Math.max(0, v.indexOf(top));
   return (
     <svg className="fs-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
       <path className="a" d={`${d} L${W},${H} L0,${H} Z`} />
