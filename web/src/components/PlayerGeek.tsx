@@ -24,7 +24,7 @@ export function FreshLine({ p, fk }: { p: any; fk: string }) {
       <span className="dot" aria-hidden="true" />
       <span>Stats to <b>{dateShort(f.to)}</b>
         {f.newer.length > 0 && <> · {f.newer.length} newer {f.team} {f.newer.length === 1 ? 'match is' : 'matches are'} not in these numbers yet:{' '}
-          {f.newer.slice(0, 3).map((m, i) => <span key={m.id}>{i ? ', ' : ''}<Link className="link" to={`/live?m=${encodeURIComponent(m.id)}`}>{m.teams.map((t) => t.replace(/\s+Women$/i, '')).join(' v ')} ({dateShort(m.start.slice(0, 10))})</Link></span>)}
+          {f.newer.slice(0, 3).map((m, i) => <span key={m.id}>{i ? ', ' : ''}<Link className="link" to="/matches">{m.teams.map((t) => t.replace(/\s+Women$/i, '')).join(' v ')} ({dateShort(m.start.slice(0, 10))})</Link></span>)}
         </>}
       </span>
       <InfoTip text="These numbers come from Cricsheet's ball-by-ball files, which usually arrive a few days after each match. Newer results show on the Matches and Live pages first and join the player stats once Cricsheet publishes them." label="About data freshness" />

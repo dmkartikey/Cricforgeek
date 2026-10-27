@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
-import { isFullMember, useLive, type LiveDoc } from '../lib/live';
 import { useData } from '../lib/data';
 import { FMTS, LEVELS, useSettings } from '../lib/settings';
 import { MULTI, PHASES } from '../lib/labels';
@@ -110,24 +109,6 @@ function delta(now: number, prev: number, fmt: (v: number) => string, invert?: b
   return [`${up ? '▲' : d < 0 ? '▼' : '■'} ${fmt(Math.abs(d))} on last year`, tone];
 }
 
-// Live internationals right now, and a pointer to results newer than the ball-by-ball data.
-function LiveStrip({ level }: { level: string }) {
-  const { data } = useLive<LiveDoc>('/live', 120_000);
-  const live = (data?.matches ?? []).filter((m) => m.started && !m.ended && (level !== 'top' || m.teams.every(isFullMember)));
-  if (!live.length) return null;
-  return (
-    <div className="live-strip">
-      <span className="eyebrow"><span className="live-dot" aria-hidden="true" /> Live now</span>
-      {live.slice(0, 4).map((m) => (
-        <Link key={m.id} className="live-chip" to={`/live?m=${encodeURIComponent(m.id)}`}>
-          <b>{m.teams[0]} v {m.teams[1]}</b>
-          <span className="muted">{m.innings.length ? m.innings.map((i) => `${i.r}/${i.w}`).join(' · ') : m.status}</span>
-        </Link>
-      ))}
-      <Link className="link" to="/live">All live predictions →</Link>
-    </div>
-  );
-}
 
 export default function Home() {
   usePageMeta('cricforgeek: ball-by-ball cricket stats for geeks', true);
@@ -215,7 +196,6 @@ export default function Home() {
         );
       })()}
 
-      <LiveStrip level={s.level} />
       <OnThisDay />
       <JumpLinks items={[['leaders', 'Leaders'], ['movers', 'Movers'], ['game', "How it's played"], ...(s.fmt === 'T20' && s.gender === 'male' ? [['trends', 'League trends'] as [string, string]] : []), ...(s.fmt === 'TEST' ? [['testlab', 'Test match lab'] as [string, string]] : [])]} />
 

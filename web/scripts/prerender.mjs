@@ -68,7 +68,7 @@ function page(path, { title, desc, body, ld, noindex, type = 'website', group = 
   if (!noindex) urls[group].push([url, lastmod]);
 }
 
-const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/venues">Grounds</a> · <a href="/records">Records</a> · <a href="/live">Live predictions</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
+const NAV = `<nav class="ssr-nav"><a href="/">cricforgeek</a> · <a href="/players">Players</a> · <a href="/teams">Teams</a> · <a href="/competitions">Competitions</a> · <a href="/matches">Matches</a> · <a href="/venues">Grounds</a> · <a href="/records">Records</a> · <a href="/compare">Compare</a> · <a href="/explore">Explorer</a> · <a href="/methodology">Methodology</a></nav>`;
 const crumbs = (items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + path })) });
 const table = (head, rows) => `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 const linkList = (items) => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`;
@@ -87,14 +87,14 @@ const photoIdx = has('photos/index.json') ? J('photos/index.json') : {};
 const topPlayers = [...search.players].sort((a, b) => b[7] - a[7]).slice(0, 60);
 page('/', {
   title: 'cricforgeek: ball-by-ball cricket stats for geeks',
-  desc: `Deep cricket stats for Tests, ODIs, T20s, first-class and leagues: impact, win probability, pitch maps, full scorecards and live match predictions. ${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls.`,
+  desc: `Deep cricket stats for Tests, ODIs, T20s, first-class and leagues: impact, win probability, pitch maps, full scorecards, records and ground pages. ${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls.`,
   ld: { '@context': 'https://schema.org', '@graph': [
     { '@type': 'Organization', '@id': SITE + '/#org', name: 'cricforgeek', url: SITE + '/', logo: `${SITE}/icon-512.png` },
     { '@type': 'WebSite', name: 'cricforgeek', url: SITE + '/', publisher: { '@id': SITE + '/#org' }, inLanguage: 'en', potentialAction: { '@type': 'SearchAction', target: `${SITE}/players?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
     { '@type': 'Dataset', name: 'cricforgeek ball-by-ball cricket statistics', description: 'Player, team and match statistics derived from Cricsheet ball-by-ball data.', url: SITE + '/',
       license: 'https://opendatacommons.org/licenses/by/1-0/', isBasedOn: 'https://cricsheet.org', dateModified: dataTo },
   ] },
-  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards and live match predictions for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${p[1]} (${p[4]})`]))}`,
+  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards, records and ground pages for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${p[1]} (${p[4]})`]))}`,
 });
 page('/players', { title: 'Cricket players: stats for every player', desc: `Stats for ${n0(search.players.length)} cricketers with ball-by-ball records: runs, averages, strike rates, wickets, economy, impact and pitch maps.`,
   body: `<h1>Players</h1><p>Every cricketer with ball-by-ball records, sorted by matches played.</p>${linkList(topPlayers.map((p) => [`/player/${p[0]}`, `${p[1]}, ${p[4]}, ${p[5]}–${p[6]}`]))}` });
@@ -109,23 +109,20 @@ for (const f of (existsSync(join(data, 'matches')) ? readdirSync(join(data, 'mat
 latestRows.sort((a, b) => String(b[1]).localeCompare(String(a[1])));
 page('/matches', { title: 'Cricket match scorecards', desc: 'Full ball-by-ball scorecards with fall of wickets, partnerships, worm, win probability and turning points for every recorded match.',
   body: `<h1>Matches</h1><p>Full scorecards for every recorded match, newest first.</p><h2>Latest matches</h2>${linkList(latestRows.slice(0, 80).map((r) => [`/match/${r[0]}`, `${r[4]} v ${r[5]}, ${r[3]}, ${dateLong(r[1])}`]))}` });
-page('/live', { title: 'Live cricket predictions: win chances, totals and sessions',
-  desc: 'Live win chances, fair odds, innings totals, session runs, wicket and player markets for every Test, ODI and T20I in progress, simulated ball by ball from every recorded international.',
-  ld: { '@context': 'https://schema.org', '@type': 'WebApplication', name: 'cricforgeek live predictions', applicationCategory: 'SportsApplication', operatingSystem: 'Any', url: SITE + '/live', offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' } },
-  body: '<h1>Live predictions</h1><p>Every international in progress, with each side\'s chance of winning, fair odds next to the market, innings total and session lines, wicket and player markets, and a track record of how often the model is right. Statistical estimates for information only, not betting advice.</p>' });
-page('/predictor', { title: 'Situation predictor has moved to Live predictions', desc: 'The situation predictor is now part of Live predictions.', body: '<h1>The situation predictor is now <a href="/live">Live predictions</a></h1>', noindex: true });
+page('/live', { title: 'Live predictions are paused', desc: 'Live win predictions are switched off for now. Recent results are on the Matches page.', body: '<h1>Live predictions are paused</h1><p>See the latest results on the <a href="/matches">Matches</a> page.</p>', noindex: true });
+page('/predictor', { title: 'Live predictions are paused', desc: 'Live win predictions are switched off for now.', body: '<h1>Live predictions are paused</h1><p>See the latest results on the <a href="/matches">Matches</a> page.</p>', noindex: true });
 page('/compare', { title: 'Compare cricket players side by side', desc: 'Compare up to four cricketers: averages, strike rates, impact, year-by-year form, phase splits, pace v spin and pitch maps, over whole careers or the same years.',
   body: `<h1>Compare players</h1><p>Pick up to four players and see their averages, strike rates, impact, year-by-year form, phase splits, record against pace and spin, and pitch maps on the same charts. Same-period mode keeps only the years all of them were playing, so different eras are not mixed up.</p><h2>Popular players to compare</h2>${linkList(topPlayers.slice(0, 20).map((p) => [`/player/${p[0]}`, p[1]]))}` });
 page('/explore', { title: 'Cricket stats explorer and query builder', desc: 'Filter cricket stats by format, competition, years and minimum balls, sort by any metric and download CSV.',
   body: `<h1>Explorer</h1><p>Build your own leaderboard: choose a format, one or more competitions, a range of years and a minimum number of balls, then sort batters or bowlers by runs, average, strike rate, economy, impact or win probability added, and download the table as CSV.</p><h2>Competitions you can filter by</h2>${linkList(compIdx.slice(0, 40).map((c) => [`/league/${c.key}`, c.label]))}` });
-page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability, pitch-zone and live prediction models are built, and how accurate they are.',
+page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability and pitch-zone models are built, how complete the data is, and the checks run every night.',
   ld: { '@context': 'https://schema.org', '@type': 'TechArticle', headline: 'How cricforgeek works', url: SITE + '/methodology', dateModified: dataTo, publisher: { '@type': 'Organization', name: 'cricforgeek', url: SITE + '/' } },
   body: `<h1>Methodology</h1><p>Every number on cricforgeek is built from Cricsheet's ball-by-ball records (${n0(meta.counts.matches)} matches, ${n0(meta.counts.balls)} balls, data to ${esc(dateLong(dataTo))}). The pipeline runs every night and rebuilds every model from scratch.</p>`
     + '<h2>Expected outcome of every ball</h2><p>For each ball we look up what an average batter and bowler produce in the same format, gender, innings, over and wickets down, scaled to the scoring level of that competition and season. That gives expected runs and the expected chance of a dismissal.</p>'
     + '<h2>Impact (runs added)</h2><p>Impact is runs scored above expected, minus the run cost of getting out more often than expected. In limited-overs cricket the cost of a wicket comes from a run-expectancy table; in multi-day cricket a wicket is worth that season\'s runs per wicket. Bowling impact mirrors it: runs saved plus the value of wickets above expected.</p>'
     + '<h2>Win probability</h2><p>Logistic models fitted per format and gender on every completed limited-overs match. Win probability added (WPA) credits each ball\'s change in win chance to the batter and the opposite to the bowler.</p>'
     + '<h2>Inferred pitch zones</h2><p>Free data has no ball-tracking, so line and length zones are inferred from how a batter gets out and scores, compared with the average batter in the same format.</p>'
-    + '<h2>Live predictions</h2><p>Matches in progress are simulated ball by ball from every recorded international, giving win chances, innings totals, session runs and player markets, with a public track record of how often the model is right.</p>' });
+    + '<h2>Data checks</h2><p>Every night each batting innings, bowling spell and team total is recounted from the raw Cricsheet files and checked against the site.</p>' });
 page('/pinboard', { title: 'My pinboard', desc: 'Your saved cricforgeek charts and leaderboards.', body: '<h1>My pinboard</h1>', noindex: true });
 
 // ---------- players ----------
@@ -304,7 +301,6 @@ Every page below is plain HTML with the key numbers in the page itself. Player p
 - [Teams](${SITE}/teams): international and domestic teams
 - [Competitions](${SITE}/competitions): every competition with ball-by-ball data
 - [Matches](${SITE}/matches): scorecards
-- [Live predictions](${SITE}/live): win chances and markets for internationals in progress
 - [Methodology](${SITE}/methodology): how the models work
 
 ## Page addresses

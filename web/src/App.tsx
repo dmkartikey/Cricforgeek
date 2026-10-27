@@ -28,7 +28,6 @@ const Matches = page(() => import('./pages/Matches'));
 const Explorer = page(() => import('./pages/Explorer'));
 const Methodology = page(() => import('./pages/Methodology'));
 const Pinboard = page(() => import('./pages/Pinboard'));
-const Live = page(() => import('./pages/Live'));
 const Venue = page(() => import('./pages/Venue'));
 const Venues = page(() => import('./pages/Venues'));
 const Records = page(() => import('./pages/Records'));
@@ -41,7 +40,6 @@ const I = (d: string) => (
 const NAV: [string, string, ReactNode][] = [
   ['/', 'Overview', I('M3 12l9-8 9 8M5 10v10h14V10')],
   ['/players', 'Players', I('M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c1-4 4.5-6 8-6s7 2 8 6')],
-  ['/live', 'Live predictions', I('M3 17l5-5 4 4 8-9M14 7h6v6')],
   ['/compare', 'Compare', I('M8 4v16M16 4v16M3 9h5M16 15h5M3 15h5M16 9h5')],
   ['/teams', 'Teams', I('M4 21V7l8-4 8 4v14M9 21v-6h6v6')],
   ['/competitions', 'Competitions', I('M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 6h3v2a3 3 0 01-3 3M7 6H4v2a3 3 0 003 3')],
@@ -85,7 +83,7 @@ export default function App() {
         <Search />
         <nav className="side-nav" aria-label="Main">
           {NAV.map(([to, label, icon]) => (
-            <NavLink key={to} to={to} end={to === '/'}>{icon}{label}{to === '/pinboard' && pins > 0 && <span className="count">{pins}</span>}{to === '/live' && <span className="live-dot" aria-hidden="true" style={{ marginLeft: 'auto' }} />}</NavLink>
+            <NavLink key={to} to={to} end={to === '/'}>{icon}{label}{to === '/pinboard' && pins > 0 && <span className="count">{pins}</span>}</NavLink>
           ))}
         </nav>
         <div className="side-foot">
@@ -117,8 +115,9 @@ export default function App() {
             <Route path="/players" element={<Players />} />
             <Route path="/player/:id" element={<Player />} />
             <Route path="/compare" element={<Compare />} />
-            <Route path="/live" element={<Live />} />
-            <Route path="/predictor" element={<Navigate to="/live" replace />} />
+            {/* live predictions are switched off until live scores are reliable: old links go to Matches */}
+            <Route path="/live" element={<Navigate to="/matches" replace />} />
+            <Route path="/predictor" element={<Navigate to="/matches" replace />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/team/:key" element={<Team />} />
             <Route path="/competitions" element={<Leagues />} />

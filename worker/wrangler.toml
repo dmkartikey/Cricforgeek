@@ -14,4 +14,4 @@ id = "KV_NAMESPACE_ID"   # filled in by the deploy workflow
 
 [vars]
 SITE = "https://cricforgeek.site"
-ODDS_ENABLED = "true"    # set to "false" to stop fetching and showing market odds at once
+ODDS_ENABLED = "false"    # set to "false" to stop fetching and showing market odds at once

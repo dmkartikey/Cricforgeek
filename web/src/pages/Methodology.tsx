@@ -138,20 +138,11 @@ export default function Methodology() {
       </Panel>
       <DataChecks />
       <div className="grid g2">
-        <Panel title="6 · Live predictions">
-          <p className="sub"><b>Where live data comes from.</b> A small background service checks live international scores from CricketData.org about every
-            15 minutes while a match is on (hourly otherwise), fetches full scorecards for up to two matches at each new innings and every two hours, and takes
-            market odds from The Odds API a few times a day, averaged across bookmakers with their margin removed. No bookmaker is named or linked. The model then
-            runs in your browser, so every number on the page is recomputed from the latest score.</p>
-          <p className="sub"><b>Limited overs.</b> The predictor plays out the rest of the match ball by ball, a few thousand times. Each ball is drawn from what really happened
-            on balls with the same balls left (in blocks of six), wickets down and, when chasing, the required run rate. Thin cells are blended with broader ones.
-            Run and wicket rates are then scaled by the competition and season (separately for the start, middle and end of an innings), by the two teams and the ground
-            (at half weight), and by the batters and bowlers you name, from their records in that format. With no competition chosen, a big target is also read as a sign of a good batting pitch.</p>
-          <p className="sub"><b>How well it works.</b> On 300 real chase situations from the IPL, BBL, T20 Blast and PSL (2021 to 2026), predicted chances matched what happened:
-            situations given about 30% were won 31% of the time, about 50% → 56%, about 93% → 96%. Across all men's T20 and ODI chases, the average gap to the real result rate was 4 and 5 points.</p>
-          <p className="sub"><b>Tests and first-class.</b> A model trained on every past Test state, one per innings, gives win, draw and loss chances from the lead, wickets in hand,
-            overs left in the match and the run rate. It picks the eventual result 53% of the time in the first innings, rising to 80% in the fourth. In a fourth-innings chase it is
-            blended with a simulation of the chase that uses the teams and players. Declarations, weather and day-night games are not modelled.</p>
+        <Panel title="6 · Live predictions (paused)">
+          <p className="sub">Live win predictions are switched off for now. The free live-score feed missed matches (India v New Zealand on 27 October never showed as live),
+            and a prediction is only worth showing when it is reliable. They will come back once live scores can be trusted and the model is accurate enough.</p>
+          <p className="sub">Recent results between the top teams still appear on the Matches page as soon as they finish, and their full ball-by-ball scorecards follow
+            when Cricsheet publishes them, usually within a few days.</p>
         </Panel>
         <Panel title="5 · Coverage & caveats">
           <ul className="sub" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>

@@ -188,7 +188,8 @@ const reduce = typeof matchMedia !== "undefined" && matchMedia('(prefers-reduced
 function revealFor(p) {
   if (p.role === 'bat') return 'six';
   if (p.role === 'bowl') return 'bowled';
-  const all = OPTIONS.map((o) => o.k); return all[Math.floor(Math.random() * all.length)];
+  // all-rounders use one of the two approved reveals, by their stronger discipline (never the rejected mockup options)
+  return (p.bat?.rating ?? 0) >= (p.bowl?.rating ?? 0) ? 'six' : 'bowled';
 }
 export function mountCard(stage, p, startBack = false) {
   stage.innerHTML = `<div class="fx"></div><div class="pc-card${startBack ? ' on-back' : ''}" tabindex="0" role="button" aria-label="${esc(p.name)} card. Press to turn over">${cardHtml(p)}</div>`;

@@ -88,8 +88,7 @@ export default function LatestStrip() {
           </table>
           <div className="ld-actions">
             {sel.matchId ? <Link className="btn primary" to={`/match/${sel.matchId}`}>Full scorecard, worm and win probability</Link>
-              : <><Link className="btn" to={`/live?m=${encodeURIComponent(sel.liveId!)}`}>Open in Live</Link>
-                <span className="muted">Ball-by-ball scorecard appears here once Cricsheet publishes this match.</span></>}
+              : <span className="muted">The full ball-by-ball scorecard appears here once Cricsheet publishes this match, usually within a few days.</span>}
           </div>
         </div>
       )}
