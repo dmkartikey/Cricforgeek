@@ -4,7 +4,7 @@ Tests, ODIs and T20Is carry official sequence numbers (match_type_number). Any n
 matches is a match Cricsheet doesn't have. Missing numbers are given the year of the recorded matches around them.
 A number that breaks the date order (one 2026 file is numbered 4931 among numbers in the 4200s) is ignored.
 Also lists the teams that never appear at all (Cricsheet has no Afghanistan matches, for one).
-Usage: python coverage.py <all_json.zip> <out data dir>
+Usage: python match_coverage.py <all_json.zip> <out data dir>
 """
 import collections
 import json

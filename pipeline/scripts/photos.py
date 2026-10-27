@@ -102,7 +102,26 @@ def main():
             time.sleep(0.3)
     except Exception as e:
         print(f"Wikipedia photo lookup failed ({type(e).__name__})")
-    print(f"photo sources: {n1} via ESPNcricinfo id, {n2 - n1} via CricketArchive id, {len(want) - n2} via Wikipedia articles")
+    n3 = len(want)
+    # 4. Still nothing (Wikidata missing the cricket id): search English Wikipedia by name, for the best-known players
+    #    only, and accept a page only if its title is the player's name and its description says cricketer.
+    try:
+        import re
+        for pid in sorted((k for k in top if k not in want), key=lambda k: -top[k])[:300]:
+            nm = names.get(pid, "")
+            if " " not in nm or re.match(r"^[A-Z]{1,4} ", nm):  # initials only ("MS Dhoni"): too vague to search
+                continue
+            res = json.loads(get("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=search&gsrlimit=3"
+                                 "&prop=pageimages|description&piprop=name&pilicense=free&gsrsearch=" + urllib.parse.quote(f'"{nm}" cricketer')))
+            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 9)):
+                t, desc = pg.get("title", ""), (pg.get("description") or "").lower()
+                if pg.get("pageimage") and "cricket" in desc and re.sub(r" \(.*\)$", "", t) == nm:
+                    want[pid] = "http://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(pg["pageimage"])
+                    break
+            time.sleep(0.2)
+    except Exception as e:
+        print(f"Wikipedia name search failed ({type(e).__name__})")
+    print(f"photo sources: {n1} via ESPNcricinfo id, {n2 - n1} via CricketArchive id, {n3 - n2} via Wikipedia articles, {len(want) - n3} via Wikipedia name search")
     best = sorted(top, key=lambda k: -top[k])[:150]
     missing = [names.get(k, k) for k in best if k not in want]
     print(f"most-capped players still without a free photo ({len(missing)} of the top 150): {', '.join(missing[:25])}")

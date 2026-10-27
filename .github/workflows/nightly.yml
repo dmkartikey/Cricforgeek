@@ -55,7 +55,7 @@ jobs:
       - name: Coverage
         continue-on-error: true
         run: |
-          python pipeline/scripts/coverage.py all_json.zip web/public/data 2>&1 | tee coverage.log
+          python pipeline/scripts/match_coverage.py all_json.zip web/public/data 2>&1 | tee coverage.log
           echo "::notice::$(tail -n 1 coverage.log)"
 
       # Recount every innings from the raw files with a separate parser and check the published files agree.
