@@ -22,3 +22,4 @@ jobs:
           cd ..
           echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{hitsToday,hitsLimit,lastScores,errors,seriesMore,series}')"
           echo "::notice::live $(curl -sS -m 20 $W/live | jq -c '[.matches[] | .start[0:10] + " " + .teams[0] + " v " + .teams[1] + " | " + .status]')"
+# re-run 02:02
