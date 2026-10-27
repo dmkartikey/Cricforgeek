@@ -7,6 +7,7 @@ import { FAM_LABEL } from '../lib/labels';
 import { Mini, Panel } from './ui';
 import { LineChart } from './charts';
 import { Board, SbCell } from './Scoreboard';
+import { weightedRating } from '../lib/card';
 
 const ORDER = ['TEST', 'ODI', 'T20', 'FC', 'LA', 'HUN'];
 const INTL: Record<string, string> = { TEST: 'test', ODI: 'odi', T20: 't20i' };
@@ -31,28 +32,81 @@ export function sortFks(fks: string[]) {
   return [...fks].sort((a, b) => ORDER.indexOf(a.split('-')[0]) - ORDER.indexOf(b.split('-')[0]) || a.localeCompare(b));
 }
 
+// Runs (or wickets) by year in one format, oldest first.
+function yearSeries(p: any, k: string, kind: 'bat' | 'bowl') {
+  const rows: any[] = p.splits?.[k]?.[kind]?.year ?? [];
+  return rows.map((r) => [String(r[0]), kind === 'bat' ? r[2] : r[3]] as [string, number]).sort((x, y) => x[0].localeCompare(y[0]));
+}
+
+function Spark({ v }: { v: number[] }) {
+  if (v.length < 2) return <span className="fs-spark empty" />;
+  const max = Math.max(...v, 1), W = 100, H = 24;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * W, H - 2 - (y / max) * (H - 4)]);
+  const d = pts.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' ');
+  const pk = v.indexOf(max);
+  return (
+    <svg className="fs-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <path className="a" d={`${d} L${W},${H} L0,${H} Z`} />
+      <path className="l" d={d} vectorEffect="non-scaling-stroke" />
+      <circle className="pk" cx={pts[pk][0]} cy={pts[pk][1]} r="1.8" />
+    </svg>
+  );
+}
+
+const ballOf = (f: string) => (f === 'TEST' || f === 'FC' ? 'red' : 'white');
+
 /** One tile per format plus "All formats". Picking a tile changes the format the rest of the page shows. */
 export function FormatStrip({ p, fks, fk, setFk }: { p: any; fks: string[]; fk: string; setFk: (k: string) => void }) {
   const list = sortFks(fks);
-  const tot = list.reduce((a, k) => { const s = p.summary[k]; a.r += s.bat?.r ?? 0; a.w += s.bowl?.w ?? 0; a.i += Math.max(s.bat?.i ?? 0, s.bowl?.i ?? 0); return a; }, { r: 0, w: 0, i: 0 });
+  const tot = list.reduce((a, k) => { const s = p.summary[k]; a.r += s.bat?.r ?? 0; a.w += s.bowl?.w ?? 0; a.bb += s.bat?.b ?? 0; a.wb += s.bowl?.b ?? 0; return a; }, { r: 0, w: 0, bb: 0, wb: 0 });
+  const bowler = tot.wb > tot.bb * 1.2;
+  const yrs = list.flatMap((k) => [...yearSeries(p, k, 'bat'), ...yearSeries(p, k, 'bowl')].map((x) => +x[0]));
+  const span = yrs.length ? `${Math.min(...yrs)}–${String(Math.max(...yrs)).slice(2)}` : '';
+  const share = list.map((k, i) => ({ k, r: (bowler ? p.summary[k].bowl?.w : p.summary[k].bat?.r) ?? 0, c: COLORS[i % COLORS.length] })).filter((x) => x.r > 0);
+  const totMain = bowler ? tot.w : tot.r;
   return (
     <div className="fmt-strip" role="tablist" aria-label="Format">
       <button type="button" role="tab" aria-selected={fk === 'all'} className="fs-tile all" onClick={() => setFk('all')}>
-        <span className="fs-name">All formats</span>
-        <span className="fs-big">{n0(tot.r)}<small> runs</small></span>
-        <span className="fs-line">{n0(tot.w)} wkts · {list.length} formats</span>
+        <span className="fs-top"><span className="fs-ball all" aria-hidden="true"><i /><i /><i /></span><span className="fs-name">All formats</span><span className="fs-span">{span}</span></span>
+        <span className="fs-mid"><span className="fs-big">{n0(totMain)}<small>{bowler ? 'wkts' : 'runs'}</small></span></span>
+        <span className="fs-stats"><span><i>{bowler ? 'Runs' : 'Wkts'}</i><b>{n0(bowler ? tot.r : tot.w)}</b></span><span><i>Formats</i><b>{list.length}</b></span></span>
+        {totMain > 0 && (
+          <span className="fs-share" title={share.map((x) => `${fkLabel(x.k)}: ${n0(x.r)}`).join(' · ')}>
+            {share.map((x) => <i key={x.k} style={{ width: `${(100 * x.r) / totMain}%`, background: x.c }} />)}
+          </span>
+        )}
+        <span className="fs-foot">{share.slice(0, 3).map((x) => <span key={x.k}><em style={{ background: x.c }} />{fkLabel(x.k)} {Math.round((100 * x.r) / Math.max(totMain, 1))}%</span>)}</span>
       </button>
       {list.map((k) => {
         const s = p.summary[k], b = s.bat?.b ? bat(s.bat) : null, w = s.bowl?.b ? bowl(s.bowl) : null;
-        const mainBowl = (s.bowl?.b ?? 0) > (s.bat?.b ?? 0) * 1.2;
+        const f = k.split('-')[0];
+        const kind: 'bat' | 'bowl' = (s.bowl?.b ?? 0) > (s.bat?.b ?? 0) * 1.2 && w ? 'bowl' : 'bat';
+        const ys = yearSeries(p, k, kind);
+        const pc = p.pct?.[k]?.[kind];
+        const rating = pc ? Math.round(weightedRating(pc, f, kind)) : null;
         const intl = intlOf(p, k);
-        const intlN = Math.max(intl?.bat?.i ?? 0, intl?.bowl?.i ?? 0);
+        const intlN = Math.max(intl?.bat?.i ?? 0, intl?.bowl?.i ?? 0), allN = Math.max(s.bat?.i ?? 0, s.bowl?.i ?? 0);
+        const stats: [string, string][] = kind === 'bowl' && w
+          ? [['Avg', d1(w.avg)], ['Econ', d2(w.econ)], ['Best', w.w ? w.best ?? '–' : '–']]
+          : [['Avg', b ? d1(b.avg) : '–'], ['SR', b ? d1(b.sr) : '–'], ['100s', String(b?.c100 ?? 0)]];
         return (
           <button key={k} type="button" role="tab" aria-selected={fk === k} className="fs-tile" onClick={() => setFk(k)}>
-            <span className="fs-name">{fkLabel(k)}</span>
-            {mainBowl && w ? <span className="fs-big">{n0(w.w)}<small> wkts</small></span> : <span className="fs-big">{n0(b?.r ?? 0)}<small> runs</small></span>}
-            <span className="fs-line">{mainBowl && w ? `avg ${d1(w.avg)} · econ ${d2(w.econ)}` : b ? `avg ${d1(b.avg)} · SR ${d1(b.sr)}` : '–'}</span>
-            {intlN > 0 && INTL_LABEL[k.split('-')[0]] && <span className="fs-intl">{intlN} inns in {INTL_LABEL[k.split('-')[0]]}</span>}
+            <span className="fs-top">
+              <span className={`fs-ball ${ballOf(f)}`} aria-hidden="true" />
+              <span className="fs-name">{fkLabel(k)}</span>
+              <span className="fs-span">{ys.length ? `${ys[0][0]}–${ys[ys.length - 1][0].slice(2)}` : ''}</span>
+            </span>
+            <span className="fs-mid">
+              <span className="fs-big">{kind === 'bowl' ? n0(w!.w) : n0(b?.r ?? 0)}<small>{kind === 'bowl' ? 'wkts' : 'runs'}</small></span>
+              {rating != null && <span className="fs-rate" title="Rating in this format: a weighted mix of percentiles against every qualified player, as on the card">{rating}</span>}
+            </span>
+            <span className="fs-stats">{stats.map(([l, v]) => <span key={l}><i>{l}</i><b>{v}</b></span>)}</span>
+            <Spark v={ys.map((x) => x[1])} />
+            <span className="fs-foot">
+              {intlN > 0 && INTL_LABEL[f] ? <><span className="fs-bar" aria-hidden="true"><i style={{ width: `${Math.min(100, (100 * intlN) / Math.max(allN, 1))}%` }} /></span>
+                {intlN === allN ? `All ${allN} inns in ${INTL_LABEL[f]}` : `${intlN} of ${allN} inns in ${INTL_LABEL[f]}`}</>
+                : <>{allN} innings · domestic</>}
+            </span>
           </button>
         );
       })}
