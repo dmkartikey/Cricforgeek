@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { d1, d2, dateShort, n0, pct } from '../lib/fmt';
+import { useData } from '../lib/data';
 import { DCAT } from '../lib/labels';
 import { GLOSSARY, milestones, region, rolling, useNewer } from '../lib/geek';
 import { InfoTip, Mini, Panel } from './ui';
@@ -144,3 +145,35 @@ export function HomeAway({ p, fk, role }: { p: any; fk: string; role: 'bat' | 'b
 }
 
 export const Tip = ({ k }: { k: keyof typeof GLOSSARY }) => <InfoTip text={GLOSSARY[k]} />;
+
+/** Cricsheet doesn't have every international. When it is missing a noticeable share of the matches from this
+ *  player's years in a format, say so, with a rough count of how many of their matches that could be. */
+export function CoverageNote({ p, fk }: { p: any; fk: string }) {
+  const cov = useData<any>('coverage.json').data;
+  if (!cov) return null;
+  const [fam, g] = fk.split('-');
+  const intlComp = `${g === 'female' ? 'women' : 'men'}-${fam === 'TEST' ? 'test' : fam === 'ODI' ? 'odi' : 't20i'}`;
+  const c = (p.comps ?? []).find((x: any) => x.comp === intlComp);
+  const years = cov.years?.[fk];
+  if (!c || !years) return null;
+  const inns: number[][] = p.inns?.[fk]?.bat ?? p.inns?.[fk]?.bowl ?? [];
+  const ys = inns.map((x) => String(x[0]).slice(0, 4));
+  if (!ys.length) return null;
+  const from = ys[0], to = ys[ys.length - 1];
+  let have = 0, all = 0;
+  for (const [y, [h, t]] of Object.entries<[number, number]>(years)) if (y >= from && y <= to) { have += h; all += t; }
+  const share = all ? have / all : 1;
+  const played = Math.max(c.bat?.i ?? 0, c.bowl?.i ?? 0);
+  const est = Math.round(played * (1 / Math.max(share, 0.3) - 1));
+  const afg = (cov.absent_teams ?? []).includes('Afghanistan') && fam !== 'TEST' && g === 'male';
+  if (share >= 0.97 && !afg) return null;
+  const fl = fam === 'TEST' ? 'Tests' : fam === 'ODI' ? 'ODIs' : 'T20Is';
+  return (
+    <div className="notice cov-note">
+      <b>Coverage:</b>{' '}
+      {share < 0.97 && <>Cricsheet has {Math.round(share * 100)}% of the {g === 'female' ? "women's " : ''}{fl} played in {from}–{to}, so these totals may be short of the official record{est >= 1 ? ` (roughly ${est} ${est === 1 ? 'innings' : 'innings'} could be missing)` : ''}. </>}
+      {afg && <>Matches against Afghanistan aren't in Cricsheet at all. </>}
+      Every match that is here is counted exactly. <Link className="link" to="/methodology#coverage">How complete the data is</Link>
+    </div>
+  );
+}

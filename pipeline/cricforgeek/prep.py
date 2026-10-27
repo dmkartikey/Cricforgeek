@@ -93,14 +93,26 @@ def prepare(con):
     with app as (
       select match_id, inn, batter as player, min(seq) s from BX group by all
       union all
-      select match_id, inn, non_striker, min(seq) from BX group by all),
+      select match_id, inn, non_striker, min(seq) from BX group by all
+      -- batters out without facing or reaching the crease (timed out, retired out while waiting)
+      union all
+      select match_id, inn, out_id, min(seq) from BX where out_id is not null and wkt_kind not in ('retired hurt', 'retired not out') group by all
+      union all
+      select match_id, inn, split_part(o, '|', 1), min(seq) from (select match_id, inn, seq, unnest(string_split(more_outs, ',')) o from BX where more_outs is not null)
+      where split_part(o, '|', 2) not in ('retired hurt', 'retired not out') group by all),
     pos as (
       select match_id, inn, player, row_number() over (partition by match_id, inn order by s) pos
       from (select match_id, inn, player, min(s) s from app group by all)),
     outs as (
-      select match_id, inn, out_id as player, any_value(wkt_kind) kind, any_value(bowler) by_bowler,
-             any_value(dcat) dcat, any_value(fielders) fielders
-      from BXE where out_id is not null and wkt_kind not in ('retired hurt', 'retired not out')
+      select match_id, inn, player, any_value(kind) kind, any_value(by_bowler) by_bowler, any_value(dcat) dcat, any_value(fielders) fielders from (
+        select match_id, inn, out_id as player, wkt_kind kind, bowler by_bowler, dcat, fielders
+        from BXE where out_id is not null and wkt_kind not in ('retired hurt', 'retired not out')
+        -- further wickets on the same ball (rare: run outs and retirements), so no dismissal category or fielder
+        union all
+        select match_id, inn, split_part(o, '|', 1), split_part(o, '|', 2),
+               case when split_part(o, '|', 2) in ('caught', 'bowled', 'lbw', 'caught and bowled', 'stumped', 'hit wicket') then bowler end, null, null
+        from (select match_id, inn, bowler, unnest(string_split(more_outs, ',')) o from BXE where more_outs is not null)
+        where split_part(o, '|', 2) not in ('retired hurt', 'retired not out'))
       group by all),
     entry as (
       select b.match_id, b.inn, p.player, min_by(b.legal_before, b.seq) e_balls,

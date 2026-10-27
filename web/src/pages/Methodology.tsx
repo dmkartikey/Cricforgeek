@@ -2,8 +2,40 @@ import { useState } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { useData } from '../lib/data';
 import { dateShort, n0, pct } from '../lib/fmt';
-import { ErrorBox, Legend, Loader, Panel, Seg } from '../components/ui';
-import { LineChart } from '../components/charts';
+import { ErrorBox, Legend, Loader, MiniSelect, Panel, Seg } from '../components/ui';
+import { Columns, LineChart } from '../components/charts';
+
+function DataChecks() {
+  const { data: a } = useData<any>('audit.json');
+  const { data: cov } = useData<any>('coverage.json');
+  const [k, setK] = useState('TEST-male');
+  const years: [string, [number, number]][] = Object.entries(cov?.years?.[k] ?? {});
+  const tot = years.reduce((t, [, [h, n]]) => [t[0] + h, t[1] + n], [0, 0]);
+  return (
+    <div className="grid g2" id="coverage">
+      <Panel title="How complete the data is" sub={`Share of official internationals Cricsheet has, by year. Every international has an official number, so the gaps can be counted exactly. ${tot[1] ? `Overall: ${n0(tot[0])} of ${n0(tot[1])} (${Math.round((100 * tot[0]) / tot[1])}%).` : ''}`}
+        tools={<MiniSelect label="Format" value={k} onChange={setK} options={[['TEST-male', "Men's Tests"], ['ODI-male', "Men's ODIs"], ['T20-male', "Men's T20Is"], ['ODI-female', "Women's ODIs"], ['T20-female', "Women's T20Is"]]} />}
+        foot={<>{cov?.absent_teams?.length ? <>Cricsheet has no matches at all for {cov.absent_teams.join(', ')}, so their games (and every player's runs and wickets against them) are missing. </> : null}
+          Where every match of a career is present, totals match the official record exactly: for example Alastair Cook's 12,472 Test runs, Stuart Broad's 604 Test wickets and Virat Kohli's 9,230 Test runs.</>}>
+        {years.length ? <Columns key={k} aria="Coverage by year" fmt={(v) => `${Math.round(v)}%`} highlightMax={false}
+          data={years.map(([y, [h, n]]) => ({ label: `'${y.slice(2)}`, title: y, value: n ? (100 * h) / n : null, color: n && h / n < 0.9 ? 'var(--s2)' : 'var(--s1)',
+            extra: [{ label: 'In the data', value: n0(h) }, { label: 'Played', value: n0(n) }] }))} /> : <div className="empty">Loading…</div>}
+      </Panel>
+      <Panel title="Data checks" sub={a ? `Run every night after the build. Last run ${a.run.replace('T', ' ')} UTC.` : 'Run every night after the build.'}>
+        {!a ? <div className="empty">The first nightly check hasn't run yet.</div> : (
+          <ul className="checks">
+            {a.checks.map((c: any) => (
+              <li key={c.name} className={c.failed ? 'bad' : 'good'}>
+                <span className="ck">{c.failed ? '✗' : '✓'}</span>
+                <span><b>{c.desc}</b><small>{n0(c.checked - c.failed)} of {n0(c.checked)} agree{c.failed ? `; ${n0(c.failed)} don't, and are being looked into` : ''}.</small></span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
+  );
+}
 
 export default function Methodology() {
   usePageMeta('Methodology');
@@ -104,6 +136,7 @@ export default function Methodology() {
           divides by the batter's overall dismissal rate, so it shows where their wickets cluster even if they rarely get out. Caught-behind needs the wicketkeeper, who isn't
           marked in the data: we take the fielder who made a stumping in that match, or the side's regular stumper that season.</p>
       </Panel>
+      <DataChecks />
       <div className="grid g2">
         <Panel title="6 · Live predictions">
           <p className="sub"><b>Where live data comes from.</b> A small background service checks live international scores from CricketData.org about every

@@ -1,7 +1,7 @@
 // Derived metrics from the raw sums written by the pipeline.
 
 export type BatSums = { i?: number; r?: number; b?: number; o?: number; f4?: number; s6?: number; d?: number;
-  xr?: number; xo?: number; imp?: number; wpa?: number; c50?: number; c100?: number; hs?: number };
+  xr?: number; xo?: number; imp?: number; wpa?: number; c50?: number; c100?: number; hs?: number; hs_no?: boolean };
 export type BowlSums = { i?: number; b?: number; r?: number; w?: number; d?: number; f4?: number; s6?: number;
   xr?: number; xw?: number; imp?: number; wpa?: number; w3?: number; w5?: number; best?: string };
 

@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -50,6 +50,23 @@ jobs:
         env:
           CFG_MEMORY: 8GB
         run: python -m cricforgeek.build --zip ../all_json.zip --people ../people.csv --work ../work --out ../web/public/data
+
+      # How complete Cricsheet is for each international format and year (from the official match numbers).
+      - name: Coverage
+        continue-on-error: true
+        run: |
+          python pipeline/scripts/coverage.py all_json.zip web/public/data 2>&1 | tee coverage.log
+          echo "::notice::$(tail -n 1 coverage.log)"
+
+      # Recount every innings from the raw files with a separate parser and check the published files agree.
+      # Reported on the Methodology page; a failed check is flagged as a warning, not a failed build.
+      - name: Data audit
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          python pipeline/scripts/audit.py all_json.zip work web/public/data 2>&1 | tee audit.log
+          head -n 1 audit.log | sed 's/^/::notice::/'
+          python -c "import json,sys; a=json.load(open('web/public/data/audit.json')); sys.exit(0 if a['ok'] else 1)" || echo "::warning::data audit found mismatches: $(tail -n +2 audit.log | head -n 5 | tr '\n' ' ')"
 
       # Player-card photos: free-licence Wikimedia images for top-team players, cut out once and cached between runs.
       - name: Restore photo cache

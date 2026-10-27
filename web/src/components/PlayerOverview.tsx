@@ -167,7 +167,7 @@ export function OverallView({ p, fks, setFk }: { p: any; fks: string[]; setFk: (
                     <tr key={x.k + label} className={sub ? 'fr-sub' : 'fr-main'} onClick={() => setFk(x.k)} tabIndex={sub ? -1 : 0} onKeyDown={(e) => { if (e.key === 'Enter') setFk(x.k); }}>
                       <td className="left">{sub ? <span className="muted">↳ {label}</span> : <b>{label}</b>}</td>
                       <td>{n0(b?.i ?? w?.i)}</td><td>{b ? n0(b.r) : '–'}</td><td>{b ? d1(b.avg) : '–'}</td><td>{b ? d1(b.sr) : '–'}</td>
-                      <td>{b ? b.c100 ?? 0 : '–'}</td><td>{b ? b.hs ?? '–' : '–'}</td>
+                      <td>{b ? b.c100 ?? 0 : '–'}</td><td>{b ? (b.hs != null ? `${b.hs}${b.hs_no ? '*' : ''}` : '–') : '–'}</td>
                       <td className="sep">{w ? n0(w.w) : '–'}</td><td>{w ? d1(w.avg) : '–'}</td><td>{w ? d2(w.econ) : '–'}</td><td>{w && w.w ? w.best ?? '–' : '–'}</td>
                     </tr>
                   );

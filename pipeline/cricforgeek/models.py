@@ -31,7 +31,7 @@ def _base(con):
            end as inn_balls,
            (b.wides = 0) as faced,
            (b.out_id = b.batter and b.n_wkts > 0) as striker_out,
-           b.r_tot - b.byes - b.legbyes as bowl_runs,
+           b.r_tot - b.byes - b.legbyes - coalesce(b.penalty, 0) as bowl_runs,
            case m.family
              when 'T20' then case when b.over < 6 then 0 when b.over < 15 then 1 else 2 end
              when 'HUN' then case when b.legal_before < 25 then 0 when b.legal_before < 75 then 1 else 2 end

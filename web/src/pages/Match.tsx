@@ -145,8 +145,8 @@ export default function Match() {
                   </tr>
                 ))}
                 <tr className="sum">
-                  <td>Extras</td><td className="how keep">{`wd ${e[0]}, nb ${e[1]}, b ${e[2]}, lb ${e[3]}`}</td>
-                  <td className="b-r"><b>{e[0] + e[1] + e[2] + e[3]}</b></td><td colSpan={multi ? 5 : 6} />
+                  <td>Extras</td><td className="how keep">{`wd ${e[0]}, nb ${e[1]}, b ${e[2]}, lb ${e[3]}${e[7] ? `, pen ${e[7]}` : ''}`}</td>
+                  <td className="b-r"><b>{e[0] + e[1] + e[2] + e[3] + (e[7] ?? 0)}</b></td><td colSpan={multi ? 5 : 6} />
                 </tr>
                 <tr className="total">
                   <td>Total</td><td className="how keep" style={{ color: 'var(--text-2)' }}>{e[6] >= 10 ? 'all out' : `${e[6]} wickets`} · {overs(e[5], bpo)} overs · RR {e[5] ? d2((e[4] * bpo) / e[5]) : '–'}</td>

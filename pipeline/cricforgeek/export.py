@@ -70,7 +70,7 @@ BAT_SQL = """count(*) i, sum(runs) r, sum(balls) b, count(*) filter (where is_ou
   sum(f4) f4, sum(s6) s6, sum(dots) d, round(sum(xr),1) xr, round(sum(xo),2) xo,
   round(sum(imp),1) imp, round(sum(wpa),3) wpa,
   count(*) filter (where runs >= 50 and runs < 100) c50, count(*) filter (where runs >= 100) c100,
-  max(runs) hs"""
+  max(runs) hs, arg_max(not is_out, coalesce(runs, 0) * 2 + (not is_out)::int) hs_no"""
 BOWL_SQL = """count(*) i, sum(balls) b, sum(runs) r, sum(wkts) w, sum(dots) d, sum(f4) f4, sum(s6) s6,
   round(sum(xr),1) xr, round(sum(xw),2) xw, round(sum(imp),1) imp, round(sum(wpa),3) wpa,
   count(*) filter (where wkts >= 3 and wkts < 5) w3, count(*) filter (where wkts >= 5) w5,
@@ -405,11 +405,14 @@ def _export_players(con, w, cfg, comp_label, names):
 def _innings_totals(con):
     con.execute("""
     create or replace table IT as
-    select match_id, inn, any_value(bat_team) bat, any_value(bowl_team) bowl, any_value(fam) fam,
-           any_value(gender) gender, any_value(comp) comp, any_value(season) season,
-           sum(r_tot) runs, sum(n_wkts) wkts, count(*) filter (where is_legal) balls,
-           any_value(inn_balls) quota
-    from BXE group by all
+    select b.*, b.runs_balls + coalesce(n.penalty, 0) runs from (
+      select match_id, inn, any_value(bat_team) bat, any_value(bowl_team) bowl, any_value(fam) fam,
+             any_value(gender) gender, any_value(comp) comp, any_value(season) season,
+             sum(r_tot) runs_balls, sum(n_wkts) wkts, count(*) filter (where is_legal) balls,
+             any_value(inn_balls) quota
+      from BXE group by all) b
+    -- penalty runs awarded outside any delivery (Cricsheet's innings-level penalty_runs) still count in the total
+    left join (select match_id, inn, any_value(penalty) penalty from innings group by all) n using (match_id, inn)
     """)
 
 
@@ -686,9 +689,12 @@ def _export_matches(con, w, comp_label, names):
         moments[x["match_id"]].append([x["inn"], x["over"], x["legal_no"], x["batter"], x["bowler"], x["r_tot"],
                                        x["wkt_kind"], x["out_id"], r(x["dwp"], 3), r(x["wp_before"], 3)])
     extras = defaultdict(dict)
-    for x in rows(con, """select match_id, inn, sum(wides) wd, sum(noballs) nb, sum(byes) b, sum(legbyes) lb, sum(r_tot) total,
-                                 count(*) filter (where is_legal) balls, sum(n_wkts) wkts from BXE group by all"""):
-        extras[x["match_id"]][x["inn"]] = [x["wd"], x["nb"], x["b"], x["lb"], x["total"], x["balls"], x["wkts"]]
+    # [wides, no-balls, byes, leg-byes, total, legal balls, wickets, penalty runs]
+    for x in rows(con, """select b.match_id, b.inn, sum(b.wides) wd, sum(b.noballs) nb, sum(b.byes) b, sum(b.legbyes) lb,
+                                 sum(b.r_tot) + coalesce(any_value(n.penalty), 0) total, count(*) filter (where b.is_legal) balls, sum(b.n_wkts) wkts,
+                                 coalesce(sum(b.penalty), 0) + coalesce(any_value(n.penalty), 0) pen
+                          from BXE b left join innings n on n.match_id = b.match_id and n.inn = b.inn group by all"""):
+        extras[x["match_id"]][x["inn"]] = [x["wd"], x["nb"], x["b"], x["lb"], x["total"], x["balls"], x["wkts"], x["pen"]]
     fow = defaultdict(list)
     press, sessions = geek.match_extras(con)
     for x in rows(con, """select match_id, inn, wkts_before + 1 k, score_before + r_tot score, legal_before + is_legal::int balls, out_id

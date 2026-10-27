@@ -65,7 +65,7 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
     if (vs.length < 2) vs = (x.type ?? []).filter((r: any) => r[0] !== 'unknown' && r[1] >= 100).map((r: any) => [r[0] === 'pace' ? 'pace' : 'spin', (100 * r[2]) / r[1]] as [string, number]).sort((m: any, n: any) => m[1] - n[1]);
     const phases = (x.phase ?? []).filter((r: any) => r[1]).sort((m: any, n: any) => +m[0] - +n[0]).map((r: any) => [phaseName[+r[0]] ?? r[0], Math.round((100 * r[2]) / r[1])] as [string, number]);
     d.bat = {
-      hero: [['Runs', a.r.toLocaleString('en'), `${a.i} inns`], ['Average', n1(avg), `HS ${a.hs ?? '–'}`], ['Strike rate', n1(sr), `${a.c50 ?? 0}×50 · ${a.c100 ?? 0}×100`]],
+      hero: [['Runs', a.r.toLocaleString('en'), `${a.i} inns`], ['Average', n1(avg), `HS ${a.hs != null ? `${a.hs}${a.hs_no ? '*' : ''}` : '–'}`], ['Strike rate', n1(sr), `${a.c50 ?? 0}×50 · ${a.c100 ?? 0}×100`]],
       meters: ([['Average', n1(avg), b.avg], ...(b.adj != null && a.adj_r != null ? [['Adj. average', n1(a.adj_r / Math.max(a.o, 1)), b.adj, 'adj'] as Meter] : []),
         ['Strike rate', n1(sr), b.sr], ['Boundary %', `${n1((100 * (a.f4 + a.s6)) / a.b)}%`, b.bnd], ['Dot balls', `${n1((100 * a.d) / a.b)}%`, b.dotp],
         ['Impact / 100', signed((100 * a.imp) / a.b), b.imp100, 'imp100'], ...(b.wpa100 != null ? [['Win prob. added', signed(a.wpa), b.wpa100, 'wpa'] as Meter] : [])] as Meter[])

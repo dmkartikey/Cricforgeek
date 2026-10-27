@@ -8,7 +8,7 @@ import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../li
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
 import { ErrorBox, InfoTip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
 import { FormatStrip, OverallView } from '../components/PlayerOverview';
-import { FreshLine, HomeAway, HowOut, kindsText, MilestoneChips, RollingForm } from '../components/PlayerGeek';
+import { CoverageNote, FreshLine, HomeAway, HowOut, kindsText, MilestoneChips, RollingForm } from '../components/PlayerGeek';
 import { conversion, GLOSSARY } from '../lib/geek';
 import { shareCard } from '../lib/sharecard';
 import { useSettings } from '../lib/settings';
@@ -138,6 +138,7 @@ export default function Player() {
             </div>
             {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
           </div>
+          {tab === 'summary' && <CoverageNote p={p} fk={viewFk} />}
           <div className="player-body" key={fk + r + tab}>{r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}</div>
         </>
       )}
@@ -243,7 +244,7 @@ function Batting({ p, fk, fam, cfg, zb, card, tab }: Ctx) {
         hero={[
           { l: 'Runs', v: n0(s.r), h: `${n0(s.i)} innings · ${n0(s.b)} balls`, k: 'r' },
           { l: 'Average', v: d2(s.avg), h: `${n0(s.o)} dismissals`, k: 'avg' },
-          { l: 'Strike rate', v: d1(s.sr), h: `HS ${s.hs ?? '–'}`, k: 'sr' },
+          { l: 'Strike rate', v: d1(s.sr), h: `HS ${s.hs != null ? `${s.hs}${s.hs_no ? '*' : ''}` : '–'}`, k: 'sr' },
         ]}
         groups={[
           { t: 'Adjusted for context', items: [

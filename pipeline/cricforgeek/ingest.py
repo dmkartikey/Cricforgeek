@@ -33,9 +33,9 @@ BALL_COLS = [
     ("over", pa.int16()), ("seq", pa.int32()), ("legal_no", pa.int32()),
     ("batter", pa.string()), ("bowler", pa.string()), ("non_striker", pa.string()),
     ("r_bat", pa.int8()), ("r_ext", pa.int8()), ("r_tot", pa.int8()),
-    ("wides", pa.int8()), ("noballs", pa.int8()), ("byes", pa.int8()), ("legbyes", pa.int8()),
+    ("wides", pa.int8()), ("noballs", pa.int8()), ("byes", pa.int8()), ("legbyes", pa.int8()), ("penalty", pa.int8()),
     ("is_legal", pa.bool_()),
-    ("wkt_kind", pa.string()), ("out_id", pa.string()), ("n_wkts", pa.int8()),
+    ("wkt_kind", pa.string()), ("out_id", pa.string()), ("more_outs", pa.string()), ("n_wkts", pa.int8()),
     ("bowler_wkt", pa.bool_()), ("fielders", pa.string()),
     ("score_before", pa.int16()), ("wkts_before", pa.int8()), ("legal_before", pa.int32()),
     ("target", pa.int16()), ("target_balls", pa.int16()),
@@ -126,9 +126,10 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
                 tgt = inn.get("target") or {}
                 t_runs = tgt.get("runs")
                 t_balls = int(round(float(tgt["overs"]) * bpo)) if tgt.get("overs") else None
+                pen = inn.get("penalty_runs") or {}
                 inns.append({"match_id": mid, "inn": ii, "team": bat, "super_over": sup,
                              "declared": bool(inn.get("declared")), "forfeited": bool(inn.get("forfeited")),
-                             "target": t_runs})
+                             "target": t_runs, "penalty": int(pen.get("pre", 0) or 0) + int(pen.get("post", 0) or 0)})
                 score = wk = legal = seq = 0
                 for ov in inn.get("overs", []):
                     for d in ov["deliveries"]:
@@ -139,6 +140,9 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
                         r = d["runs"]
                         ws = d.get("wickets", [])
                         real = [w for w in ws if w["kind"] not in NOT_DISMISSAL]
+                        # More than one wicket can fall on a ball (say a retirement and a stumping). The striker's
+                        # dismissal goes first, since the ball-level models are about the striker; the rest are kept too.
+                        ws = sorted(ws, key=lambda w: (w["player_out"] != d["batter"], w["kind"] in NOT_DISMISSAL))
                         w0 = ws[0] if ws else None
                         cols["match_id"].append(mid); cols["inn"].append(ii); cols["super_over"].append(sup)
                         cols["bat_team"].append(bat); cols["bowl_team"].append(bowl)
@@ -148,10 +152,12 @@ def ingest(zip_path: Path, work: Path, people_csv: Path | None, styles_csv: Path
                         cols["non_striker"].append(pid(d["non_striker"]))
                         cols["r_bat"].append(r["batter"]); cols["r_ext"].append(r["extras"]); cols["r_tot"].append(r["total"])
                         cols["wides"].append(wd); cols["noballs"].append(nb)
-                        cols["byes"].append(ex.get("byes", 0)); cols["legbyes"].append(ex.get("legbyes", 0))
+                        cols["byes"].append(ex.get("byes", 0)); cols["legbyes"].append(ex.get("legbyes", 0)); cols["penalty"].append(ex.get("penalty", 0))
                         cols["is_legal"].append(is_legal)
                         cols["wkt_kind"].append(w0["kind"] if w0 else None)
                         cols["out_id"].append(pid(w0["player_out"]) if w0 else None)
+                        # any further wickets on the same ball as "player|kind" pairs (once, ten retired out on one ball)
+                        cols["more_outs"].append(",".join(f"{pid(w['player_out'])}|{w['kind']}" for w in ws[1:]) or None)
                         cols["n_wkts"].append(len(real))
                         cols["bowler_wkt"].append(any(w["kind"] in BOWLER_KINDS for w in ws))
                         fl = [f.get("name") for w in ws for f in w.get("fielders", []) if f.get("name") and not f.get("substitute")]
