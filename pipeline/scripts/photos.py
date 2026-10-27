@@ -107,6 +107,9 @@ def main():
     missing = [names.get(k, k) for k in best if k not in want]
     print(f"most-capped players still without a free photo ({len(missing)} of the top 150): {', '.join(missing[:25])}")
     print(f"{len(want)} top-team players have a free photo")
+    for nm in ("Abhishek Sharma",):  # spot check for players people have asked about
+        ids = [k for k, v in names.items() if v == nm]
+        print(f"photo check {nm}: " + ", ".join(f"{k} {'in top' if k in top else 'not in top'}, {'has source' if k in want else 'no source'}, {'cached' if os.path.exists(f'{cache}/{k}.webp') else 'not cached'}" for k in ids))
 
     from PIL import Image
     try:
@@ -127,6 +130,7 @@ def main():
                 em = ii.get("extmetadata", {})
                 lic = strip_tags(em.get("LicenseShortName", {}).get("value"))
                 if not lic or "fair use" in lic.lower():
+                    print("skip", pid, names.get(pid, pid), "no free licence:", lic or "none")
                     continue
                 artist = strip_tags(em.get("Artist", {}).get("value"))[:60] or "Unknown"
                 session = session or new_session("u2net_human_seg")
@@ -138,7 +142,7 @@ def main():
                 new += 1
                 time.sleep(0.5)
             except Exception as e:  # one bad file should not stop the build
-                print("skip", pid, type(e).__name__)
+                print("skip", pid, names.get(pid, pid), type(e).__name__, str(e)[:100])
     json.dump(credits, open(credits_path, "w"))
     index = publish([pid for pid in want])
     print(f"{new} new photos, {len(index)} on the site")
