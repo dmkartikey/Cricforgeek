@@ -97,6 +97,7 @@ jobs:
           python -m pip install -q "rembg[cpu]==2.0.66" pillow "$(grep -i '^duckdb' requirements.txt)"
           python scripts/photos.py ../people.csv ../work ../web/public/data ../photo-cache 2>&1 | tee photo.log
           echo "::notice::photos: $(tail -n 1 photo.log)"
+          grep -E "^(photo sources|most-capped)" photo.log | cut -c1-900 | sed 's/^/::notice::/' || true
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
