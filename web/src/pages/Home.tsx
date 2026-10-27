@@ -12,6 +12,7 @@ import { OnThisDay } from '../components/OnThisDay';
 import { Table } from '../components/Table';
 import Tests from './Tests';
 import { Board as Scoreboard, SbCell } from '../components/Scoreboard';
+import { ViewBar } from '../components/ViewBar';
 
 type Stats = { b: number; r: number; o?: number; w?: number; imp: number; wpa: number; xr: number; t: string };
 type Row = [string, string, number, Stats];
@@ -189,10 +190,11 @@ export default function Home() {
           <div className="eyebrow">Overview · {fallback.level_label}</div>
           <h1>{g} {fl.l} cricket</h1>
           <p className="lede">{n0(fallback.matches)} matches with ball-by-ball records, adjusted for era, phase and wickets in hand.
-            Data to {dateShort(idx.data.data_to)}. Change format, gender and level in the sidebar.</p>
+            Data to {dateShort(idx.data.data_to)}. Change format, men or women and level just below.</p>
         </div>
         <Seg label="Time window" value={win} onChange={setWin} options={[['365', 'Last 365 days'], ['all', 'All time']]} />
       </section>
+      <ViewBar level />
       {fallback.key !== want && <div className="notice info">No {LEVELS.find((l) => l[0] === s.level)?.[1].toLowerCase()} data for this format, so this shows {fallback.level_label.toLowerCase()}.</div>}
 
       {(() => {

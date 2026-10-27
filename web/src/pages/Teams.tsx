@@ -7,6 +7,7 @@ import { FAM_LABEL } from '../lib/labels';
 import { flagCode } from '../lib/teamflags';
 import { n0, pct } from '../lib/fmt';
 import { Chips, ErrorBox, Loader, Mini, MiniSearch, Panel, TeamMark } from '../components/ui';
+import { ViewBar } from '../components/ViewBar';
 
 // teams/index.json: [key, name, gender, {format: [played, won]}, {nat, c: [[compKey, label]], last}]
 // (the 5th field arrived later; without it, a team counts as national when its name has a flag)
@@ -94,6 +95,7 @@ export default function Teams() {
             Win % counts every match played, including draws and no results.</p>
         </div>
       </section>
+      <ViewBar />
       <Panel tools={<>
         <MiniSearch value={q} onChange={setQ} placeholder="Find a team" />
         <Mini label="Sort" value={sort} onChange={setSort} options={[['p', 'Most played'], ['wp', 'Win %']]} />

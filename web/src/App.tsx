@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { Search } from './components/Search';
 import { PREVIEW, useData } from './lib/data';
-import { FMTS, LEVELS, useSettings } from './lib/settings';
+import { useSettings } from './lib/settings';
 import { useBoards } from './lib/pins';
 import { dateShort } from './lib/fmt';
 import Home from './pages/Home';
@@ -66,7 +66,6 @@ export default function App() {
   const pins = boards.reduce((a, b) => a + b.pins.length, 0);
   useEffect(() => { window.scrollTo(0, 0); setOpen(false); }, [loc.pathname]);
   const seg = loc.pathname.split('/')[1] ?? '';
-  const fmtLabel = FMTS.find((f) => f.k === s.fmt)?.l;
   const dark = s.theme === 'dark';
 
   return (
@@ -74,24 +73,6 @@ export default function App() {
       <aside className={`side ${open ? 'open' : ''}`} aria-label="Sidebar">
         <Link to="/" className="brand" aria-label="cricforgeek home"><Ball /><span>cric<b>for</b>geek</span></Link>
         <Search />
-        <div className="side-sec">
-          <span className="side-label">Format</span>
-          <div className="fmt-grid" role="group" aria-label="Format">
-            {FMTS.map((f) => (
-              <button key={f.k} type="button" aria-pressed={s.fmt === f.k} onClick={() => s.set({ fmt: f.k })}>{f.l}<small>{f.s}</small></button>
-            ))}
-          </div>
-        </div>
-        <div className="side-sec">
-          <span className="side-label">Cricket</span>
-          <div className="seg full" role="group" aria-label="Gender">
-            <button type="button" aria-pressed={s.gender === 'male'} onClick={() => s.set({ gender: 'male' })}>Men</button>
-            <button type="button" aria-pressed={s.gender === 'female'} onClick={() => s.set({ gender: 'female' })}>Women</button>
-          </div>
-          <select className="input" aria-label="Level" value={s.level} onChange={(e) => s.set({ level: e.target.value as any })}>
-            {LEVELS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
-        </div>
         <nav className="side-nav" aria-label="Main">
           {NAV.map(([to, label, icon]) => (
             <NavLink key={to} to={to} end={to === '/'}>{icon}{label}{to === '/pinboard' && pins > 0 && <span className="count">{pins}</span>}{to === '/live' && <span className="live-dot" aria-hidden="true" style={{ marginLeft: 'auto' }} />}</NavLink>
@@ -118,8 +99,6 @@ export default function App() {
             <span>cricforgeek</span><i>/</i><b>{CRUMB[seg] ?? 'Page'}</b>
           </nav>
           <span className="spacer" />
-          <span className="ctx-pill"><b>{fmtLabel}</b>· {s.gender === 'male' ? 'Men' : 'Women'}</span>
-          <span className="ctx-pill hide-sm">{LEVELS.find((l) => l[0] === s.level)?.[1]}</span>
         </header>
         <main className="page" key={loc.pathname}>
           <Routes>

@@ -10,6 +10,7 @@ import { FAM_LABEL } from '../lib/labels';
 import { n0 } from '../lib/fmt';
 import { ErrorBox, Loader, Mini, MiniSearch, Panel } from '../components/ui';
 import { Table } from '../components/Table';
+import { ViewBar } from '../components/ViewBar';
 
 // search.json players: [id, name, register name, gender, main team, from, to, matches, formats, full names]
 type Row = PlayerRow;
@@ -46,6 +47,7 @@ export default function Players() {
         </div>
         <Link className="btn" to="/compare">Compare players →</Link>
       </section>
+      <ViewBar />
       <Panel flush tools={<>
         <MiniSearch value={q} onChange={setQ} placeholder="Name or team" />
         <Mini label="Format" value={scope} onChange={setScope} options={[['fmt', FAM_LABEL[s.fmt]], ['any', 'Any']]} />

@@ -7,6 +7,7 @@ import { FAM_LABEL } from '../lib/labels';
 import { dateShort, n0, overs } from '../lib/fmt';
 import { ErrorBox, Loader, MiniSearch, MiniSelect, Panel } from '../components/ui';
 import LatestStrip from '../components/LatestStrip';
+import { ViewBar } from '../components/ViewBar';
 
 // [id, date, comp, comp label, team1, team2, winner, result, by runs, by wkts, venue, top level, international, [[team, runs, wkts, balls]...]]
 type Row = [string, string, string, string, string, string, string | null, string, number | null, number | null, string, boolean, boolean, [string, number, number, number][]];
@@ -66,6 +67,7 @@ export default function Matches() {
           <p className="lede">{year === 'latest' && want === 'latest' ? `The latest ${n0(data.length)}` : n0(data.length)} {FAM_LABEL[s.fmt]} matches with ball-by-ball records{year !== 'latest' && year !== 'all' ? ` in ${year}` : ''}. Search finds any match from any year. Open any match for the full scorecard, worm, win probability and turning points.</p>
         </div>
       </section>
+      <ViewBar level />
       <LatestStrip />
       <Panel flush tools={<>
         <MiniSearch value={q} onChange={setQ} placeholder="Team or venue" />

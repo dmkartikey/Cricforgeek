@@ -11,6 +11,7 @@ import { Legend, Mini, MiniSearch, Panel, SectionHead, Seg, SERIES } from '../co
 import { LineChart, MultiBars, Scatter } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
 import { eraBaseline } from '../lib/geek';
+import { ViewBar } from '../components/ViewBar';
 
 type P = any;
 
@@ -157,6 +158,7 @@ export default function Compare() {
           <Seg label="Period" value={mode} onChange={setMode} options={[['career', 'Whole careers'], ['same', 'Same years']]} />
         </div>
       </section>
+      <ViewBar />
 
       <div className="cmp-slots">
         {ids.map((id, i) => {
@@ -180,7 +182,7 @@ export default function Compare() {
         <div className="notice info">Search for a player above to start. Try <Link className="link" to="/compare?p=ba607b88,740742ef">Kohli and Rohit Sharma</Link>{' '}
           or <Link className="link" to="/compare?p=462411b3,9d430b40&r=bowl">Bumrah and Narine</Link>.</div>
       )}
-      {missing.length > 0 && <div className="notice">{missing.map((x) => x.p.name).join(', ')} {missing.length > 1 ? 'have' : 'has'} no {FAM_LABEL[s.fmt]} {role === 'bat' ? 'batting' : 'bowling'} in the data. Change the format in the sidebar.</div>}
+      {missing.length > 0 && <div className="notice">{missing.map((x) => x.p.name).join(', ')} {missing.length > 1 ? 'have' : 'has'} no {FAM_LABEL[s.fmt]} {role === 'bat' ? 'batting' : 'bowling'} in the data. Change the format above.</div>}
       {mode === 'same' && has.length >= 2 && (!common || !common.length) && <div className="notice">These players never shared a season with 30+ balls each, so this shows whole careers.</div>}
       {same && <div className="notice info">Same years: {common![0]}–{common![common!.length - 1]} ({common!.length} seasons). Summary, table and yearly chart use only those years. Phase, pace/spin and pitch maps cover whole careers.</div>}
 

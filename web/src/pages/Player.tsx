@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import PlayerCard, { usePlayerCard } from '../components/PlayerCard';
 import type { CardData } from '../lib/card';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
 import { BGRP, famKeyLabel, INN, LEV, MULTI, PHASES, POS, STYLE } from '../lib/labels';
-import { ErrorBox, InfoTip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SectionHead, Seg, Tiles } from '../components/ui';
+import { ErrorBox, InfoTip, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, Seg, Tiles } from '../components/ui';
+import { FormatStrip, OverallView } from '../components/PlayerOverview';
 import { FreshLine, HomeAway, HowOut, kindsText, MilestoneChips, RollingForm } from '../components/PlayerGeek';
 import { conversion, GLOSSARY } from '../lib/geek';
 import { shareCard } from '../lib/sharecard';
@@ -83,15 +84,23 @@ export default function Player() {
     setRole((s.bowl?.b ?? 0) > (s.bat?.b ?? 0) * 1.2 ? 'bowl' : 'bat');
   }, [p, fks]);
 
-  const card = usePlayerCard(p, fk);
+  const [sp, setSp] = useSearchParams();
+  const tabRaw = (sp.get('tab') ?? 'summary') as Tab;
+  const setTab = (t: Tab) => { const n = new URLSearchParams(sp); if (t === 'summary') n.delete('tab'); else n.set('tab', t); setSp(n, { replace: true }); };
+  const all = fk === 'all';
+  const viewFk = all ? fks[0] ?? '' : fk; // the card and hero use the main format in the all-formats view
+  const card = usePlayerCard(p, viewFk);
   if (error) return <ErrorBox error={error} />;
   if (!p || !fk) return <Loader text="Loading player" />;
-  const s = p.summary[fk] ?? {};
-  const fam = fk.split('-')[0];
+  const s = p.summary[viewFk] ?? {};
+  const fam = viewFk.split('-')[0];
   const hasBat = (s.bat?.b ?? 0) > 0, hasBowl = (s.bowl?.b ?? 0) > 0;
   const r = role === 'bowl' && !hasBowl ? 'bat' : role === 'bat' && !hasBat ? 'bowl' : role;
   const teams: any[] = p.teams ?? [];
-  const ctx = { p, fk, fam, cfg: meta?.zones, zb: zbase?.[fk], card };
+  const tabs: [Tab, string][] = [['summary', 'Summary'], ['form', 'Form'], ['scoring', r === 'bat' ? 'Scoring' : 'Wickets'], ['dismissals', r === 'bat' ? 'Dismissals' : 'How they take wickets'],
+    ['matchups', 'Matchups'], ...(r === 'bat' ? [['role', 'Role in the side'] as [Tab, string]] : [])];
+  const tab: Tab = tabs.some((t) => t[0] === tabRaw) ? tabRaw : 'summary';
+  const ctx = { p, fk: viewFk, fam, cfg: meta?.zones, zb: zbase?.[viewFk], card, tab };
 
   const body = (
     <>
@@ -108,27 +117,63 @@ export default function Player() {
                 <Link key={t[0] + t[1]} className="tag" to={`/team/${teamKey(t[0], t[1])}`}>{t[0]} <span className="muted mono">{t[2]}–{t[3]}</span></Link>
               ))}
             </div>
-            <MilestoneChips p={p} fk={fk} />
-            <FreshLine p={p} fk={fk} />
+            <MilestoneChips p={p} fk={viewFk} />
+            <FreshLine p={p} fk={viewFk} />
           </div>
         </div>
         <div className="stack" style={{ alignItems: 'flex-end' }}>
-          {fks.length > 1 && <Seg label="Format" value={fk} onChange={setFk} options={fks.map((k) => [k, famKeyLabel(k)])} />}
           <div className="row">
-            {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
             <Link className="btn" to={`/compare?p=${p.id}${r === 'bowl' ? '&r=bowl' : ''}`}>Compare</Link>
             {card && <ShareBtn card={card} />}
           </div>
         </div>
-        {card && <HeroForm p={p} fk={fk} role={r} />}
+        {card && <HeroForm p={p} fk={viewFk} role={r} />}
       </section>
-      <div className="player-body">{r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}</div>
+      <FormatStrip p={p} fks={fks} fk={fk} setFk={setFk} />
+      {all ? <OverallView p={p} fks={fks} setFk={setFk} /> : (
+        <>
+          <div className="ptabs" role="tablist" aria-label="Sections">
+            <div className="ptabs-list">
+              {tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
+            </div>
+            {hasBat && hasBowl && <Seg label="Discipline" value={r} onChange={setRole} options={[['bat', 'Batting'], ['bowl', 'Bowling']]} />}
+          </div>
+          <div className="player-body" key={fk + r + tab}>{r === 'bat' ? <Batting key={fk + 'bat'} {...ctx} /> : <Bowling key={fk + 'bowl'} {...ctx} />}</div>
+        </>
+      )}
     </>
   );
   return body;
 }
 
-type Ctx = { p: any; fk: string; fam: string; cfg: any; zb: any; card?: CardData | null };
+type Tab = 'summary' | 'form' | 'scoring' | 'dismissals' | 'matchups' | 'role';
+type Ctx = { p: any; fk: string; fam: string; cfg: any; zb: any; card?: CardData | null; tab: Tab };
+
+// Balls per dismissal against each bowling style: lower = that style gets them out more often.
+function WhoGetsThem({ rows }: { rows: any[] }) {
+  const list = rows.map(batSplit).filter((x: any) => x.k !== 'unknown' && x.b >= 60 && x.o >= 2).sort((a: any, b: any) => a.bpd - b.bpd);
+  if (list.length < 2) return <Panel title="Who gets them out" sub="Not enough dismissals against known bowling styles yet." />;
+  const all = list.reduce((a: any, x: any) => ({ b: a.b + x.b, o: a.o + x.o }), { b: 0, o: 0 });
+  return (
+    <Panel title="Who gets them out" sub="Balls per dismissal against each bowling style. Shorter = more dangerous to them."
+      foot={<>Most at risk against {BGRP[list[0].k] ?? list[0].k}: out every {d1(list[0].bpd)} balls.</>}>
+      <HBars fmt={d1} base={all.b / Math.max(all.o, 1)} refLabel="all bowling" rows={list.map((x: any) => ({ label: BGRP[x.k] ?? x.k, value: x.bpd, note: `${n0(x.o)} outs in ${n0(x.b)} balls`,
+        tipRows: [{ label: 'Average', value: d1(x.avg) }, { label: 'SR', value: d1(x.sr) }] }))} />
+    </Panel>
+  );
+}
+// Balls per wicket against right- and left-handers.
+function WhoTheyGet({ rows }: { rows: any[] }) {
+  const list = rows.map(bowlSplit).filter((x: any) => x.k !== 'unknown' && x.b >= 60);
+  if (!list.length) return <Panel title="Who they get out" sub="Not enough balls against known batting hands yet." />;
+  const all = list.reduce((a: any, x: any) => ({ b: a.b + x.b, w: a.w + x.w }), { b: 0, w: 0 });
+  return (
+    <Panel title="Who they get out" sub="Balls per wicket against right- and left-handers. Shorter = more dangerous.">
+      <HBars fmt={d1} base={all.b / Math.max(all.w, 1)} refLabel="all batters" rows={list.map((x: any) => ({ label: x.k === 'R' ? 'Right-handers' : 'Left-handers', value: x.sr,
+        note: `${n0(x.w)} wkts in ${n0(x.b)} balls`, tipRows: [{ label: 'Economy', value: d2(x.econ) }, { label: 'Average', value: d1(x.avg) }] }))} />
+    </Panel>
+  );
+}
 
 function ShareBtn({ card }: { card: CardData }) {
   const [st, setSt] = useState('');
@@ -155,7 +200,7 @@ function useYears(p: any, fk: string, role: 'bat' | 'bowl', comp: string) {
 }
 const yLabel = (k: string) => (/^\d{4}$/.test(k) ? `'${k.slice(2)}` : k.replace(/^20(\d\d)\/(\d\d)$/, '$1/$2'));
 
-function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
+function Batting({ p, fk, fam, cfg, zb, card, tab }: Ctx) {
   const s = bat(p.summary[fk].bat);
   const adjAvg = p.summary[fk].bat.adj_r != null && s.o ? p.summary[fk].bat.adj_r / s.o : null;
   const sp = p.splits?.[fk]?.bat ?? {};
@@ -192,6 +237,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
 
   return (
     <>
+      {tab === 'summary' && <>
       <StatBand metrics={BAT_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} batting`}
         
         hero={[
@@ -211,11 +257,8 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
         ]} />
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap a number on the board or in the panel to break it down by phase, bowling type, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bat" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
-
       {!card && <FormStrip rows={(p.recent?.bat ?? []).filter((x: any) => comps.some((c: any) => c.comp === x[1]))} careerAvg={s.avg} careerSr={s.sr} />}
-
-      <SectionHead title="Career shape" sub="How they rank among qualified batters, and how the runs have built up over the years." />
-      <div className="grid g2">
+      <div className="bento b57">
         <PercentileCard pc={pc?.bat} n={pc?.n_bat} fk={fk} items={pc?.bat ? [
           { label: 'Strike rate', pct: pc.bat.sr, value: d1(s.sr) },
           { label: 'Average', pct: pc.bat.avg, value: d1(s.avg) },
@@ -236,8 +279,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
             : <div className="empty">No batting here.</div>}
         </Panel>
       </div>
-
-      <div className="grid g2">
+      <div className="bento b57">
         <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['r', 'Runs'], ['imp', 'Impact'], ['sr', 'SR']]} />}>
           <Table key={csort} rows={comps} sort={csort} cols={[
             { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
@@ -262,10 +304,26 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
           ) : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
-
+      </>}
+      {tab === 'form' && <>
       <RollingForm p={p} fk={fk} role="bat" />
-
-      <SectionHead title="How the runs come" sub="Scoring by phase of the innings and against each type of bowling." />
+      <Panel title="Recent innings" sub="Oldest to newest. Hover for details."
+        tools={<>
+          <Mini label="Metric" value={rm} onChange={setRm} options={[['runs', 'Runs'], ['imp', 'Impact']]} />
+          <MiniSelect label="In" value={rc} onChange={setRc} options={compOpts} />
+        </>}>
+        {recent.length ? <>
+          <Columns key={rc + rm} aria="Recent innings" fmt={rm === 'imp' ? (v) => signed(v, 1) : n0} highlightMax data={recent.map((x: any) => ({
+            label: dateShort(x[0]).split(' ').slice(1).join(' '), title: `${dateShort(x[0])} v ${x[2]}`, value: rm === 'runs' ? x[3] : x[6],
+            color: rm === 'imp' && x[6] < 0 ? 'var(--s2)' : undefined,
+            extra: [{ label: 'Runs', value: `${x[3]}${x[5] ? '' : '*'}` }, { label: 'Balls', value: n0(x[4]) }, { label: 'Impact', value: signed(x[6], 1) }] }))} />
+          <div className="row" style={{ fontSize: 12 }}>
+            {recent.slice(-6).reverse().map((x: any, n: number) => <Link key={`${x[8]}-${n}`} className="tag" to={`/match/${x[8]}`}>{x[3]}{x[5] ? '' : '*'} v {x[2]}</Link>)}
+          </div>
+        </> : <div className="empty">No recent innings here.</div>}
+      </Panel>
+      </>}
+      {tab === 'scoring' && <>
       <div className="grid g2">
         <Panel title="Phase of the innings" sub="Hover a bar for the raw numbers."
           tools={<>
@@ -286,20 +344,40 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
             tipRows: [{ label: 'SR', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }, { label: 'Balls per dismissal', value: d1(x.b / Math.max(x.o, 1)) }, { label: 'Impact', value: signed(x.imp, 0) }] }))} />
         </Panel>
       </div>
-
+      </>}
+      {tab === 'dismissals' && <>
       <div className="grid g2">
         <HowOut p={p} fk={fk} role="bat" />
-        <HomeAway p={p} fk={fk} role="bat" />
+        <WhoGetsThem rows={sp.vs ?? []} />
       </div>
-
-      {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && <SectionHead title="Where the risk is" sub="Estimated from how they get out and how they score; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bat && Object.keys(p.zc[fk].bat).length > 0 && (
         <Panel title={<>Pitch map <span className="est-badge">Estimated</span> <InfoTip text={GLOSSARY.zones} /></>} eyebrow="Inferred zones · batting" sub="Where this batter is most at risk, where the runs come from, and where the dot balls pile up. Estimated, not ball-tracking.">
           <PitchMap role="bat" zc={p.zc[fk].bat} base={zb.bat} cfg={cfg} fam={fam} hand={p.bat} />
         </Panel>
       )}
-
-      <SectionHead title="Role in the side" sub="Where they bat, when they walk in, and how they handle pressure." />
+      </>}
+      {tab === 'matchups' && <>
+      <div className="grid g2">
+        <Panel title="Head to head: bowlers" flush
+          tools={<>
+            <MiniSearch value={muQ} onChange={setMuQ} placeholder="Find a bowler" />
+            <Mini label="Min balls" value={muMin} onChange={setMuMin} options={[['6', '6'], ['30', '30'], ['60', '60']]} />
+          </>}>
+          <Table rows={mus} sort="b" limit={10} empty="No bowler matches." cols={[
+            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'b', label: 'Balls', get: (x: any) => x[2] },
+            { key: 'r', label: 'Runs', get: (x: any) => x[3] },
+            { key: 'o', label: 'Outs', get: (x: any) => x[4] },
+            { key: 'sr', label: 'SR', get: (x: any) => (100 * x[3]) / x[2], fmt: d1 },
+            { key: 'avg', label: 'Avg', get: (x: any) => (x[4] ? x[3] / x[4] : NaN), fmt: d1 },
+            { key: 'how', label: 'How out', left: true, sortable: false, get: (x: any) => kindsText(x[10], true), fmt: (v, x: any) => <Link className="link" to={`/h2h?bat=${p.id}&bowl=${x[0]}`} title={`${kindsText(x[10])}. Open the full head to head.`}>{v}</Link> },
+          ]} />
+        </Panel>
+        <OppVenue rows={sp[ov] ?? []} ov={ov} setOv={setOv} kind="bat" />
+      </div>
+      <HomeAway p={p} fk={fk} role="bat" />
+      </>}
+      {tab === 'role' && <>
       <div className="grid g3">
         <Panel title="Batting position" flush tools={<Mini label="Min inns" value={minInn} onChange={setMinInn} options={[['1', '1'], ['5', '5'], ['20', '20']]} />}>
           <Table rows={(sp.pos ?? []).filter((x: any) => x[1] >= +minInn)} sort="i" cols={[
@@ -329,42 +407,7 @@ function Batting({ p, fk, fam, cfg, zb, card }: Ctx) {
           ]} /> : <div className="empty">No data.</div>}
         </Panel>
       </div>
-
-      <SectionHead title="Form and matchups" sub="Recent innings, the bowlers they face most, and how they go against each opponent." />
-      <Panel title="Recent innings" sub="Oldest to newest. Hover for details."
-        tools={<>
-          <Mini label="Metric" value={rm} onChange={setRm} options={[['runs', 'Runs'], ['imp', 'Impact']]} />
-          <MiniSelect label="In" value={rc} onChange={setRc} options={compOpts} />
-        </>}>
-        {recent.length ? <>
-          <Columns key={rc + rm} aria="Recent innings" fmt={rm === 'imp' ? (v) => signed(v, 1) : n0} highlightMax data={recent.map((x: any) => ({
-            label: dateShort(x[0]).split(' ').slice(1).join(' '), title: `${dateShort(x[0])} v ${x[2]}`, value: rm === 'runs' ? x[3] : x[6],
-            color: rm === 'imp' && x[6] < 0 ? 'var(--s2)' : undefined,
-            extra: [{ label: 'Runs', value: `${x[3]}${x[5] ? '' : '*'}` }, { label: 'Balls', value: n0(x[4]) }, { label: 'Impact', value: signed(x[6], 1) }] }))} />
-          <div className="row" style={{ fontSize: 12 }}>
-            {recent.slice(-6).reverse().map((x: any, n: number) => <Link key={`${x[8]}-${n}`} className="tag" to={`/match/${x[8]}`}>{x[3]}{x[5] ? '' : '*'} v {x[2]}</Link>)}
-          </div>
-        </> : <div className="empty">No recent innings here.</div>}
-      </Panel>
-
-      <div className="grid g2">
-        <Panel title="Head to head: bowlers" flush
-          tools={<>
-            <MiniSearch value={muQ} onChange={setMuQ} placeholder="Find a bowler" />
-            <Mini label="Min balls" value={muMin} onChange={setMuMin} options={[['6', '6'], ['30', '30'], ['60', '60']]} />
-          </>}>
-          <Table rows={mus} sort="b" limit={10} empty="No bowler matches." cols={[
-            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
-            { key: 'b', label: 'Balls', get: (x: any) => x[2] },
-            { key: 'r', label: 'Runs', get: (x: any) => x[3] },
-            { key: 'o', label: 'Outs', get: (x: any) => x[4] },
-            { key: 'sr', label: 'SR', get: (x: any) => (100 * x[3]) / x[2], fmt: d1 },
-            { key: 'avg', label: 'Avg', get: (x: any) => (x[4] ? x[3] / x[4] : NaN), fmt: d1 },
-            { key: 'how', label: 'How out', left: true, sortable: false, get: (x: any) => kindsText(x[10], true), fmt: (v, x: any) => <Link className="link" to={`/h2h?bat=${p.id}&bowl=${x[0]}`} title={`${kindsText(x[10])}. Open the full head to head.`}>{v}</Link> },
-          ]} />
-        </Panel>
-        <OppVenue rows={sp[ov] ?? []} ov={ov} setOv={setOv} kind="bat" />
-      </div>
+      </>}
     </>
   );
 }
@@ -402,7 +445,7 @@ function OppVenue({ rows, ov, setOv, kind }: { rows: any[]; ov: 'opp' | 'venue';
   );
 }
 
-function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
+function Bowling({ p, fk, fam, cfg, zb, tab }: Ctx) {
   const s = bowl(p.summary[fk].bowl);
   const adjAvg = p.summary[fk].bowl.adj_r != null && s.w ? p.summary[fk].bowl.adj_r / s.w : null;
   const sp = p.splits?.[fk]?.bowl ?? {};
@@ -434,6 +477,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
 
   return (
     <>
+      {tab === 'summary' && <>
       <StatBand metrics={BOWL_METRICS} onDrill={setDrill} plate={`${p.name} · ${famKeyLabel(fk)} bowling`}
         hero={[
           { l: 'Wickets', v: n0(s.w), h: `${n0(s.i)} innings · ${overs(s.b)} overs`, k: 'w' },
@@ -451,8 +495,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
         ]} />
       <div className="muted" style={{ fontSize: 12, marginTop: -18 }}>Tap any number to break it down by phase, batter hand, innings, year, opposition and venue.</div>
       {drill && <Drill p={p} fk={fk} role="bowl" metric={drill} name={p.name} onClose={() => setDrill(null)} />}
-      <SectionHead title="Career shape" sub="How they rank among qualified bowlers, and how the wickets have come over the years." />
-      <div className="grid g2">
+      <div className="bento b57">
         <PercentileCard pc={pc?.bowl} n={pc?.n_bowl} fk={fk} role="bowlers" items={pc?.bowl ? [
           { label: 'Economy', pct: pc.bowl.econ, value: d2(s.econ) },
           { label: 'Average', pct: pc.bowl.bavg, value: d1(s.avg) },
@@ -473,7 +516,7 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             : <div className="empty">No bowling here.</div>}
         </Panel>
       </div>
-      <div className="grid g2">
+      <div className="bento b57">
         <Panel title="By competition" flush tools={<Mini label="Sort" value={csort} onChange={setCsort} options={[['w', 'Wickets'], ['imp', 'Impact'], ['avg', 'Avg']]} />}>
           <Table key={csort} rows={comps} sort={csort} cols={[
             { key: 'c', label: 'Competition', left: true, get: (c: any) => c.label, fmt: (v, c: any) => <Link to={`/league/${c.comp}`}>{v}</Link> },
@@ -493,9 +536,18 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             : <div className="empty">Needs at least two seasons.</div>}
         </Panel>
       </div>
+      </>}
+      {tab === 'form' && <>
       <RollingForm p={p} fk={fk} role="bowl" />
-
-      <SectionHead title="How the wickets come" sub="Economy and strike by phase of the innings, and against right- and left-handers." />
+      <Panel title="Recent bowling" sub="Wickets per innings, oldest to newest."
+        tools={<MiniSelect label="In" value={rc} onChange={setRc} options={compOpts} />}>
+        {recent.length ? <Columns key={rc} aria="Recent bowling" fmt={n0} highlightMax={false} data={recent.map((x: any) => ({
+          label: dateShort(x[0]).split(' ').slice(1).join(' '), title: `${dateShort(x[0])} v ${x[2]}`, value: x[5],
+          extra: [{ label: 'Figures', value: `${x[5]}/${x[4]} (${overs(x[3])})` }, { label: 'Impact', value: signed(x[6], 1) }] }))} />
+          : <div className="empty">No recent bowling here.</div>}
+      </Panel>
+      </>}
+      {tab === 'scoring' && <>
       <div className="grid g2">
         <Panel title="Phase of the innings" sub={phM === 'econ' ? 'Runs per over. Lower is better.' : phM === 'avg' ? 'Runs per wicket. Lower is better.' : 'Balls per wicket. Lower is better.'}
           tools={<>
@@ -513,24 +565,19 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
             tipRows: [{ label: 'Wickets', value: n0(x.w) }, { label: 'Strike rate', value: d1(x.sr) }, { label: 'Avg', value: d1(x.avg) }] }))} />
         </Panel>
       </div>
+      </>}
+      {tab === 'dismissals' && <>
       <div className="grid g2">
         <HowOut p={p} fk={fk} role="bowl" />
-        <HomeAway p={p} fk={fk} role="bowl" />
+        <WhoTheyGet rows={sp.hand ?? []} />
       </div>
-      {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && <SectionHead title="Where the wickets fall" sub="Estimated from how batters get out against them; free data has no ball-tracking." />}
       {cfg && zb && p.zc?.[fk]?.bowl && Object.keys(p.zc[fk].bowl).length > 0 && (
         <Panel title={<>Pitch map <span className="est-badge">Estimated</span> <InfoTip text={GLOSSARY.zones} /></>} eyebrow="Inferred zones · bowling" sub="Where the wickets come from, where the runs leak, and where the dot balls build pressure. Estimated, not ball-tracking.">
           <PitchMap role="bowl" zc={p.zc[fk].bowl} base={zb.bowl} cfg={cfg} fam={fam} btype={p.btype} />
         </Panel>
       )}
-      <SectionHead title="Form and matchups" sub="Recent bowling, the batters they bowl to most, and how they go against each opponent." />
-      <Panel title="Recent bowling" sub="Wickets per innings, oldest to newest."
-        tools={<MiniSelect label="In" value={rc} onChange={setRc} options={compOpts} />}>
-        {recent.length ? <Columns key={rc} aria="Recent bowling" fmt={n0} highlightMax={false} data={recent.map((x: any) => ({
-          label: dateShort(x[0]).split(' ').slice(1).join(' '), title: `${dateShort(x[0])} v ${x[2]}`, value: x[5],
-          extra: [{ label: 'Figures', value: `${x[5]}/${x[4]} (${overs(x[3])})` }, { label: 'Impact', value: signed(x[6], 1) }] }))} />
-          : <div className="empty">No recent bowling here.</div>}
-      </Panel>
+      </>}
+      {tab === 'matchups' && <>
       <div className="grid g2">
         <Panel title="Head to head: batters" flush
           tools={<>
@@ -549,6 +596,8 @@ function Bowling({ p, fk, fam, cfg, zb }: Ctx) {
         </Panel>
         <OppVenue rows={sp[ov] ?? []} ov={ov} setOv={setOv} kind="bowl" />
       </div>
+      <HomeAway p={p} fk={fk} role="bowl" />
+      </>}
     </>
   );
 }
