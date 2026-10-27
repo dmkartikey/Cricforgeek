@@ -41,7 +41,7 @@ function GameCard({ c, photo, hidden, pick, chosen, result, fmt }: { c: Card; ph
           const v = val(c, s);
           return (
             <button key={s.k} type="button" disabled={!pick} onClick={() => pick?.(s)} className={chosen?.k === s.k ? 'on' : ''}>
-              <span>{s.l}{s.low ? <small> lower wins</small> : null}</span><b>{v == null ? '–' : s.f ? s.f(v) : v.toLocaleString('en-IN')}</b>
+              <span>{s.l}{s.low ? <><small className="lw"> lower wins</small><small className="lw-i" title="Lower wins"> ↓</small></> : null}</span><b>{v == null ? '–' : s.f ? s.f(v) : v.toLocaleString('en-IN')}</b>
             </button>
           );
         })}
@@ -58,7 +58,7 @@ export default function Play() {
   const photos = useData<Record<string, string>>('photos/index.json').data ?? {};
   const [mine, setMine] = useState<Card[]>([]), [cpu, setCpu] = useState<Card[]>([]), [pot, setPot] = useState<Card[]>([]);
   const [turn, setTurn] = useState<'me' | 'cpu'>('me');
-  const [round, setRound] = useState<{ s: Stat; r: number; a: Card; b: Card } | null>(null);
+  const [round, setRound] = useState<{ s: Stat; r: number; a: Card; b: Card; by: 'me' | 'cpu' } | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [rounds, setRounds] = useState(0);
   const fmtLabel = fmt === 'TEST' ? 'Tests' : fmt === 'ODI' ? 'ODIs' : 'T20Is';
@@ -79,10 +79,10 @@ export default function Play() {
   };
   useEffect(deal, [deck]); // eslint-disable-line
 
-  const play = (s: Stat) => {
+  const play = (s: Stat, by: 'me' | 'cpu' = 'me') => {
     if (round || !mine.length || !cpu.length) return;
     const a = mine[0], b = cpu[0], r = cmp(a, b, s);
-    setRound({ s, r, a, b });
+    setRound({ s, r, a, b, by });
     setLog((l) => [`${s.l}: ${a[1]} ${val(a, s) ?? '–'} v ${b[1]} ${val(b, s) ?? '–'} → ${r > 0 ? 'you win' : r < 0 ? 'computer wins' : 'draw'}`, ...l].slice(0, 6));
   };
   const next = () => {
@@ -94,12 +94,9 @@ export default function Play() {
     else { setMine(restM); setCpu(restC); setPot([...pot, a, b]); }
     setRound(null); setRounds((n) => n + 1);
   };
-  // the computer's turn: it picks its own card's strongest stat
-  useEffect(() => {
-    if (turn !== 'cpu' || round || !cpu.length || !mine.length) return;
-    const t = setTimeout(() => { const c = cpu[0]; play(STATS.reduce((best, s) => (rank(c, s) > rank(c, best) ? s : best), STATS[0])); }, 900);
-    return () => clearTimeout(t);
-  }, [turn, round, cpu, mine]); // eslint-disable-line
+  // The winner of a round picks the next stat. On the computer's turn it waits for you to tap, then picks
+  // its own card's strongest stat and says which one, so it never looks as if your card picked itself.
+  const cpuPick = () => { const c = cpu[0]; play(STATS.reduce((best, s) => (rank(c, s) > rank(c, best) ? s : best), STATS[0]), 'cpu'); };
 
   const over = mine.length === 0 || cpu.length === 0 || rounds >= 30;
   if (!deck) return <Loader text="Shuffling the deck" />;
@@ -128,18 +125,22 @@ export default function Play() {
         </div>
       ) : (
         <div className="game-table">
-          <div className="stack" style={{ gap: 8 }}>
-            <span className="eyebrow">Your card {turn === 'me' && !round ? '· your pick' : ''}</span>
+          <div className="stack gt-mine" style={{ gap: 8 }}>
+            <span className="eyebrow">Your card {turn === 'me' && !round ? '· your pick' : turn === 'cpu' && !round ? "· computer's turn" : ''}</span>
             <GameCard c={mine[0]} photo={!!photos[mine[0][0]]} fmt={fmtLabel} pick={turn === 'me' && !round ? play : undefined} chosen={round?.s} result={round?.r} />
             <Link className="link" to={`/player/${mine[0][0]}`} style={{ fontSize: 12 }}>Full profile</Link>
           </div>
-          <div className="game-mid">
+          <div className="game-mid gt-mid">
             {round ? <>
+              <span className="gm-pick">{round.by === 'cpu' ? 'The computer picked' : 'You picked'} <b>{round.s.l}</b></span>
               <b className={round.r > 0 ? 'pos' : round.r < 0 ? 'neg' : ''}>{round.r > 0 ? 'You win the round' : round.r < 0 ? 'Computer wins the round' : 'Draw: both cards go in the pot'}</b>
               <button type="button" className="btn primary" onClick={next}>Next card</button>
-            </> : <span className="muted">{turn === 'me' ? 'Pick a stat' : 'Computer is choosing…'}</span>}
+            </> : turn === 'me' ? <span className="muted">Your turn: pick a stat on your card</span> : <>
+              <span className="muted">The computer won the last round, so it picks the stat</span>
+              <button type="button" className="btn primary" onClick={cpuPick}>Let the computer pick</button>
+            </>}
           </div>
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="stack gt-cpu" style={{ gap: 8 }}>
             <span className="eyebrow">Computer's card</span>
             <GameCard c={cpu[0]} photo={!!photos[cpu[0][0]]} fmt={fmtLabel} hidden={!round} chosen={round?.s} result={round ? -round.r : undefined} />
           </div>
