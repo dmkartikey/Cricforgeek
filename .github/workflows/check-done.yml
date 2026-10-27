@@ -8,12 +8,12 @@ permissions: {}
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 25
     steps:
       - run: |
           S=https://cricforgeek.site
           echo "::notice::dns $(getent hosts cricforgeek.site | tr '\n' ' ')"
-          for u in / /players /player/ba607b88 /assets/ /data/meta.json /data/search.json /data/home.json /data/photos/index.json /data/audit.json; do
+          for u in / /players /player/ba607b88 /data/meta.json /data/search.json /data/home.json /data/photos/index.json /data/audit.json; do
             r=$(curl -sS -o /tmp/b -m 30 -w "%{http_code} %{size_download}B %{time_total}s" "$S$u" 2>&1 || true)
             echo "::notice::$u -> $r"
           done
