@@ -1,5 +1,5 @@
-name: Live feed results check (one-off)
-# Read-only: lists the finished matches the live feed has stored. Changes nothing.
+name: Site check (one-off)
+# Read-only: fetches the live site and reports what visitors get. Changes nothing.
 on:
   push:
     branches: [check-done]
@@ -8,18 +8,40 @@ permissions: {}
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
+    timeout-minutes: 8
     steps:
       - run: |
-          W=https://cricforgeek-live.dmkartikey.workers.dev
-          mkdir out && cd out
-          curl -sS -m 20 $W/done | jq -r '.[] | .start[0:10] + " " + .fmt + " " + .gender + " | " + .teams[0] + " v " + .teams[1] + " | " + .status' > done.txt
-          curl -sS -m 20 $W/live | jq -r '.matches[] | .start[0:10] + " " + .fmt + " | " + .teams[0] + " v " + .teams[1] + " | " + .status' > live.txt
-          git init -q -b check-done-results && git config user.name check && git config user.email check@users.noreply.github.com
-          git add -A && git commit -q -m results && git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" check-done-results
-          cd ..
-          echo "::notice::health $(curl -sS -m 20 $W/health | jq -c '{hitsToday,hitsLimit,lastScores,errors,seriesMore,series}')"
-          echo "::notice::live $(curl -sS -m 20 $W/live | jq -c '[.matches[] | .start[0:10] + " " + .teams[0] + " v " + .teams[1] + " | " + .status]')"
-# re-run 02:02
+          S=https://cricforgeek.site
+          echo "::notice::dns $(getent hosts cricforgeek.site | tr '\n' ' ')"
+          for u in / /players /player/ba607b88 /data/meta.json /data/search.json /data/home.json /data/photos/index.json /data/audit.json; do
+            r=$(curl -sS -o /tmp/b -m 30 -w "%{http_code} %{size_download}B %{time_total}s" "$S$u" 2>&1 || true)
+            echo "::notice::$u -> $r"
+          done
+          curl -sS -m 30 $S/ -o index.html || true
+          echo "::notice::html head: $(head -c 300 index.html | tr '\n' ' ')"
+          for a in $(grep -oE '/assets/[^"]+\.(js|css)' index.html | sort -u); do
+            echo "::notice::asset $a -> $(curl -sS -o /dev/null -m 30 -w '%{http_code} %{size_download}B' $S$a)"
+          done
+          echo "::notice::headers $(curl -sSI -m 30 $S/ | tr '\r\n' '  ' | cut -c1-600)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - run: |
+          npm i -s playwright@1.48.2 >/dev/null 2>&1 && npx -y playwright@1.48.2 install --with-deps chromium >/dev/null 2>&1
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch(); const p = await b.newPage(); const errs = [];
+            p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+            p.on('console', (m) => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+            p.on('requestfailed', (r) => errs.push('failed: ' + r.url() + ' ' + (r.failure()?.errorText ?? '')));
+            for (const u of ['/', '/player/ba607b88', '/players']) {
+              await p.goto('https://cricforgeek.site' + u, { waitUntil: 'networkidle', timeout: 45000 }).catch((e) => errs.push('goto: ' + e.message));
+              await p.waitForTimeout(2500);
+              const t = await p.evaluate(() => document.querySelector('main')?.innerText?.slice(0, 160) ?? document.body.innerText.slice(0, 160));
+              console.log(`::notice::render ${u}: ${t.replace(/\s+/g, ' ')}`);
+            }
+            console.log('::notice::errors ' + (errs.slice(0, 8).join(' | ') || 'none').slice(0, 1500));
+            await b.close();
+          })();
+          JS
+          node t.cjs
