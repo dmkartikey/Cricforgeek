@@ -15,7 +15,7 @@ const kv = {
 
 let hits = 0, odds = 500, oddsCalls = 0, cards = 0, events = 0, recentCalls = 0, seriesCalls = 0, infoCalls = 0;
 let clock = Date.parse('2026-10-25T06:00:00Z');
-const teams = { male: { Pakistan: [1], England: [1], Nigeria: [1], Uganda: [1], India: [1], Australia: [1], 'New Zealand': [1] }, female: { India: [1], England: [1] } };
+const teams = { male: { Pakistan: [1], England: [1], Nigeria: [1], Uganda: [1], India: [1], Australia: [1], 'South Africa': [1], 'New Zealand': [1] }, female: { India: [1], England: [1] } };
 
 function matchesAt(t: number) {
   const mins = (t - Date.parse('2026-10-25T08:00:00Z')) / 60000; // ODI starts 08:00, T20 starts 13:00
@@ -76,12 +76,17 @@ globalThis.fetch = (async (input: any) => {
       { id: 'nzind-1', name: 'New Zealand vs India, 1st T20I, India tour of New Zealand 2026', matchType: 't20', status: 'India won by 4 wkts', dateTimeGMT: '2026-10-22T06:15:00', teams: ['New Zealand', 'India'], matchStarted: true, matchEnded: true },
       { id: 'nzind-2', name: 'New Zealand vs India, 2nd T20I, India tour of New Zealand 2026', matchType: 't20', status: 'India won by 4 wkts', dateTimeGMT: '2026-10-24T06:15:00', teams: ['New Zealand', 'India'], matchStarted: true, matchEnded: true },
       { id: 'nzind-3', name: 'New Zealand vs India, 3rd T20I, India tour of New Zealand 2026', matchType: 't20', status: 'Match starts at Oct 27', dateTimeGMT: '2026-10-27T06:15:00', teams: ['New Zealand', 'India'], matchStarted: false, matchEnded: false },
+      // the real feed sends some series with no matchType at all
+      { id: 'saaus-t2', name: 'South Africa vs Australia, 2nd Test, Australia tour of South Africa, 2026', matchType: null, status: 'South Africa won by an innings and 31 runs', dateTimeGMT: '2026-10-18T07:30:00', teams: ['South Africa', 'Australia'], matchStarted: true, matchEnded: true },
     ] : [{ id: 'a-1', name: 'New Zealand A vs India A, 1st Unofficial Test', matchType: 'test', status: 'Day 2: Stumps - India A trail by 98 runs', dateTimeGMT: '2026-10-24T21:30:00', teams: ['New Zealand A', 'India A'], matchStarted: true, matchEnded: true }];
     return json({ status: 'success', info: { hitsToday: hits }, data: { info: { id }, matchList: list } });
   }
   if (url.pathname.endsWith('/match_info')) {
     hits += 1; infoCalls++;
     const id = url.searchParams.get('id')!;
+    if (id === 'saaus-t2') return json({ status: 'success', info: { hitsToday: hits }, data: { id, name: 'South Africa vs Australia, 2nd Test, Australia tour of South Africa, 2026', matchType: null,
+      status: 'South Africa won by an innings and 31 runs', venue: 'Newlands, Cape Town', dateTimeGMT: '2026-10-18T07:30:00', teams: ['South Africa', 'Australia'],
+      score: [{ r: 212, w: 10, o: 70.1, inning: 'Australia Inning 1' }, { r: 451, w: 10, o: 130, inning: 'South Africa Inning 1' }, { r: 208, w: 10, o: 66.4, inning: 'Australia Inning 2' }], matchStarted: true, matchEnded: true } });
     const n = id.endsWith('1') ? 1 : 2;
     return json({ status: 'success', info: { hitsToday: hits }, data: { id, name: `New Zealand vs India, ${n === 1 ? '1st' : '2nd'} T20I, India tour of New Zealand 2026`, matchType: 't20',
       status: 'India won by 4 wkts', venue: 'Hagley Oval, Christchurch', dateTimeGMT: n === 1 ? '2026-10-22T06:15:00' : '2026-10-24T06:15:00', teams: ['New Zealand', 'India'],
@@ -138,6 +143,8 @@ ok(done.every((d: any, i: number) => i === 0 || (done[i - 1].start || '') >= (d.
 ok(!done.some((d: any) => d.id === 'psw'), 'domestic result stored earlier is removed');
 ok(done.some((d: any) => d.id === 'nzind-1') && done.some((d: any) => d.id === 'nzind-2'), 'series backfill adds finished NZ v India T20Is');
 ok(!done.some((d: any) => d.id === 'nzind-3' || d.id === 'a-1'), 'upcoming matches and A-team stumps are not stored as results');
+ok(done.some((d: any) => d.id === 'saaus-t2' && d.fmt === 'TEST'), 'a Test with no matchType in the feed is stored, format read from its name');
+ok(isInternational('Afghanistan vs Bangladesh, One-off Test', ['Afghanistan', 'Bangladesh'], 'test', teams), 'full members count even when missing from the team list');
 ok(seriesCalls <= 13 && infoCalls <= 12, `series backfill stays small (${seriesCalls} searches, ${infoCalls} match look-ups)`);
 ok(recentCalls <= 6, `recent-results calls stay small (${recentCalls})`);
 

@@ -27,6 +27,15 @@ export const baseTeam = (t: string) => t.replace(/\s+Women$/i, '').trim();
 export const isWomen = (name: string, teams: string[]) => /\bwomen\b/i.test(name) || teams.some((t) => /\bwomen$/i.test(t));
 const NOT_SENIOR = /\b(A|XI|Emerging|U-?19|Under[- ]19|U-?23|Development|Academy|Invitation|President'?s|Board)\b/;
 
+// The feed's format code. Some series (e.g. Australia tour of South Africa, 2026) come with no matchType at all,
+// in the match list and the match details, so the format is read from the match name instead.
+export function fmtOf(m: { matchType?: string | null; name?: string | null }) {
+  const t = String(m.matchType ?? '').toLowerCase();
+  if (FMT[t]) return t;
+  const n = String(m.name ?? '');
+  return /\b(Test|Tests)\b/.test(n) ? 'test' : /\bODI\b/.test(n) ? 'odi' : /\bT20I?\b/.test(n) ? 't20' : undefined;
+}
+
 // A senior international: Test, ODI or T20I format, and both sides are national teams we know.
 export function isInternational(name: string, teams: string[], fmt: string | undefined, known: Record<string, Record<string, unknown>> | null) {
   if (!fmt || !FMT[fmt]) return false;
@@ -34,7 +43,8 @@ export function isInternational(name: string, teams: string[], fmt: string | und
   if (/warm-?up|tour match|practice|unofficial/i.test(name)) return false;
   if (!known) return false; // without the team list, let nothing through rather than domestic games
   const g = isWomen(name, teams) ? 'female' : 'male';
-  return teams.every((t) => !!known[g]?.[baseTeam(t)]);
+  // the 12 full members always count, even if the nightly data has none of their matches (Afghanistan, for one)
+  return teams.every((t) => !!known[g]?.[baseTeam(t)] || FULL_MEMBERS.includes(baseTeam(t)));
 }
 
 export function parseOvers(o: number | string) {
@@ -46,7 +56,8 @@ export function normalize(raw: any[], known: Record<string, Record<string, unkno
   const out: LiveMatch[] = [];
   for (const m of raw ?? []) {
     const teams = (m.teams ?? []) as string[];
-    if (!isInternational(m.name ?? '', teams, m.matchType, known)) continue;
+    const fmt = fmtOf(m);
+    if (!isInternational(m.name ?? '', teams, fmt, known)) continue;
     const short: Record<string, string> = {};
     for (const t of m.teamInfo ?? []) short[t.name] = t.shortname;
     const innings: Inn[] = (m.score ?? []).map((s: any) => {
@@ -56,7 +67,7 @@ export function normalize(raw: any[], known: Record<string, Record<string, unkno
     });
     out.push({
       id: String(m.id), name: String(m.name ?? ''), series: String(m.name ?? '').split(',').slice(2).join(',').trim(),
-      fmt: FMT[m.matchType], gender: isWomen(m.name ?? '', teams) ? 'female' : 'male', teams: [teams[0], teams[1]], short,
+      fmt: FMT[fmt!], gender: isWomen(m.name ?? '', teams) ? 'female' : 'male', teams: [teams[0], teams[1]], short,
       venue: String(m.venue ?? ''), start: String(m.dateTimeGMT ?? m.date ?? ''), status: String(m.status ?? ''),
       started: !!m.matchStarted, ended: !!m.matchEnded, innings,
     });

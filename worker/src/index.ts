@@ -2,7 +2,7 @@
 // Every minute the schedule wakes up, decides whether a call is worth spending, and if so fetches
 // live international scores (CricketData.org), scorecards and market odds (The Odds API).
 // Results go to KV; the website reads them through the GET endpoints below.
-import { cardsToFetch, fairMarket, freshBudget, FULL_MEMBERS, isInternational, isResult, seriesSpan, matchEvent, normalize, ODDS_KEY, oddsToFetch, parseCard, scoreInterval } from './logic.ts';
+import { fmtOf, cardsToFetch, fairMarket, freshBudget, FULL_MEMBERS, isInternational, isResult, seriesSpan, matchEvent, normalize, ODDS_KEY, oddsToFetch, parseCard, scoreInterval } from './logic.ts';
 import type { Budget, LiveMatch, Upcoming } from './logic.ts';
 
 type KV = {
@@ -18,7 +18,7 @@ type Done = { id: string; name: string; fmt: string; gender: string; teams: [str
 const CRIC = 'https://api.cricapi.com/v1';
 const ODDS = 'https://api.the-odds-api.com/v4';
 const HOUR = 3600_000;
-const SEARCH_V = 3; // bump to force a fresh search
+const SEARCH_V = 4; // bump to force a fresh search and a re-read of every followed series
 
 const winnerOf = (m: LiveMatch) => {
   const s = m.status.toLowerCase();
@@ -210,6 +210,7 @@ export async function tick(env: Env, now = new Date()) {
     const left = () => b.hitsLimit - b.hitsToday;
     // SEARCH_V bumps force a fresh search after the search terms change
     if ((b.searchV !== SEARCH_V || now.getTime() - (b.lastSeriesSearch ?? 0) >= 72 * HOUR) && left() > 55 && (liveNow.length === 0 || left() > 75)) {
+      if (b.searchV !== SEARCH_V) b.backfilledSeries = [];
       b.searchV = SEARCH_V;
       b.lastSeriesSearch = now.getTime(); budgetChanged = true;
       const found: Record<string, { id: string; name: string; s: number; e: number }> = {};
@@ -256,7 +257,7 @@ export async function tick(env: Env, now = new Date()) {
         for (const m of res.body.data?.matchList ?? []) {
           const age = now.getTime() - Date.parse(String(m.dateTimeGMT ?? m.date ?? '') + (String(m.dateTimeGMT ?? '').endsWith('Z') ? '' : 'Z'));
           if (have.has(String(m.id)) || !isResult(String(m.status ?? '')) || !(age > 0 && age < 40 * 864e5)) continue;
-          if (!isInternational(String(m.name ?? ''), m.teams ?? [], m.matchType, teams)) continue;
+          if (!isInternational(String(m.name ?? ''), m.teams ?? [], fmtOf(m), teams)) continue;
           if (budget-- <= 0 || left() <= spare - 10) { b.seriesMore = true; break; }
           const mi = await getJson(`${CRIC}/match_info?apikey=${env.CRICDATA_KEY}&id=${encodeURIComponent(String(m.id))}`, 'match info', b);
           if (mi?.body?.status !== 'success') continue;
