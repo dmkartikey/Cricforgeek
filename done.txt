@@ -1,0 +1,66 @@
+2026-10-25 T20 female | Mexico Women v Argentina Women | Argentina Women won by 165 runs
+2026-10-25 T20 female | Mexico Women v Argentina Women | Argentina Women won by 135 runs
+2026-10-25 T20 male | Nigeria v Uganda | Nigeria won by 1 run
+2026-10-25 T20 male | Gambia v Lesotho | Gambia won by 3 runs
+2026-10-25 T20 male | Mozambique v Zambia | Mozambique won by 3 wkts
+2026-10-25 ODI female | India Women v Zimbabwe Women | India Women won by 121 runs
+2026-10-25 ODI male | Pakistan v England | Pakistan won by 1 wkt
+2026-10-25 ODI male | Jersey v Kenya | Jersey won by 123 runs
+2026-10-25 ODI male | Denmark v Papua New Guinea | Papua New Guinea won by 4 wkts
+2026-10-25 ODI male | United Arab Emirates v Netherlands | Netherlands won by 3 wkts
+2026-10-24 T20 female | Mexico Women v Argentina Women | Argentina Women won by 223 runs
+2026-10-24 T20 male | Lesotho v Nigeria | Nigeria won by 7 wkts
+2026-10-24 T20 male | Gambia v Zambia | Zambia won by 8 wkts
+2026-10-24 T20 male | Uganda v Mozambique | Uganda won by 10 wkts
+2026-10-24 ODI male | Namibia v Ireland | Namibia won by 31 runs
+2026-10-24 T20 male | New Zealand v India | India won by 4 wkts
+2026-10-24 ODI male | Qatar v Kenya | Qatar won by 4 runs
+2026-10-24 ODI male | Denmark v Kuwait | Denmark won by 102 runs
+2026-10-23 T20 male | Gambia v Uganda | Uganda won by 10 wkts
+2026-10-23 ODI male | Afghanistan v Zimbabwe | Afghanistan won by 7 wkts
+2026-10-23 T20 male | Zambia v Lesotho | Zambia won by 7 wkts
+2026-10-23 T20 male | Nigeria v Mozambique | Nigeria won by 7 wkts
+2026-10-23 ODI female | India Women v Zimbabwe Women | India Women won by 9 wkts
+2026-10-22 T20 female | Australia Women v New Zealand Women | No result due to rain
+2026-10-22 ODI male | Sri Lanka v England | Sri Lanka won by 2 wkts
+2026-10-22 ODI male | Namibia v Ireland | Ireland won by 55 runs
+2026-10-22 T20 male | New Zealand v India | India won by 4 wkts
+2026-10-22 ODI male | Papua New Guinea v Jersey | Jersey won by 172 runs
+2026-10-22 ODI male | Qatar v Kuwait | Qatar won by 5 wkts
+2026-10-20 T20 female | India Women v Zimbabwe Women | India Women won by 92 runs
+2026-10-20 T20 female | Australia Women v New Zealand Women | Australia Women won by 40 runs
+2026-10-20 ODI male | Pakistan v England | Pakistan won by 87 runs
+2026-10-18 T20 female | India Women v Zimbabwe Women | India Women won by 9 wkts
+2026-10-18 T20 female | Australia Women v New Zealand Women | Australia Women won by 2 wkts
+2026-10-18 ODI male | Pakistan v Sri Lanka | Pakistan won by 37 runs
+2026-10-18 TEST male | South Africa v Australia | South Africa won by an innings and 31 runs
+2026-10-17 ODI male | India v West Indies | No result due to rain
+2026-10-16 T20 female | India Women v Zimbabwe Women | India Women won by 4 wkts
+2026-10-14 ODI male | India v West Indies | West Indies won by 24 runs
+2026-10-14 ODI female | Australia Women v Bangladesh Women | Australia Women won by 8 wkts
+2026-10-13 T20 male | Pakistan v Sri Lanka | Sri Lanka won by 8 wkts
+2026-10-11 T20 male | Pakistan v Sri Lanka | Pakistan won by 82 runs
+2026-10-11 ODI male | India v West Indies | India won by 14 runs
+2026-10-11 ODI female | Australia Women v Bangladesh Women | Australia Women won by 9 wkts
+2026-10-09 T20 male | Pakistan v Sri Lanka | Pakistan won by 4 wkts
+2026-10-09 ODI male | India v West Indies | West Indies won by 6 wkts
+2026-10-09 TEST male | South Africa v Australia | Australia won by 214 runs
+2026-10-09 ODI female | Australia Women v Bangladesh Women | Australia Women won by 7 wkts
+2026-10-07 T20 female | Zimbabwe Women v West Indies Women | West Indies Women won by 8 wkts
+2026-10-06 ODI male | India v West Indies | India won by 8 wkts
+2026-10-05 T20 female | Zimbabwe Women v West Indies Women | West Indies Women won by 8 wkts
+2026-10-03 ODI male | India v West Indies | West Indies won by 5 wkts
+2026-10-03 T20 female | Zimbabwe Women v West Indies Women | West Indies Women won by 8 wkts
+2026-09-30 ODI male | India v West Indies | India won by 8 wkts
+2026-09-30 ODI male | South Africa v Australia | Australia won by 45 runs (DLS Method due to rain)
+2026-09-30 ODI female | Zimbabwe Women v West Indies Women | West Indies Women won by 91 runs
+2026-09-27 ODI male | India v West Indies | India won by 8 wkts
+2026-09-27 ODI male | South Africa v Australia | South Africa won by 32 runs
+2026-09-27 ODI female | Zimbabwe Women v West Indies Women | Zimbabwe Women won by 4 wkts
+2026-09-24 ODI male | South Africa v Australia | South Africa won by 67 runs
+2026-09-24 ODI female | Zimbabwe Women v West Indies Women | West Indies Women won by 99 runs
+2026-09-22 T20 male | Japan v India | India won by 2 runs  -  5 over game due to wet outfield
+2026-09-20 ODI male | Zimbabwe v Australia | Australia won by 1 wkt
+2026-09-19 T20 female | Zimbabwe Women v South Africa Women | South Africa Women won by 13 runs
+2026-09-18 ODI male | Zimbabwe v Australia | Australia won by 84 runs
+2026-09-17 T20 female | Zimbabwe Women v South Africa Women | South Africa Women won by 80 runs
