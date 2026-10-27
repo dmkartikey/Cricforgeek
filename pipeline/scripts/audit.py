@@ -83,9 +83,10 @@ for name, comp, m, r, w in REF:
     pid = con.execute("select player from P where name = ? order by player limit 1", [name]).fetchone()
     if not pid:
         continue
-    got_m = con.execute("select count(distinct a.match_id) from appearances a join matches x using (match_id) where a.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
-    got_r = con.execute("select sum(runs) from BI b join matches x using (match_id) where b.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
-    got_w = con.execute("select sum(wkts) from BW b join matches x using (match_id) where b.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
+    # tables only: the database's views point at files relative to the pipeline folder
+    got_m = con.execute(f"select count(distinct a.match_id) from read_parquet('{work}/appearances.parquet') a join MATCHES_T x using (match_id) where a.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
+    got_r = con.execute("select sum(runs) from BI b join MATCHES_T x using (match_id) where b.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
+    got_w = con.execute("select sum(wkts) from BW b join MATCHES_T x using (match_id) where b.player = ? and x.comp = ?", [pid[0], comp]).fetchone()[0]
     for label, ref, got in (("matches", m, got_m), ("runs", r, got_r), ("wickets", w, got_w)):
         if ref is not None and ref != got:
             bad.append((name, comp, label, "official", ref, "here", got))
