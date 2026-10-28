@@ -20,12 +20,12 @@ import duckdb
 UA = {"User-Agent": "cricforgeek-photos/2.0 (https://cricforgeek.site)"}
 people_csv, work, out, cache = sys.argv[1:5]
 os.makedirs(f"{out}/photos", exist_ok=True); os.makedirs(cache, exist_ok=True)
-BUDGET = float(os.environ.get("PHOTO_MINUTES", "28")) * 60  # processing time per night; the rest carries over
+BUDGET = float(os.environ.get("PHOTO_MINUTES", "38")) * 60  # processing time per night; the rest carries over
 FIXES = os.path.join(os.path.dirname(__file__), "..", "cricforgeek", "seeds", "photo_fixes.json")
 FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
 OFFICIAL = "('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
-V = "v3"  # framing version: bump to re-process every photo (v2 cut-outs that pass the final check are kept as v3)
+V = "v4"  # framing version: bump to re-process every photo
 
 
 def get(url, timeout=90):
@@ -62,7 +62,7 @@ fixes = json.load(open(FIXES)) if os.path.exists(FIXES) else {"file": {}, "drop"
 
 def cached(pid):
     """The best cut-out on disk for a player: the current framing if done, else last version's."""
-    for p in (f"{cache}/{pid}.{V}.webp", f"{cache}/{pid}.v2.webp", f"{cache}/{pid}.webp"):
+    for p in (f"{cache}/{pid}.{V}.webp", f"{cache}/{pid}.v3.webp", f"{cache}/{pid}.v2.webp", f"{cache}/{pid}.webp"):
         if os.path.exists(p):
             return p
     return None
@@ -146,36 +146,49 @@ class Framer:
         sharp = cv2.Laplacian(cv2.resize(gray[y:y + h, x:x + w], (128, 128)), cv2.CV_64F).var()
         if sharp < 25:
             return None, f"blurry face ({sharp:.0f})"
-        # head and shoulders: 3.4 face-widths wide, 4:5, the eyes about a third of the way down
-        # The box stays inside the photo: a tight close-up is zoomed in on rather than padded with empty space.
-        bw = min(3.4 * w, W); bh = bw * 1.25
-        if bh > H:
-            bh = H; bw = bh / 1.25
-        cx = x + w / 2
-        bx = int(min(max(cx - bw / 2, 0), W - bw)); by = int(min(max(y - 0.85 * h, 0), H - bh))
-        bw, bh = int(bw), int(bh)
-        canvas = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
-        ix0, iy0, ix1, iy1 = bx, by, min(bx + bw, W), min(by + bh, H)
+        # Same placement for every player on a 440x550 card: the face centred left to right, its centre 36% of the
+        # way down, 30% of the card wide. Spare space at the sides or top stays transparent (it's a cut-out), and the
+        # photo is zoomed in if needed so the shoulders always reach the bottom edge.
+        CW, CH, FX, FY = 440, 550, 220, 0.36 * 550
+        fcx, fcy = x + w / 2, y + h / 2
+        sc = 0.30 * CW / w
+        sc = max(sc, (CH - FY) / max(H - fcy, 1))
+        if sc > 2.6:
+            return None, f"too low resolution (face {w}px)"
+        sx0, sy0 = fcx - FX / sc, fcy - FY / sc  # where the card's top-left corner falls on the photo
+        ix0, iy0 = max(0, int(sx0)), max(0, int(sy0))
+        ix1, iy1 = min(W, int(fcx + (CW - FX) / sc) + 1), min(H, int(fcy + (CH - FY) / sc) + 1)
         crop = im.crop((ix0, iy0, ix1, iy1))
         cut = self.remove(crop, session=self.session)
         a = np.array(cut)
+        # someone standing beside the player (a handshake, a presentation): blank everything on their side of the
+        # halfway line between the two faces, so no part of them is left on the card
+        for x2, y2, w2, h2 in fs[1:]:
+            c2 = x2 + w2 / 2
+            if abs(c2 - fcx) > 0.8 * w:
+                mx = int((fcx + c2) / 2 - ix0)
+                if c2 > fcx:
+                    a[:, max(mx, 0):, 3] = 0
+                else:
+                    a[:, :max(mx, 0), 3] = 0
         mask = (a[:, :, 3] > 100).astype(np.uint8)
         n, lab, st, _ = cv2.connectedComponentsWithStats(mask, 8)
         if n < 2:
             return None, "cut-out empty"
         # keep the piece that holds the face, drop stray bits of other people and background
-        fx, fy = int(cx - ix0), int(y + h / 2 - iy0)
+        fx, fy = int(fcx - ix0), int(fcy - iy0)
         keep = lab[min(max(fy, 0), lab.shape[0] - 1), min(max(fx, 0), lab.shape[1] - 1)]
         if keep == 0:
             keep = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
         a[:, :, 3] = np.where(lab == keep, a[:, :, 3], 0)
-        face_cov = (a[y - iy0:y - iy0 + h, x - ix0:x - ix0 + w, 3] > 100).mean() if h and w else 0
+        fy0, fx0 = max(y - iy0, 0), max(x - ix0, 0)
+        face_cov = (a[fy0:fy0 + h, fx0:fx0 + w, 3] > 100).mean() if h and w else 0
         if face_cov < 0.5:
             return None, "cut-out lost the face"
-        canvas.paste(Image.fromarray(a), (ix0 - bx, iy0 - by))
-        if bw < 200:
-            return None, f"too low resolution ({bw}px wide)"
-        out = canvas.resize((440, 550), Image.LANCZOS)
+        piece = Image.fromarray(a).resize((max(1, round((ix1 - ix0) * sc)), max(1, round((iy1 - iy0) * sc))), Image.LANCZOS)
+        canvas = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
+        canvas.alpha_composite(piece, (max(0, round((ix0 - sx0) * sc)), max(0, round((iy0 - sy0) * sc))))
+        out = canvas
         why = self.check(out)
         return (None, why) if why else (out, None)
 
@@ -256,6 +269,11 @@ def main():
     for pid, f in fixes.get("file", {}).items():
         if pid in cand:
             cand[pid].insert(0, f.replace("File:", "")); src_n["fix"] += 1
+    for pid, o in fixes.get("own", {}).items():  # photos supplied by the site owner, with permission
+        cand.setdefault(pid, [])
+        if pid not in order:
+            order.insert(0, pid); top[pid] = 20000
+        cand[pid].insert(0, "own:" + o["path"]); src_n["fix"] += 1
     # 1. Wikidata photos by ESPNcricinfo / CricketArchive id
     for prop, ids in (("P2697", ci), ("P2698", ca)):
         try:
@@ -370,19 +388,19 @@ def main():
         if st.get("v") == V and not (set(cand[pid]) - set(st["fail"])):
             continue  # every candidate already failed on this version
         was_new = not cached(pid)
-        old2 = f"{cache}/{pid}.v2.webp"
-        if os.path.exists(old2) and st.get("src") and st["fail"].get(st["src"]) != V:
-            from PIL import Image as _I
-            why = fr.check(_I.open(old2).convert("RGBA"))
-            if not why:  # last version's framing is fine: keep it, no download needed
-                os.replace(old2, f"{cache}/{pid}.{V}.webp"); st.update(v=V, drop=False); reframed += 1
-                continue
-            st["fail"][st["src"]] = V; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
-            print("skip", pid, names.get(pid, pid), st["src"][:60], why)
         for file in cand[pid]:
             if st["fail"].get(file) == V:
                 continue  # this file already failed on this version
             try:
+                if file.startswith("own:"):
+                    o = fixes["own"][pid]
+                    img, why = fr.frame(open(os.path.join(os.path.dirname(FIXES), o["path"]), "rb").read())
+                    if why:
+                        st["fail"][file] = V; print("skip", pid, names.get(pid, pid), file, why); continue
+                    img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
+                    credits[pid] = o["credit"]
+                    st.update(v=V, src=file, drop=False); made += was_new; reframed += not was_new
+                    break
                 meta = api("commons.wikimedia.org", prop="imageinfo", iiprop="extmetadata|url", iiurlwidth=1400, titles="File:" + file)
                 pg = next(iter(meta["query"]["pages"].values()))
                 ii = pg["imageinfo"][0]
@@ -411,7 +429,7 @@ def main():
     json.dump(credits, open(credits_path, "w"))
     json.dump(state, open(state_path, "w"))
     for pid in credits:  # once re-framed, older cut-outs are no longer needed in the cache
-        for old in (f"{cache}/{pid}.webp", f"{cache}/{pid}.v2.webp"):
+        for old in (f"{cache}/{pid}.webp", f"{cache}/{pid}.v2.webp", f"{cache}/{pid}.v3.webp"):
             if os.path.exists(f"{cache}/{pid}.{V}.webp") and os.path.exists(old):
                 os.remove(old)
     left = sum(1 for k in todo if not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) - set(state.get(k, {}).get("fail", {})))
