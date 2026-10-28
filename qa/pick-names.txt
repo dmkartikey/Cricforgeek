@@ -1,20 +1,7 @@
-Vaibhav Suryavanshi
 Abhishek Sharma
-Ishan Kishan
-Tilak Varma
 Rinku Singh
-Shubman Gill
-Yashasvi Jaiswal
-Sanju Samson
-Suryakumar Yadav
 Varun Chakravarthy
-Arshdeep Singh
-Shivam Dube
-Axar Patel
-Kuldeep Yadav
-Nitish Kumar Reddy
 Harshit Rana
-Rishabh Pant
 Nicholas Pooran
 Liam Livingstone
 Mitchell Santner
@@ -48,3 +35,4 @@ Rahmanullah Gurbaz
 Pathum Nissanka
 Tristan Stubbs
 Jake Fraser-McGurk
+Vaibhav Suryavanshi

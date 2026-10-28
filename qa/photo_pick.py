@@ -59,8 +59,22 @@ for want in [l.strip() for l in open(names_file) if l.strip()]:
                 cands.append(("commons", pg["title"][5:]))
         except Exception as e:
             print("commons failed", want, e)
+    # Openverse: Creative Commons photos from Flickr and elsewhere (only licences that allow edits and commercial use)
+    try:
+        time.sleep(3)
+        ov = json.loads(get("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
+            {"q": f"{want} cricket", "license": "by,by-sa,cc0,pdm", "page_size": 12})))
+        for x in ov.get("results", []):
+            cands.append(("openverse", {"file": (x.get("title") or "")[:80], "thumb": x.get("thumbnail") or x.get("url"), "url": x.get("url"),
+                                         "licence": f"{(x.get('license') or '').upper()} {x.get('license_version') or ''} ({x.get('source')})",
+                                         "desc": f"by {x.get('creator')}; tags: {', '.join(t['name'] for t in (x.get('tags') or [])[:12])}",
+                                         "landing": x.get("foreign_landing_url"), "size": f"{x.get('width')}x{x.get('height')}"}))
+    except Exception as e:
+        print("openverse failed", want, e)
     seen, info = set(), []
-    for src, f in cands:
+    for src, f in [c for c in cands if c[0] == "openverse"][:6]:
+        info.append({"src": src, **f})
+    for src, f in [c for c in cands if c[0] != "openverse"]:
         if not f or f.replace("_", " ") in seen or not f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
             continue
         f = f.replace("_", " "); seen.add(f)
@@ -75,7 +89,7 @@ for want in [l.strip() for l in open(names_file) if l.strip()]:
                          "cats": [c["title"][9:] for c in pg.get("categories", [])][:12]})
         except Exception as e:
             info.append({"src": src, "file": f, "licence": "lookup failed " + type(e).__name__})
-        if len(info) >= 9:
+        if len(info) >= 12:
             break
     report.append({"name": want, "players": [{"id": r[0], "name": r[1], "team": r[4], "years": f"{r[5]}-{r[6]}", "photo": index.get(r[0])} for r in rows], "candidates": info})
     print(want, [r[0] for r in rows], len(info), "candidates")
@@ -85,7 +99,7 @@ json.dump(report, open(f"{out}/photo-pick.json", "w"), indent=1, ensure_ascii=Fa
 TW, TH = 150, 190
 for s in range(0, len(report), 8):
     part = report[s:s + 8]
-    sheet = Image.new("RGB", (TW * 10, len(part) * (TH + 44)), (235, 232, 224))
+    sheet = Image.new("RGB", (TW * 13, len(part) * (TH + 44)), (235, 232, 224))
     d = ImageDraw.Draw(sheet)
     for k, r in enumerate(part):
         y = k * (TH + 44)
