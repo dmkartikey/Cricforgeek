@@ -25,7 +25,7 @@ FIXES = os.path.join(os.path.dirname(__file__), "..", "cricforgeek", "seeds", "p
 FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
 OFFICIAL = "('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
-V = "v2"  # framing version: bump to re-process every photo
+V = "v3"  # framing version: bump to re-process every photo (v2 cut-outs that pass the final check are kept as v3)
 
 
 def get(url, timeout=90):
@@ -62,7 +62,7 @@ fixes = json.load(open(FIXES)) if os.path.exists(FIXES) else {"file": {}, "drop"
 
 def cached(pid):
     """The best cut-out on disk for a player: the current framing if done, else last version's."""
-    for p in (f"{cache}/{pid}.{V}.webp", f"{cache}/{pid}.webp"):
+    for p in (f"{cache}/{pid}.{V}.webp", f"{cache}/{pid}.v2.webp", f"{cache}/{pid}.webp"):
         if os.path.exists(p):
             return p
     return None
@@ -103,7 +103,7 @@ class Framer:
         # YuNet (OpenCV Zoo, MIT licence) finds faces under caps, helmets and sunglasses far better than the old
         # cascades, which stay as a fallback
         model = os.path.join(os.path.dirname(FIXES), "face_detection_yunet_2023mar.onnx")
-        self.yunet = cv2.FaceDetectorYN.create(model, "", (320, 320), 0.75) if os.path.exists(model) else None
+        self.yunet = cv2.FaceDetectorYN.create(model, "", (320, 320), 0.8) if os.path.exists(model) else None
 
     def faces(self, gray, min_px, rgb=None):
         cv2 = self.cv2
@@ -173,7 +173,39 @@ class Framer:
         if face_cov < 0.5:
             return None, "cut-out lost the face"
         canvas.paste(Image.fromarray(a), (ix0 - bx, iy0 - by))
-        return canvas.resize((440, 550), Image.LANCZOS), None
+        if bw < 200:
+            return None, f"too low resolution ({bw}px wide)"
+        out = canvas.resize((440, 550), Image.LANCZOS)
+        why = self.check(out)
+        return (None, why) if why else (out, None)
+
+    def check(self, img):
+        """Final check on a finished 440x550 cut-out: a clear face of a fair size near the top, a figure that fills
+        the frame sensibly, and shoulders that reach the bottom edge (not a floating head or a stray blob)."""
+        cv2, np, Image = self.cv2, self.np, self.Image
+        a = np.array(img)
+        al = a[:, :, 3] > 100
+        fill, bottom = al.mean(), al[-3:].mean()
+        if fill < 0.22:
+            return f"figure too small in frame ({fill:.0%})"
+        if fill > 0.93:
+            return "background not removed"
+        if bottom < 0.25:
+            return "figure does not reach the bottom (floating)"
+        if self.yunet is None:
+            return None
+        rgb = np.array(Image.alpha_composite(Image.new("RGBA", img.size, (128, 128, 128, 255)), img).convert("RGB"))
+        self.yunet.setInputSize(img.size)
+        _, res = self.yunet.detect(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+        faces = [f for f in (res if res is not None else []) if f[14] >= 0.8]
+        if not faces:
+            return "no clear face after cut-out"
+        f = max(faces, key=lambda f: f[2])
+        if f[2] < 0.16 * img.size[0]:
+            return "face too small after framing"
+        if f[1] + f[3] / 2 > 0.6 * img.size[1]:
+            return "face too low in frame"
+        return None
 
 
 # ---------------------------------------------------------------- candidates
@@ -338,6 +370,15 @@ def main():
         if st.get("v") == V and not (set(cand[pid]) - set(st["fail"])):
             continue  # every candidate already failed on this version
         was_new = not cached(pid)
+        old2 = f"{cache}/{pid}.v2.webp"
+        if os.path.exists(old2) and st.get("src") and st["fail"].get(st["src"]) != V:
+            from PIL import Image as _I
+            why = fr.check(_I.open(old2).convert("RGBA"))
+            if not why:  # last version's framing is fine: keep it, no download needed
+                os.replace(old2, f"{cache}/{pid}.{V}.webp"); st.update(v=V, drop=False); reframed += 1
+                continue
+            st["fail"][st["src"]] = V; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
+            print("skip", pid, names.get(pid, pid), st["src"][:60], why)
         for file in cand[pid]:
             if st["fail"].get(file) == V:
                 continue  # this file already failed on this version
@@ -369,9 +410,10 @@ def main():
                 st["drop"] = True  # take the old photo down too, rather than show a poor one
     json.dump(credits, open(credits_path, "w"))
     json.dump(state, open(state_path, "w"))
-    for pid in credits:  # once re-framed, the old cut-out is no longer needed in the cache
-        if os.path.exists(f"{cache}/{pid}.{V}.webp") and os.path.exists(f"{cache}/{pid}.webp"):
-            os.remove(f"{cache}/{pid}.webp")
+    for pid in credits:  # once re-framed, older cut-outs are no longer needed in the cache
+        for old in (f"{cache}/{pid}.webp", f"{cache}/{pid}.v2.webp"):
+            if os.path.exists(f"{cache}/{pid}.{V}.webp") and os.path.exists(old):
+                os.remove(old)
     left = sum(1 for k in todo if not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) - set(state.get(k, {}).get("fail", {})))
     print(f"photo quality: rejected {sum(fails.values())} candidates ({', '.join(f'{k} {v}' for k, v in sorted(fails.items(), key=lambda kv: -kv[1]))}); "
           f"{left} still to process next run")
