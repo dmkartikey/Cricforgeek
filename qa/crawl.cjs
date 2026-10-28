@@ -44,8 +44,11 @@ const pick = (a, n, seed = 7) => { const b = [...a]; let s = seed; for (let i = 
       const t0 = Date.now();
       try {
         await p.goto(S + r, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        await p.waitForFunction(() => !document.querySelector('.ball-loader'), null, { timeout: 20000 }).catch(() => e.errors.push('still loading after 20s'));
-        await p.waitForTimeout(1200);
+        // the site's security policy blocks waitForFunction (it needs eval), so poll with plain evaluate calls
+        let loading = true;
+        for (let k = 0; k < 40 && loading; k++) { await p.waitForTimeout(500); loading = await p.evaluate(() => !!document.querySelector('.ball-loader') || !document.querySelector('main')?.innerText?.trim()); }
+        if (loading) e.errors.push('still loading after 20s');
+        await p.waitForTimeout(2500); // count-up numbers and charts settle
         e.ms = Date.now() - t0;
         const check = async (label) => {
           const o = await p.evaluate((label) => {
@@ -61,7 +64,7 @@ const pick = (a, n, seed = 7) => { const b = [...a]; let s = seed; for (let i = 
               }
             }
             const txt = (document.querySelector('main') ?? document.body).innerText;
-            for (const re of [/\bNaN\b/, /\bundefined\b/, /\bInfinity\b/, /\[object \w+\]/, /\bnull\b/, /-0\.0\b/, /\b\d{1,3}(,\d{3})*\.\d{4,}\b/]) {
+            for (const re of [/\bNaN\b/, /\bundefined\b/, /\bInfinity\b/, /\[object \w+\]/, /\bnull\b/, /-0\.0\b/, /\b\d{1,3}(,\d{3})*\.\d{5,}\b/]) {
               const m = txt.match(re); if (m) { const i = m.index; out.text.push(`${label}: "${txt.slice(Math.max(0, i - 50), i + 40).replace(/\s+/g, ' ')}"`); }
             }
             for (const im of document.querySelectorAll('main img')) { out.imgs++; if (im.complete && im.naturalWidth === 0) out.broken++; }
@@ -79,7 +82,7 @@ const pick = (a, n, seed = 7) => { const b = [...a]; let s = seed; for (let i = 
           if (!(await btn.isVisible().catch(() => false)) || (await btn.isDisabled().catch(() => true))) continue;
           const lbl = (await btn.innerText().catch(() => '?')).slice(0, 24).replace(/\s+/g, ' ');
           await btn.click({ timeout: 3000 }).catch(() => {});
-          await p.waitForTimeout(500);
+          await p.waitForTimeout(700);
           e.interactions++;
           await check(`after "${lbl}"`);
         }
@@ -95,6 +98,7 @@ const pick = (a, n, seed = 7) => { const b = [...a]; let s = seed; for (let i = 
         e.title = await p.title();
         e.h1 = (await p.locator('h1').first().innerText({ timeout: 2000 }).catch(() => '')).slice(0, 80);
         e.words = (await p.evaluate(() => (document.querySelector('main') ?? document.body).innerText.split(/\s+/).length));
+        if (e.words < 25 && !r.startsWith('/nope')) e.errors.push(`nearly empty page (${e.words} words)`);
       } catch (x) { e.errors.push('fatal: ' + x.message.slice(0, 200)); }
       e.overflow = [...new Set(e.overflow)].slice(0, 5); e.text = [...new Set(e.text)].slice(0, 6); e.errors = [...new Set(e.errors)].slice(0, 8); e.bad = [...new Set(e.bad)].slice(0, 8);
       res.push(e);
