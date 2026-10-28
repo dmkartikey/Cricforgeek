@@ -28,6 +28,7 @@ FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakista
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
 OFFICIAL = "('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
 V = "v4"  # framing version: bump to re-process every photo
+R = "r3"  # quality-rules version: bump to give rejected photos one more try under new rules
 
 
 def get(url, timeout=90):
@@ -140,13 +141,16 @@ class Framer:
         if not fs:
             return None, "no face found"
         fs.sort(key=lambda f: -f[2])
+        if len(fs) > 1 and fs[1][2] > 0.75 * fs[0][2]:
+            # two people of similar size: the one nearer the middle is who the photo is of; the other is cut away below
+            big = [f for f in fs if f[2] > 0.75 * fs[0][2]]
+            main = min(big, key=lambda f: abs(f[0] + f[2] / 2 - W / 2))
+            fs = [main] + [f for f in fs if f is not main]
         x, y, w, h = fs[0]
         if w < 48:
             return None, f"face too small ({w}px)"
-        if len(fs) > 1 and fs[1][2] > 0.75 * w:
-            return None, "two or more people of similar size"
         sharp = cv2.Laplacian(cv2.resize(gray[y:y + h, x:x + w], (128, 128)), cv2.CV_64F).var()
-        if sharp < 25:
+        if sharp < 10:  # only clearly blurry faces; slightly soft ones look fine at card size
             return None, f"blurry face ({sharp:.0f})"
         # Same placement for every player on a 440x550 card: the face centred left to right, its centre 36% of the
         # way down, 30% of the card wide. Spare space at the sides or top stays transparent (it's a cut-out), and the
@@ -306,7 +310,7 @@ def main():
     # 3 and 4. still nothing for a current international: search Wikipedia, then Commons, by full name
     def all_failed(k):
         st = state.get(k, {})
-        return bool(cand[k]) and not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) <= set(st.get("fail", {}))
+        return bool(cand[k]) and not (cached(k) or "").endswith(V + ".webp") and all(st.get("fail", {}).get(f) == R for f in cand[k])
 
     def search(pid, nm):
         """Wikipedia by name (page must be about a cricketer of that name), then Commons files named for them."""
@@ -385,7 +389,7 @@ def main():
     # hand-picked photos first, even for players who already have one
     picked = {**{k: f.replace("File:", "") for k, f in fixes.get("file", {}).items()},
               **{k: "own:" + (o.get("path") or o["url"]) for k, o in fixes.get("own", {}).items()}}
-    redo = [k for k, f in picked.items() if k in cand and state.get(k, {}).get("src") != f and state.get(k, {}).get("fail", {}).get(f) != V]
+    redo = [k for k, f in picked.items() if k in cand and state.get(k, {}).get("src") != f and state.get(k, {}).get("fail", {}).get(f) != R]
     for k in redo:
         for old in (f"{cache}/{k}.{V}.webp",):
             if os.path.exists(old):
@@ -396,11 +400,11 @@ def main():
         if time.time() - t0 > BUDGET:
             break
         st = state.setdefault(pid, {"fail": {}})
-        if st.get("v") == V and not (set(cand[pid]) - set(st["fail"])):
+        if st.get("v") == V and all(st["fail"].get(f) == R for f in cand[pid]):
             continue  # every candidate already failed on this version
         was_new = not cached(pid)
         for file in cand[pid]:
-            if st["fail"].get(file) == V:
+            if st["fail"].get(file) == R:
                 continue  # this file already failed on this version
             try:
                 if file.startswith("own:"):
@@ -408,7 +412,7 @@ def main():
                     raw = get(o["url"]) if o.get("url") else open(os.path.join(os.path.dirname(FIXES), o["path"]), "rb").read()
                     img, why = fr.frame(raw)
                     if why:
-                        st["fail"][file] = V; print("skip", pid, names.get(pid, pid), file, why); continue
+                        st["fail"][file] = R; print("skip", pid, names.get(pid, pid), file, why); continue
                     img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
                     credits[pid] = o["credit"]
                     st.update(v=V, src=file, drop=False); made += was_new; reframed += not was_new
@@ -419,10 +423,10 @@ def main():
                 em = ii.get("extmetadata", {})
                 lic = strip_tags(em.get("LicenseShortName", {}).get("value"))
                 if not lic or "fair use" in lic.lower() or "non-free" in lic.lower():
-                    st["fail"][file] = V; fails["no free licence"] = fails.get("no free licence", 0) + 1; continue
+                    st["fail"][file] = R; fails["no free licence"] = fails.get("no free licence", 0) + 1; continue
                 img, why = fr.frame(get(ii.get("thumburl") or ii["url"]))
                 if why:
-                    st["fail"][file] = V; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
+                    st["fail"][file] = R; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
                     print("skip", pid, names.get(pid, pid), file[:60], why)
                     continue
                 img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
@@ -435,7 +439,7 @@ def main():
                 print("skip", pid, names.get(pid, pid), type(e).__name__, str(e)[:100])
             time.sleep(0.3)
         else:
-            if all(st["fail"].get(f) == V for f in cand[pid]):  # every candidate judged unusable (not a network error)
+            if all(st["fail"].get(f) == R for f in cand[pid]):  # every candidate judged unusable (not a network error)
                 st["v"] = V
                 st["drop"] = True  # take the old photo down too, rather than show a poor one
     json.dump(credits, open(credits_path, "w"))
@@ -444,7 +448,7 @@ def main():
         for old in (f"{cache}/{pid}.webp", f"{cache}/{pid}.v2.webp", f"{cache}/{pid}.v3.webp"):
             if os.path.exists(f"{cache}/{pid}.{V}.webp") and os.path.exists(old):
                 os.remove(old)
-    left = sum(1 for k in todo if not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) - set(state.get(k, {}).get("fail", {})))
+    left = sum(1 for k in todo if not (cached(k) or "").endswith(V + ".webp") and any(state.get(k, {}).get("fail", {}).get(f) != R for f in cand[k]))
     print(f"photo quality: rejected {sum(fails.values())} candidates ({', '.join(f'{k} {v}' for k, v in sorted(fails.items(), key=lambda kv: -kv[1]))}); "
           f"{left} still to process next run")
     index = publish([k for k in credits if k in cand or k in kept])
