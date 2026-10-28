@@ -7,7 +7,9 @@ Where from (in order, all free-licence Wikimedia images):
   2. the lead photo of their English Wikipedia article
   3. a Wikipedia search by full name, kept only if the page is about a cricketer of that name
   4. a Wikimedia Commons file search by full name, kept only if the file is clearly a cricket photo of one person
-  plus hand-checked fixes in pipeline/cricforgeek/seeds/photo_fixes.json (a file to use, or a photo to drop).
+  plus hand-checked fixes in pipeline/cricforgeek/seeds/photo_fixes.json:
+    "file": {player id: Commons file name}, "drop": [player ids], and
+    "own": {player id: {"path": file in the seeds folder, or "url": a free-licence image link, "credit": credit line}}
 Quality: each photo is framed the same way (head and shoulders, found from the face), cut out of its background and
 kept only if it has one clear, sharp face of a usable size; otherwise the next candidate is tried.
 Writes <out>/photos/<player id>.webp and <out>/photos/index.json {id: credit line} (+ 16 shards).
@@ -273,7 +275,7 @@ def main():
         cand.setdefault(pid, [])
         if pid not in order:
             order.insert(0, pid); top[pid] = 20000
-        cand[pid].insert(0, "own:" + o["path"]); src_n["fix"] += 1
+        cand[pid].insert(0, "own:" + (o.get("path") or o["url"])); src_n["fix"] += 1
     # 1. Wikidata photos by ESPNcricinfo / CricketArchive id
     for prop, ids in (("P2697", ci), ("P2698", ca)):
         try:
@@ -380,7 +382,16 @@ def main():
         print(f"cut-out package unavailable ({type(e).__name__}: {e}); no new photos tonight")
         fr = None
     t0, made, reframed, fails = time.time(), 0, 0, {}
-    todo = [k for k in order if cand[k] and not cached(k)] + [k for k in order if cand[k] and cached(k) and not cached(k).endswith(V + ".webp")]
+    # hand-picked photos first, even for players who already have one
+    picked = {**{k: f.replace("File:", "") for k, f in fixes.get("file", {}).items()},
+              **{k: "own:" + (o.get("path") or o["url"]) for k, o in fixes.get("own", {}).items()}}
+    redo = [k for k, f in picked.items() if k in cand and state.get(k, {}).get("src") != f and state.get(k, {}).get("fail", {}).get(f) != V]
+    for k in redo:
+        for old in (f"{cache}/{k}.{V}.webp",):
+            if os.path.exists(old):
+                os.remove(old)
+    todo = redo + [k for k in order if cand[k] and not cached(k) and k not in redo] + [k for k in order if cand[k] and cached(k) and not cached(k).endswith(V + ".webp")]
+    todo = list(dict.fromkeys(todo))  # each player once
     for pid in todo if fr else []:
         if time.time() - t0 > BUDGET:
             break
@@ -394,7 +405,8 @@ def main():
             try:
                 if file.startswith("own:"):
                     o = fixes["own"][pid]
-                    img, why = fr.frame(open(os.path.join(os.path.dirname(FIXES), o["path"]), "rb").read())
+                    raw = get(o["url"]) if o.get("url") else open(os.path.join(os.path.dirname(FIXES), o["path"]), "rb").read()
+                    img, why = fr.frame(raw)
                     if why:
                         st["fail"][file] = V; print("skip", pid, names.get(pid, pid), file, why); continue
                     img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
