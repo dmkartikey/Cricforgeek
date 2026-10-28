@@ -94,7 +94,7 @@ jobs:
 
       - name: Player photos
         continue-on-error: true
-        timeout-minutes: 40
+        timeout-minutes: 55
         working-directory: pipeline  # the database points at its data files relative to this folder
         run: |
           python -m pip install -q "rembg[cpu]==2.0.66" "opencv-python-headless==4.10.0.84" pillow "$(grep -i '^duckdb' requirements.txt)"

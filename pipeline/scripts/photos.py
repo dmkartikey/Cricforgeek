@@ -14,7 +14,7 @@ Writes <out>/photos/<player id>.webp and <out>/photos/index.json {id: credit lin
 Cut-outs are cached between runs, so each photo is processed once.
 Usage: python photos.py <people.csv> <work dir with cricforgeek.duckdb> <out data dir> <cache dir>
 """
-import csv, io, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request
+import csv, io, json, os, re, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
 import duckdb
 
 UA = {"User-Agent": "cricforgeek-photos/2.0 (https://cricforgeek.site)"}
@@ -29,8 +29,16 @@ V = "v2"  # framing version: bump to re-process every photo
 
 
 def get(url, timeout=90):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
-        return r.read()
+    """Fetch with polite retries: Wikimedia answers 429 or 503 when asked too fast, so wait and try again."""
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                raise
+            wait = e.headers.get("Retry-After")
+            time.sleep(min(float(wait) if wait and wait.isdigit() else 2 ** attempt * 3, 60))
 
 
 def api(host, **q):
@@ -244,43 +252,64 @@ def main():
     except Exception as e:
         print(f"Wikipedia article photos failed ({type(e).__name__})")
     # 3 and 4. still nothing for a current international: search Wikipedia, then Commons, by full name
-    looked = 0
     def all_failed(k):
         st = state.get(k, {})
         return bool(cand[k]) and not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) <= set(st.get("fail", {}))
-    for pid in [k for k in order if k in national and (not cand[k] or all_failed(k))][:900]:
+
+    def search(pid, nm):
+        """Wikipedia by name (page must be about a cricketer of that name), then Commons files named for them."""
+        found = []
+        res = api("en.wikipedia.org", generator="search", gsrlimit=3, prop="pageimages|description", piprop="name", pilicense="free",
+                  gsrsearch=f'"{nm}" cricketer')
+        for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 9)):
+            if pg.get("pageimage") and "cricket" in (pg.get("description") or "").lower() and norm(re.sub(r" \(.*\)$", "", pg["title"])) == norm(nm):
+                found.append(("search", pg["pageimage"])); break
+        time.sleep(1.0)  # stay well inside Wikimedia's rate limits
+        team = national[pid][0]
+        res = api("commons.wikimedia.org", generator="search", gsrnamespace=6, gsrlimit=10, gsrsearch=f'"{nm}" cricket',
+                  prop="categories", cllimit=50)
+        toks = norm(nm).split()
+        for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 99)):
+            t = pg["title"][5:]
+            tl = norm(t.rsplit(".", 1)[0])
+            cats = " ".join(c["title"].lower() for c in pg.get("categories", []))
+            if not all(k in tl.split() or k in tl for k in toks):
+                continue  # the file name must carry the full name
+            if re.search(r"\b(and|with|team|squad|group|vs|v)\b", tl):
+                continue  # likely more than one person
+            if "cricket" not in cats + " " + tl and team.lower() not in cats:
+                continue
+            if not t.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                continue
+            found.append(("commons", t))
+        time.sleep(1.0)
+        return found
+
+    looked, search_err = 0, 0
+    today = time.strftime("%Y-%m-%d")
+    recent = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 14 * 86400))
+    for pid in [k for k in order if k in national and (not cand[k] or all_failed(k))]:
         nm = full(pid)
         if not nm:
             continue
+        sst = state.setdefault(pid, {"fail": {}})
+        if sst.get("searched", "") >= recent:  # searched lately: reuse what it found rather than ask again
+            for kind, f in sst.get("found", []):
+                add(pid, f, kind)
+            continue
+        if looked >= 250:  # the rest are searched on later nights
+            continue
         looked += 1
         try:
-            res = api("en.wikipedia.org", generator="search", gsrlimit=3, prop="pageimages|description", piprop="name", pilicense="free",
-                      gsrsearch=f'"{nm}" cricketer')
-            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 9)):
-                if pg.get("pageimage") and "cricket" in (pg.get("description") or "").lower() and norm(re.sub(r" \(.*\)$", "", pg["title"])) == norm(nm):
-                    add(pid, pg["pageimage"], "search"); break
-            if cand[pid] and not all_failed(pid):
-                continue
-            team = national[pid][0]
-            res = api("commons.wikimedia.org", generator="search", gsrnamespace=6, gsrlimit=10, gsrsearch=f'"{nm}" cricket',
-                      prop="categories", cllimit=50)
-            toks = norm(nm).split()
-            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 99)):
-                t = pg["title"][5:]
-                tl = norm(t.rsplit(".", 1)[0])
-                cats = " ".join(c["title"].lower() for c in pg.get("categories", []))
-                if not all(k in tl.split() or k in tl for k in toks):
-                    continue  # the file name must carry the full name
-                if re.search(r"\b(and|with|team|squad|group|vs|v)\b", tl):
-                    continue  # likely more than one person
-                if "cricket" not in cats + " " + tl and team.lower() not in cats:
-                    continue
-                if not t.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                    continue
-                add(pid, t, "commons")
-            time.sleep(0.3)
+            found = search(pid, nm)
         except Exception as e:
-            print(f"name search failed for {pid} ({type(e).__name__})")
+            search_err += 1
+            print(f"name search failed for {pid} ({type(e).__name__} {getattr(e, 'code', '')} {str(getattr(e, 'reason', ''))[:60]})")
+            continue
+        sst["searched"], sst["found"] = today, found
+        for kind, f in found:
+            add(pid, f, kind)
+    print(f"name search: {looked} players searched tonight, {search_err} errors")
     print(f"photo sources: {src_n['wikidata']} via Wikidata, {src_n['article']} via Wikipedia articles, {src_n['search']} via "
           f"Wikipedia name search, {src_n['commons']} via Commons search, {src_n['fix']} hand-picked (searched {looked} names)")
 
