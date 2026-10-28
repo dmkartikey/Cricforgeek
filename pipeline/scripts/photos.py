@@ -272,9 +272,11 @@ def main():
                 src_n[kind] += 1
             cand[pid].append(file)
 
+    def fix_name(f):
+        return (f["name"] if isinstance(f, dict) else f).replace("File:", "")
     for pid, f in fixes.get("file", {}).items():
         if pid in cand:
-            cand[pid].insert(0, f.replace("File:", "")); src_n["fix"] += 1
+            cand[pid].insert(0, fix_name(f)); src_n["fix"] += 1
     for pid, o in fixes.get("own", {}).items():  # photos supplied by the site owner, with permission
         cand.setdefault(pid, [])
         if pid not in order:
@@ -387,7 +389,7 @@ def main():
         fr = None
     t0, made, reframed, fails = time.time(), 0, 0, {}
     # hand-picked photos first, even for players who already have one
-    picked = {**{k: f.replace("File:", "") for k, f in fixes.get("file", {}).items()},
+    picked = {**{k: fix_name(f) for k, f in fixes.get("file", {}).items()},
               **{k: "own:" + (o.get("path") or o["url"]) for k, o in fixes.get("own", {}).items()}}
     redo = [k for k, f in picked.items() if k in cand and state.get(k, {}).get("src") != f and state.get(k, {}).get("fail", {}).get(f) != R]
     for k in redo:
@@ -424,7 +426,14 @@ def main():
                 lic = strip_tags(em.get("LicenseShortName", {}).get("value"))
                 if not lic or "fair use" in lic.lower() or "non-free" in lic.lower():
                     st["fail"][file] = R; fails["no free licence"] = fails.get("no free licence", 0) + 1; continue
-                img, why = fr.frame(get(ii.get("thumburl") or ii["url"]))
+                raw = get(ii.get("thumburl") or ii["url"])
+                fx = fixes.get("file", {}).get(pid)
+                if isinstance(fx, dict) and fx.get("crop") and fix_name(fx) == file:  # hand-set crop, e.g. to leave out someone beside them
+                    from PIL import Image as _I
+                    im0 = _I.open(io.BytesIO(raw)).convert("RGB"); W0, H0 = im0.size
+                    c = fx["crop"]; buf = io.BytesIO()
+                    im0.crop((int(c[0] * W0), int(c[1] * H0), int(c[2] * W0), int(c[3] * H0))).save(buf, "JPEG", quality=95); raw = buf.getvalue()
+                img, why = fr.frame(raw)
                 if why:
                     st["fail"][file] = R; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
                     print("skip", pid, names.get(pid, pid), file[:60], why)
