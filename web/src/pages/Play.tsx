@@ -106,7 +106,7 @@ export default function Play() {
         <div className="stack">
           <div className="eyebrow">Card battle</div>
           <h1>Card battle</h1>
-          <p className="lede">Pick a stat on your top card. Higher wins, except economy and bowling average, where lower wins. Win the round and you take both cards. Take the whole deck, or hold the most after 30 rounds, to win. Every number is from internationals with ball-by-ball records.</p>
+          <p className="lede">Pick a stat on your top card. Higher wins, except economy and bowling average, where lower wins. Win the round and you take both cards. Take the whole deck, or hold the most after 30 rounds, to win. Every number is from official Tests, ODIs and T20Is with ball-by-ball records.</p>
         </div>
         <div className="row">
           <Seg label="Format" value={fmt} onChange={setFmt} options={[['TEST', 'Tests'], ['ODI', 'ODIs'], ['T20', 'T20Is']]} />

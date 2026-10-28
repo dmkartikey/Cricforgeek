@@ -1,37 +1,71 @@
 """Nightly: free-licence player photos for the player cards.
 
-Finds players with a Wikimedia Commons image (via their ESPNcricinfo id on Wikidata), keeps those who have
-played for a top team since 2015, cuts each photo out of its background and writes
-  <out>/photos/<player id>.webp   and   <out>/photos/index.json  {id: credit line}
-Photos already in the cache folder are reused, so only new players are downloaded.
+Who: everyone who has played an official Test, ODI or T20I for a full-member country since 2024 (men and women) comes
+first, then other players from top teams since 2015, best known first.
+Where from (in order, all free-licence Wikimedia images):
+  1. Wikidata: the photo on the player's entry, found by ESPNcricinfo or CricketArchive id
+  2. the lead photo of their English Wikipedia article
+  3. a Wikipedia search by full name, kept only if the page is about a cricketer of that name
+  4. a Wikimedia Commons file search by full name, kept only if the file is clearly a cricket photo of one person
+  plus hand-checked fixes in pipeline/cricforgeek/seeds/photo_fixes.json (a file to use, or a photo to drop).
+Quality: each photo is framed the same way (head and shoulders, found from the face), cut out of its background and
+kept only if it has one clear, sharp face of a usable size; otherwise the next candidate is tried.
+Writes <out>/photos/<player id>.webp and <out>/photos/index.json {id: credit line} (+ 16 shards).
+Cut-outs are cached between runs, so each photo is processed once.
 Usage: python photos.py <people.csv> <work dir with cricforgeek.duckdb> <out data dir> <cache dir>
 """
-import csv, io, json, os, sys, time, urllib.parse, urllib.request
+import csv, io, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request
 import duckdb
 
-UA = {"User-Agent": "cricforgeek-photos/1.0 (https://cricforgeek.site)"}
+UA = {"User-Agent": "cricforgeek-photos/2.0 (https://cricforgeek.site)"}
 people_csv, work, out, cache = sys.argv[1:5]
 os.makedirs(f"{out}/photos", exist_ok=True); os.makedirs(cache, exist_ok=True)
-LIMIT = int(os.environ.get("PHOTO_LIMIT", "900"))  # new downloads per night, to stay polite to Commons
+BUDGET = float(os.environ.get("PHOTO_MINUTES", "28")) * 60  # processing time per night; the rest carries over
+FIXES = os.path.join(os.path.dirname(__file__), "..", "cricforgeek", "seeds", "photo_fixes.json")
+FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
+        "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
+OFFICIAL = "('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
+V = "v2"  # framing version: bump to re-process every photo
 
-def get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=90) as r:
+
+def get(url, timeout=90):
+    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
         return r.read()
 
+
+def api(host, **q):
+    return json.loads(get(f"https://{host}/w/api.php?" + urllib.parse.urlencode({"action": "query", "format": "json", **q})))
+
+
 def strip_tags(s):
-    import re
     return re.sub(r"<[^>]+>", "", s or "").strip()
+
+
+def norm(s):
+    return re.sub(r"[^a-z ]", "", unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()).strip()
+
 
 credits_path = f"{cache}/credits.json"
 credits = json.load(open(credits_path)) if os.path.exists(credits_path) else {}
+state_path = f"{cache}/photo-state.json"  # {pid: {"v": version, "src": file used, "fail": {file: reason}}}
+state = json.load(open(state_path)) if os.path.exists(state_path) else {}
+fixes = json.load(open(FIXES)) if os.path.exists(FIXES) else {"file": {}, "drop": []}
+
+
+def cached(pid):
+    """The best cut-out on disk for a player: the current framing if done, else last version's."""
+    for p in (f"{cache}/{pid}.{V}.webp", f"{cache}/{pid}.webp"):
+        if os.path.exists(p):
+            return p
+    return None
 
 
 def publish(ids):
     """Copy cached cut-outs for these players into the site and write the index."""
     index = {}
     for pid in ids:
-        src = f"{cache}/{pid}.webp"
-        if pid in credits and os.path.exists(src):
+        src = cached(pid)
+        if pid in credits and src and pid not in fixes.get("drop", []) and not state.get(pid, {}).get("drop"):
             with open(src, "rb") as f, open(f"{out}/photos/{pid}.webp", "wb") as g:
                 g.write(f.read())
             index[pid] = credits[pid]
@@ -46,8 +80,96 @@ def publish(ids):
 kept = publish(list(credits))
 print(f"{len(kept)} cached photos published")
 
+
+# ---------------------------------------------------------------- framing and quality
+class Framer:
+    def __init__(self):
+        import cv2, numpy as np
+        from PIL import Image
+        from rembg import new_session, remove
+        self.cv2, self.np, self.Image, self.remove = cv2, np, Image, remove
+        self.session = new_session("u2net_human_seg")
+        d = cv2.data.haarcascades
+        self.front = [cv2.CascadeClassifier(d + f) for f in ("haarcascade_frontalface_default.xml", "haarcascade_frontalface_alt2.xml")]
+        self.side = cv2.CascadeClassifier(d + "haarcascade_profileface.xml")
+        # YuNet (OpenCV Zoo, MIT licence) finds faces under caps, helmets and sunglasses far better than the old
+        # cascades, which stay as a fallback
+        model = os.path.join(os.path.dirname(FIXES), "face_detection_yunet_2023mar.onnx")
+        self.yunet = cv2.FaceDetectorYN.create(model, "", (320, 320), 0.75) if os.path.exists(model) else None
+
+    def faces(self, gray, min_px, rgb=None):
+        cv2 = self.cv2
+        if self.yunet is not None and rgb is not None:
+            H, W = gray.shape
+            self.yunet.setInputSize((W, H))
+            _, res = self.yunet.detect(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+            found = [tuple(int(v) for v in f[:4]) for f in (res if res is not None else []) if f[2] >= min_px]
+            if found:
+                return found
+        found = []
+        for cc in self.front:
+            found += [tuple(int(v) for v in f) for f in cc.detectMultiScale(gray, 1.08, 6, minSize=(min_px, min_px))]
+            if found:
+                break
+        if not found:
+            found = [tuple(int(v) for v in f) for f in self.side.detectMultiScale(gray, 1.08, 6, minSize=(min_px, min_px))]
+            if not found:  # profile cascade only finds left-facing heads: try the mirror image too
+                W = gray.shape[1]
+                found = [(W - x - w, y, w, h) for x, y, w, h in self.side.detectMultiScale(cv2.flip(gray, 1), 1.08, 6, minSize=(min_px, min_px))]
+        return found
+
+    def frame(self, raw):
+        """Raw image bytes -> (440x550 RGBA head-and-shoulders cut-out, None) or (None, reason)."""
+        cv2, np, Image = self.cv2, self.np, self.Image
+        im = Image.open(io.BytesIO(raw)).convert("RGB")
+        if max(im.size) > 1400:
+            im.thumbnail((1400, 1400))
+        W, H = im.size
+        gray = cv2.cvtColor(np.array(im), cv2.COLOR_RGB2GRAY)
+        fs = self.faces(gray, max(40, W // 25), np.array(im))
+        if not fs:
+            return None, "no face found"
+        fs.sort(key=lambda f: -f[2])
+        x, y, w, h = fs[0]
+        if w < 48:
+            return None, f"face too small ({w}px)"
+        if len(fs) > 1 and fs[1][2] > 0.75 * w:
+            return None, "two or more people of similar size"
+        sharp = cv2.Laplacian(cv2.resize(gray[y:y + h, x:x + w], (128, 128)), cv2.CV_64F).var()
+        if sharp < 25:
+            return None, f"blurry face ({sharp:.0f})"
+        # head and shoulders: 3.4 face-widths wide, 4:5, the eyes about a third of the way down
+        # The box stays inside the photo: a tight close-up is zoomed in on rather than padded with empty space.
+        bw = min(3.4 * w, W); bh = bw * 1.25
+        if bh > H:
+            bh = H; bw = bh / 1.25
+        cx = x + w / 2
+        bx = int(min(max(cx - bw / 2, 0), W - bw)); by = int(min(max(y - 0.85 * h, 0), H - bh))
+        bw, bh = int(bw), int(bh)
+        canvas = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        ix0, iy0, ix1, iy1 = bx, by, min(bx + bw, W), min(by + bh, H)
+        crop = im.crop((ix0, iy0, ix1, iy1))
+        cut = self.remove(crop, session=self.session)
+        a = np.array(cut)
+        mask = (a[:, :, 3] > 100).astype(np.uint8)
+        n, lab, st, _ = cv2.connectedComponentsWithStats(mask, 8)
+        if n < 2:
+            return None, "cut-out empty"
+        # keep the piece that holds the face, drop stray bits of other people and background
+        fx, fy = int(cx - ix0), int(y + h / 2 - iy0)
+        keep = lab[min(max(fy, 0), lab.shape[0] - 1), min(max(fx, 0), lab.shape[1] - 1)]
+        if keep == 0:
+            keep = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+        a[:, :, 3] = np.where(lab == keep, a[:, :, 3], 0)
+        face_cov = (a[y - iy0:y - iy0 + h, x - ix0:x - ix0 + w, 3] > 100).mean() if h and w else 0
+        if face_cov < 0.5:
+            return None, "cut-out lost the face"
+        canvas.paste(Image.fromarray(a), (ix0 - bx, iy0 - by))
+        return canvas.resize((440, 550), Image.LANCZOS), None
+
+
+# ---------------------------------------------------------------- candidates
 def main():
-    global new_session, remove
     ci, ca, names = {}, {}, {}
     for p in csv.DictReader(open(people_csv, encoding="utf-8")):
         names[p["identifier"]] = p.get("name") or p["identifier"]
@@ -56,115 +178,177 @@ def main():
                 ci[p[k]] = p["identifier"]
         if p.get("key_cricketarchive"):
             ca[p["key_cricketarchive"]] = p["identifier"]
+    full_names = json.load(open(f"{cache}/names.json")) if os.path.exists(f"{cache}/names.json") else {}
     con = duckdb.connect(f"{work}/cricforgeek.duckdb", read_only=True)
-    # top-team players since 2015, best known first (most top-level matches), so famous players get cards first
+    FULL_SQL = ", ".join(f"'{t}'" for t in FULL)
+    national = {r[0]: (r[1], r[2]) for r in con.execute(f"""
+        select a.player, mode(a.team), count(*) n from appearances a join matches m using (match_id)
+        where m.comp in {OFFICIAL} and m.year >= 2024 and a.team in ({FULL_SQL}) group by a.player""").fetchall()}
     top = {r[0]: r[1] for r in con.execute("""
         select a.player, count(*) n from appearances a join matches m using (match_id)
         where m.lvl_top and m.year >= 2015 group by a.player""").fetchall()}
     con.close()
+    for pid, (_, n) in national.items():
+        top[pid] = max(top.get(pid, 0), n) + 10000  # current internationals first
+    order = sorted(top, key=lambda k: -top[k])
+
+    def full(pid):
+        """The best searchable name: Wikidata's full name, else the register name if it isn't initials."""
+        for nm in full_names.get(pid, []):
+            if " " in nm and not re.match(r"^[A-Z]{1,4} ", nm):
+                return nm
+        nm = names.get(pid, "")
+        return nm if " " in nm and not re.match(r"^[A-Z]{1,4} ", nm) else None
 
     def sparql(q):
-        return json.loads(get("https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(q)))["results"]["bindings"]
+        return json.loads(get("https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(q), 180))["results"]["bindings"]
 
-    want = {}
-    # 1. Wikidata: ESPNcricinfo id with a photo
-    for b in sparql("SELECT ?ci ?img WHERE { ?p wdt:P2697 ?ci . ?p wdt:P18 ?img . }"):
-        pid = ci.get(b["ci"]["value"])
-        if pid in top and pid not in want:
-            want[pid] = b["img"]["value"]
-    n1 = len(want)
-    # 2. Wikidata: CricketArchive id with a photo, for entries without the ESPNcricinfo link
-    try:
-        for b in sparql("SELECT ?ca ?img WHERE { ?p wdt:P2698 ?ca . ?p wdt:P18 ?img . }"):
-            pid = ca.get(b["ca"]["value"])
-            if pid in top and pid not in want:
-                want[pid] = b["img"]["value"]
-    except Exception as e:
-        print(f"CricketArchive lookup failed ({type(e).__name__})")
-    n2 = len(want)
-    # 3. No photo on Wikidata: the free-licence lead photo of their English Wikipedia article
+    cand = {pid: [] for pid in top}
+    src_n = {"wikidata": 0, "article": 0, "search": 0, "commons": 0, "fix": 0}
+
+    def add(pid, file, kind):
+        file = urllib.parse.unquote(file.rsplit("/", 1)[-1]).replace("_", " ")
+        if pid in cand and file not in cand[pid]:
+            if not cand[pid]:
+                src_n[kind] += 1
+            cand[pid].append(file)
+
+    for pid, f in fixes.get("file", {}).items():
+        if pid in cand:
+            cand[pid].insert(0, f.replace("File:", "")); src_n["fix"] += 1
+    # 1. Wikidata photos by ESPNcricinfo / CricketArchive id
+    for prop, ids in (("P2697", ci), ("P2698", ca)):
+        try:
+            for b in sparql(f"SELECT ?k ?img WHERE {{ ?p wdt:{prop} ?k . ?p wdt:P18 ?img . }}"):
+                pid = ids.get(b["k"]["value"])
+                if pid:
+                    add(pid, b["img"]["value"], "wikidata")
+        except Exception as e:
+            print(f"Wikidata {prop} lookup failed ({type(e).__name__})")
+    # 2. the free lead photo of their Wikipedia article (Wikidata entry found by ESPNcricinfo id)
     try:
         arts = {}
-        for b in sparql("SELECT ?ci ?article WHERE { ?p wdt:P2697 ?ci . FILTER NOT EXISTS { ?p wdt:P18 [] } "
-                        "?article schema:about ?p ; schema:isPartOf <https://en.wikipedia.org/> . }"):
-            pid = ci.get(b["ci"]["value"])
-            if pid in top and pid not in want:
+        for b in sparql("SELECT ?k ?article WHERE { ?p wdt:P2697 ?k . ?article schema:about ?p ; schema:isPartOf <https://en.wikipedia.org/> . }"):
+            pid = ci.get(b["k"]["value"])
+            if pid in cand:
                 arts[urllib.parse.unquote(b["article"]["value"].rsplit("/wiki/", 1)[1]).replace("_", " ")] = pid
-        titles = sorted(arts, key=lambda t: -top[arts[t]])[:600]
+        titles = sorted(arts, key=lambda t: -top[arts[t]])[:2500]
         for i in range(0, len(titles), 50):
-            res = json.loads(get("https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&piprop=name&pilicense=free&redirects=1&titles="
-                                 + urllib.parse.quote("|".join(titles[i:i + 50]))))
+            res = api("en.wikipedia.org", prop="pageimages", piprop="name", pilicense="free", redirects=1, titles="|".join(titles[i:i + 50]))
             back = {r["to"]: r["from"] for r in res["query"].get("redirects", [])}
             for pg in res["query"].get("pages", {}).values():
                 t = back.get(pg.get("title"), pg.get("title"))
-                if pg.get("pageimage") and t in arts and arts[t] not in want:
-                    want[arts[t]] = "http://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(pg["pageimage"])
-            time.sleep(0.3)
-    except Exception as e:
-        print(f"Wikipedia photo lookup failed ({type(e).__name__})")
-    n3 = len(want)
-    # 4. Still nothing (Wikidata missing the cricket id): search English Wikipedia by name, for the best-known players
-    #    only, and accept a page only if its title is the player's name and its description says cricketer.
-    try:
-        import re
-        for pid in sorted((k for k in top if k not in want), key=lambda k: -top[k])[:300]:
-            nm = names.get(pid, "")
-            if " " not in nm or re.match(r"^[A-Z]{1,4} ", nm):  # initials only ("MS Dhoni"): too vague to search
-                continue
-            res = json.loads(get("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=search&gsrlimit=3"
-                                 "&prop=pageimages|description&piprop=name&pilicense=free&gsrsearch=" + urllib.parse.quote(f'"{nm}" cricketer')))
-            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 9)):
-                t, desc = pg.get("title", ""), (pg.get("description") or "").lower()
-                if pg.get("pageimage") and "cricket" in desc and re.sub(r" \(.*\)$", "", t) == nm:
-                    want[pid] = "http://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(pg["pageimage"])
-                    break
+                if pg.get("pageimage") and t in arts:
+                    add(arts[t], pg["pageimage"], "article")
             time.sleep(0.2)
     except Exception as e:
-        print(f"Wikipedia name search failed ({type(e).__name__})")
-    print(f"photo sources: {n1} via ESPNcricinfo id, {n2 - n1} via CricketArchive id, {n3 - n2} via Wikipedia articles, {len(want) - n3} via Wikipedia name search")
-    best = sorted(top, key=lambda k: -top[k])[:150]
-    missing = [names.get(k, k) for k in best if k not in want]
-    print(f"most-capped players still without a free photo ({len(missing)} of the top 150): {', '.join(missing[:25])}")
-    print(f"{len(want)} top-team players have a free photo")
+        print(f"Wikipedia article photos failed ({type(e).__name__})")
+    # 3 and 4. still nothing for a current international: search Wikipedia, then Commons, by full name
+    looked = 0
+    def all_failed(k):
+        st = state.get(k, {})
+        return bool(cand[k]) and not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) <= set(st.get("fail", {}))
+    for pid in [k for k in order if k in national and (not cand[k] or all_failed(k))][:900]:
+        nm = full(pid)
+        if not nm:
+            continue
+        looked += 1
+        try:
+            res = api("en.wikipedia.org", generator="search", gsrlimit=3, prop="pageimages|description", piprop="name", pilicense="free",
+                      gsrsearch=f'"{nm}" cricketer')
+            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 9)):
+                if pg.get("pageimage") and "cricket" in (pg.get("description") or "").lower() and norm(re.sub(r" \(.*\)$", "", pg["title"])) == norm(nm):
+                    add(pid, pg["pageimage"], "search"); break
+            if cand[pid] and not all_failed(pid):
+                continue
+            team = national[pid][0]
+            res = api("commons.wikimedia.org", generator="search", gsrnamespace=6, gsrlimit=10, gsrsearch=f'"{nm}" cricket',
+                      prop="categories", cllimit=50)
+            toks = norm(nm).split()
+            for pg in sorted(res.get("query", {}).get("pages", {}).values(), key=lambda x: x.get("index", 99)):
+                t = pg["title"][5:]
+                tl = norm(t.rsplit(".", 1)[0])
+                cats = " ".join(c["title"].lower() for c in pg.get("categories", []))
+                if not all(k in tl.split() or k in tl for k in toks):
+                    continue  # the file name must carry the full name
+                if re.search(r"\b(and|with|team|squad|group|vs|v)\b", tl):
+                    continue  # likely more than one person
+                if "cricket" not in cats + " " + tl and team.lower() not in cats:
+                    continue
+                if not t.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                    continue
+                add(pid, t, "commons")
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"name search failed for {pid} ({type(e).__name__})")
+    print(f"photo sources: {src_n['wikidata']} via Wikidata, {src_n['article']} via Wikipedia articles, {src_n['search']} via "
+          f"Wikipedia name search, {src_n['commons']} via Commons search, {src_n['fix']} hand-picked (searched {looked} names)")
+
+    nat = [k for k in order if k in national]
+    have = [k for k in nat if cand[k] or cached(k)]
+    print(f"current full-member internationals: {len(have)} of {len(nat)} have a photo source")
+    miss = [f"{names.get(k, k)} ({national[k][0]})" for k in nat if k not in have]
+    print(f"current internationals still without a free photo ({len(miss)}): {', '.join(miss[:60])}")
     for nm in ("Abhishek Sharma",):  # spot check for players people have asked about
         ids = [k for k, v in names.items() if v == nm]
-        print(f"photo check {nm}: " + ", ".join(f"{k} {'in top' if k in top else 'not in top'}, {'has source' if k in want else 'no source'}, {'cached' if os.path.exists(f'{cache}/{k}.webp') else 'not cached'}" for k in ids))
+        print(f"photo check {nm}: " + ", ".join(f"{k} {'current intl' if k in national else 'not current intl'}, candidates {cand.get(k, [])[:3]}, "
+                                                 f"{'cached ' + V if cached(k) and cached(k).endswith(V + '.webp') else ('cached old' if cached(k) else 'not cached')}" for k in ids))
 
-    from PIL import Image
+    # ---------------------------------------------------------------- process: new players first, then re-frame old ones
     try:
-        from rembg import new_session, remove
+        fr = Framer()
     except Exception as e:  # without the cut-out package, keep the cached photos and add none
         print(f"cut-out package unavailable ({type(e).__name__}: {e}); no new photos tonight")
-        new_session = None
-    session = None
-    new = 0
-    for pid, url in sorted(want.items(), key=lambda kv: -top[kv[0]]):
-        dst = f"{cache}/{pid}.webp"
-        if not os.path.exists(dst) and new < LIMIT and new_session:
+        fr = None
+    t0, made, reframed, fails = time.time(), 0, 0, {}
+    todo = [k for k in order if cand[k] and not cached(k)] + [k for k in order if cand[k] and cached(k) and not cached(k).endswith(V + ".webp")]
+    for pid in todo if fr else []:
+        if time.time() - t0 > BUDGET:
+            break
+        st = state.setdefault(pid, {"fail": {}})
+        if st.get("v") == V and not (set(cand[pid]) - set(st["fail"])):
+            continue  # every candidate already failed on this version
+        was_new = not cached(pid)
+        for file in cand[pid]:
+            if st["fail"].get(file) == V:
+                continue  # this file already failed on this version
             try:
-                file = urllib.parse.unquote(url.rsplit("/", 1)[1])
-                meta = json.loads(get("https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo"
-                                      "&iiprop=extmetadata|url&iiurlwidth=600&titles=File:" + urllib.parse.quote(file)))
-                ii = next(iter(meta["query"]["pages"].values()))["imageinfo"][0]
+                meta = api("commons.wikimedia.org", prop="imageinfo", iiprop="extmetadata|url", iiurlwidth=1400, titles="File:" + file)
+                pg = next(iter(meta["query"]["pages"].values()))
+                ii = pg["imageinfo"][0]
                 em = ii.get("extmetadata", {})
                 lic = strip_tags(em.get("LicenseShortName", {}).get("value"))
-                if not lic or "fair use" in lic.lower():
-                    print("skip", pid, names.get(pid, pid), "no free licence:", lic or "none")
+                if not lic or "fair use" in lic.lower() or "non-free" in lic.lower():
+                    st["fail"][file] = V; fails["no free licence"] = fails.get("no free licence", 0) + 1; continue
+                img, why = fr.frame(get(ii.get("thumburl") or ii["url"]))
+                if why:
+                    st["fail"][file] = V; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
+                    print("skip", pid, names.get(pid, pid), file[:60], why)
                     continue
+                img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
                 artist = strip_tags(em.get("Artist", {}).get("value"))[:60] or "Unknown"
-                session = session or new_session("u2net_human_seg")
-                img = remove(Image.open(io.BytesIO(get(ii["thumburl"]))).convert("RGB"), session=session)
-                bbox = img.getbbox()
-                if bbox: img = img.crop(bbox)
-                img.thumbnail((440, 540)); img.save(dst, "WEBP", quality=80)
                 credits[pid] = f"Photo: {artist} · {lic} · Wikimedia Commons"
-                new += 1
-                time.sleep(0.5)
+                st.update(v=V, src=file, drop=False)
+                made += was_new; reframed += not was_new
+                break
             except Exception as e:  # one bad file should not stop the build
                 print("skip", pid, names.get(pid, pid), type(e).__name__, str(e)[:100])
+            time.sleep(0.3)
+        else:
+            if all(st["fail"].get(f) == V for f in cand[pid]):  # every candidate judged unusable (not a network error)
+                st["v"] = V
+                st["drop"] = True  # take the old photo down too, rather than show a poor one
     json.dump(credits, open(credits_path, "w"))
-    index = publish([pid for pid in want])
-    print(f"{new} new photos, {len(index)} on the site")
+    json.dump(state, open(state_path, "w"))
+    for pid in credits:  # once re-framed, the old cut-out is no longer needed in the cache
+        if os.path.exists(f"{cache}/{pid}.{V}.webp") and os.path.exists(f"{cache}/{pid}.webp"):
+            os.remove(f"{cache}/{pid}.webp")
+    left = sum(1 for k in todo if not (cached(k) or "").endswith(V + ".webp") and set(cand[k]) - set(state.get(k, {}).get("fail", {})))
+    print(f"photo quality: rejected {sum(fails.values())} candidates ({', '.join(f'{k} {v}' for k, v in sorted(fails.items(), key=lambda kv: -kv[1]))}); "
+          f"{left} still to process next run")
+    index = publish([k for k in credits if k in cand or k in kept])
+    dropped = sum(1 for k in credits if state.get(k, {}).get("drop"))
+    print(f"{made} new photos, {reframed} re-framed, {dropped} taken down for quality, {len(index)} on the site")
 
 
 try:

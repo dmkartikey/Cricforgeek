@@ -39,7 +39,7 @@ export default function Records() {
         <div className="row">
           <Seg label="Format" value={fmt} onChange={setFmt} options={FMTS} />
           <Seg label="Cricket" value={g} onChange={setG} options={[['male', 'Men'], ['female', 'Women']]} />
-          <Seg label="Teams" value={fm} onChange={setFm} options={[['fm', 'Full members'], ['all', 'All internationals']]} />
+          <Seg label="Teams" value={fm} onChange={setFm} options={[['fm', 'Full members'], ['all', 'All teams']]} />
         </div>
       </section>
       {!R ? <Loader text="Loading records" /> : (

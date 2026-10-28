@@ -136,9 +136,9 @@ export default function Home() {
 
   if (idx.error) return <ErrorBox error={idx.error} />;
   if (idx.data && !fallback) {
-    return <div className="notice">There is not enough {s.gender === 'female' ? "women's" : "men's"} {FMTS.find((f) => f.k === s.fmt)?.l} cricket in the data for an overview yet. Pick another format in the sidebar.</div>;
+    return <><ViewBar level /><div className="notice">There is not enough {s.gender === 'female' ? "women's" : "men's"} {FMTS.find((f) => f.k === s.fmt)?.l} cricket in the data for an overview yet. Pick another format or Men above.</div></>;
   }
-  if (error) return <ErrorBox error={error} />;
+  if (error) return <><ViewBar level /><ErrorBox error={error} /></>;
   if (!data || !idx.data || !fallback) return <Loader text="Loading overview" />;
 
   const multi = MULTI(s.fmt);

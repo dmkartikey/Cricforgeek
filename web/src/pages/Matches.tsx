@@ -52,7 +52,8 @@ export default function Matches() {
   }, [data]);
   const rows = useMemo(() => (data ?? []).filter((r) => (s.level === 'all' || (s.level === 'top' ? r[11] : r[12]))
     && (comp === 'all' || r[2] === comp) && matchesQuery(r, q)), [data, s.level, comp, q]);
-  if (error) return <ErrorBox error={error === 'Not found' ? `No ${FAM_LABEL[s.fmt]} matches for this selection.` : error} />;
+  // keep the format and gender picker on screen, so a selection with no matches can be changed back
+  if (error) return <><ViewBar level /><ErrorBox error={error === 'Not found' ? `No ${FAM_LABEL[s.fmt]} ${s.gender === 'female' ? "women's" : "men's"} matches with ball-by-ball records. Pick another format above.` : error} /></>;
   if (!data) return <Loader text="Loading matches" />;
   const res = (r: Row) => (r[6] ? `${r[6]} won${r[8] ? ` by ${r[8]} runs` : r[9] ? ` by ${r[9]} wkts` : ''}` : r[7] === 'draw' ? 'Drawn' : r[7] === 'tie' ? 'Tied' : 'No result');
   // group consecutive innings by team so Tests show "245 & 180/4"
@@ -85,7 +86,7 @@ export default function Matches() {
             <span className="res">{res(r)}<div className="muted" style={{ fontSize: 11 }}>{r[10]}</div></span>
           </Link>
         ))}
-        {!rows.length && <div className="empty">No matches with these filters. Try "Everything" in the sidebar.</div>}
+        {!rows.length && <div className="empty">No matches with these filters. Try "Everything" in the level menu above.</div>}
         {rows.length > shown && <div className="more-row"><button className="btn" onClick={() => setShown(shown + 40)}>Show more ({rows.length - shown} left)</button></div>}
       </Panel>
     </>

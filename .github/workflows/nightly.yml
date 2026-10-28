@@ -66,6 +66,9 @@ jobs:
         run: |
           python pipeline/scripts/audit.py all_json.zip work web/public/data 2>&1 | tee audit.log
           head -n 1 audit.log | sed 's/^/::notice::/'
+          python pipeline/scripts/sanity.py web/public/data 2>&1 | tee sanity.log
+          grep "^sanity" sanity.log | sed 's/^/::notice::/'
+          grep "^  " sanity.log | head -n 12 | cut -c1-400 | sed 's/^ */::notice::example /' || true
           python -c "import json,sys; a=json.load(open('web/public/data/audit.json')); sys.exit(0 if a['ok'] else 1)" || echo "::warning::data audit found mismatches: $(tail -n +2 audit.log | head -n 5 | tr '\n' ' ')"
 
       # Player-card photos: free-licence Wikimedia images for top-team players, cut out once and cached between runs.
@@ -94,10 +97,10 @@ jobs:
         timeout-minutes: 40
         working-directory: pipeline  # the database points at its data files relative to this folder
         run: |
-          python -m pip install -q "rembg[cpu]==2.0.66" pillow "$(grep -i '^duckdb' requirements.txt)"
+          python -m pip install -q "rembg[cpu]==2.0.66" "opencv-python-headless==4.10.0.84" pillow "$(grep -i '^duckdb' requirements.txt)"
           python scripts/photos.py ../people.csv ../work ../web/public/data ../photo-cache 2>&1 | tee photo.log
           echo "::notice::photos: $(tail -n 1 photo.log)"
-          grep -E "^(photo sources|most-capped|photo check)" photo.log | cut -c1-900 | sed 's/^/::notice::/' || true
+          grep -E "^(photo sources|current full-member|current internationals|photo check|photo quality)" photo.log | cut -c1-900 | sed 's/^/::notice::/' || true
           # why new photos were skipped: the first few, so a bad source shows up in the run summary
           echo "::notice::photo skips ($(grep -c '^skip' photo.log || true)): $(grep -E '^skip|unavailable|failed' photo.log | head -n 6 | tr '\n' '|' | cut -c1-900)"
 

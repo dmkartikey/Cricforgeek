@@ -9,6 +9,9 @@ from collections import defaultdict
 FULL = ("India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland")
 FULL_SQL = ", ".join(f"'{t}'" for t in FULL)
+# Official Tests, ODIs and T20Is only: records, the card deck and "on this day" leave out other internationals
+# (Intercontinental Cup, unofficial one-dayers and T20s), so their figures match the official record books.
+OFFICIAL = "m.comp in ('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
 # Venue names Cricsheet uses for many different grounds: these are split by city.
 GENERIC_VENUES = ("county-ground", "gymkhana-club-ground")
 # Cricsheet has no day or session marks, so Test days are estimated: 90 overs a day, 30 a session.
@@ -248,7 +251,7 @@ def export_records(con, w, names):
         if True:
             p = [fam, g]
             # fm: both sides full members; otherwise every international
-            C = f"m.lvl_intl and m.team1 in ({FULL_SQL}) and m.team2 in ({FULL_SQL})" if fm else "m.lvl_intl"
+            C = f"{OFFICIAL} and m.team1 in ({FULL_SQL}) and m.team2 in ({FULL_SQL})" if fm else OFFICIAL
             if not con.execute(f"select count(*) from matches m where {C} and m.fmt = ? and m.gender = ?", p).fetchone()[0]:
                 continue
             multi = fam == "TEST"
@@ -331,7 +334,7 @@ def export_onthisday(con, w, names):
     r, rows = _h()
     days = defaultdict(lambda: defaultdict(list))
     ids = defaultdict(set)
-    I = "m.lvl_intl and m.fmt in ('TEST', 'ODI', 'T20')"
+    I = OFFICIAL
     for x in rows(con, f"""select substr(m.date, 6, 5) md, m.year, b.player, b.runs, b.balls, b.is_out, b.team, b.opp, m.fmt, m.gender, m.match_id
                           from BI b join matches m using (match_id) where {I} and b.runs >= 100
                           order by (m.team1 in ({FULL_SQL}) and m.team2 in ({FULL_SQL})) desc, b.runs desc"""):
@@ -366,12 +369,12 @@ def export_deck(con, w, names):
             p = [fam, g]
             res = rows(con, f"""
               with ap as (select a.player, mode(a.team) team, count(distinct a.match_id) mt, max(m.year) last, min(m.year) first
-                          from appearances a join matches m using (match_id) where m.lvl_intl and m.fmt = ? and m.gender = ? group by 1),
+                          from appearances a join matches m using (match_id) where {OFFICIAL} and m.fmt = ? and m.gender = ? group by 1),
                    bt as (select player, sum(runs) r, sum(balls) b, count(*) filter (where is_out) o, count(*) filter (where runs >= 100) c100,
                                  count(*) filter (where runs >= 50 and runs < 100) c50, sum(s6) s6, max(runs) hs, round(sum(imp), 0) imp
-                          from BI join matches m using (match_id) where m.lvl_intl and BI.fam = ? and BI.gender = ? group by 1),
+                          from BI join matches m using (match_id) where {OFFICIAL} and BI.fam = ? and BI.gender = ? group by 1),
                    bw as (select player, sum(wkts) w, sum(balls) b, sum(runs) r, count(*) filter (where wkts >= 5) w5, max(wkts * 1000 - runs) best, round(sum(imp), 0) imp
-                          from BW join matches m using (match_id) where m.lvl_intl and BW.fam = ? and BW.gender = ? group by 1)
+                          from BW join matches m using (match_id) where {OFFICIAL} and BW.fam = ? and BW.gender = ? group by 1)
               select ap.*, bt.r, bt.b, bt.o, bt.c100, bt.c50, bt.s6, bt.hs, bt.imp bimp, bw.w, bw.b wb, bw.r wr, bw.w5, bw.best, bw.imp wimp
               from ap left join bt using (player) left join bw using (player)
               where ap.team in ({FULL_SQL}) and ap.mt >= {8 if fam == 'TEST' else 12}
