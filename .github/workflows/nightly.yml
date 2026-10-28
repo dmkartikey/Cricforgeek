@@ -100,7 +100,7 @@ jobs:
           python -m pip install -q "rembg[cpu]==2.0.66" "opencv-python-headless==4.10.0.84" pillow "$(grep -i '^duckdb' requirements.txt)"
           python scripts/photos.py ../people.csv ../work ../web/public/data ../photo-cache 2>&1 | tee photo.log
           echo "::notice::photos: $(tail -n 1 photo.log)"
-          grep -E "^(photo sources|current full-member|current internationals|photo check|photo quality)" photo.log | cut -c1-900 | sed 's/^/::notice::/' || true
+          grep -E "^(photo sources|current full-member|current internationals|photo check|photo quality|photo pick)" photo.log | cut -c1-900 | sed 's/^/::notice::/' || true
           # why new photos were skipped: the first few, so a bad source shows up in the run summary
           echo "::notice::photo skips ($(grep -c '^skip' photo.log || true)): $(grep -E '^skip|unavailable|failed' photo.log | head -n 6 | tr '\n' '|' | cut -c1-900)"
 

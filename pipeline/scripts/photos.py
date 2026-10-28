@@ -391,11 +391,11 @@ def main():
     # hand-picked photos first, even for players who already have one
     picked = {**{k: fix_name(f) for k, f in fixes.get("file", {}).items()},
               **{k: "own:" + (o.get("path") or o["url"]) for k, o in fixes.get("own", {}).items()}}
-    redo = [k for k, f in picked.items() if k in cand and state.get(k, {}).get("src") != f and state.get(k, {}).get("fail", {}).get(f) != R]
+    # a pick is tried once each time it changes (file or crop), whatever happened to that file before
+    pick_key = {k: json.dumps(fixes.get("file", {}).get(k) or fixes.get("own", {}).get(k), sort_keys=True) for k in picked}
+    redo = [k for k in picked if k in cand and state.get(k, {}).get("pick") != pick_key[k]]
     for k in redo:
-        for old in (f"{cache}/{k}.{V}.webp",):
-            if os.path.exists(old):
-                os.remove(old)
+        state.setdefault(k, {"fail": {}})["fail"].pop(picked[k], None)
     todo = redo + [k for k in order if cand[k] and not cached(k) and k not in redo] + [k for k in order if cand[k] and cached(k) and not cached(k).endswith(V + ".webp")]
     todo = list(dict.fromkeys(todo))  # each player once
     for pid in todo if fr else []:
@@ -414,7 +414,7 @@ def main():
                     raw = get(o["url"]) if o.get("url") else open(os.path.join(os.path.dirname(FIXES), o["path"]), "rb").read()
                     img, why = fr.frame(raw)
                     if why:
-                        st["fail"][file] = R; print("skip", pid, names.get(pid, pid), file, why); continue
+                        st["fail"][file] = R; st["why"] = why; print("skip", pid, names.get(pid, pid), file, why); continue
                     img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
                     credits[pid] = o["credit"]
                     st.update(v=V, src=file, drop=False); made += was_new; reframed += not was_new
@@ -435,7 +435,7 @@ def main():
                     im0.crop((int(c[0] * W0), int(c[1] * H0), int(c[2] * W0), int(c[3] * H0))).save(buf, "JPEG", quality=95); raw = buf.getvalue()
                 img, why = fr.frame(raw)
                 if why:
-                    st["fail"][file] = R; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
+                    st["fail"][file] = R; st["why"] = why; fails[why.split(" (")[0]] = fails.get(why.split(" (")[0], 0) + 1
                     print("skip", pid, names.get(pid, pid), file[:60], why)
                     continue
                 img.save(f"{cache}/{pid}.{V}.webp", "WEBP", quality=82, method=6)
@@ -451,6 +451,10 @@ def main():
             if all(st["fail"].get(f) == R for f in cand[pid]):  # every candidate judged unusable (not a network error)
                 st["v"] = V
                 st["drop"] = True  # take the old photo down too, rather than show a poor one
+        if pid in redo:
+            st["pick"] = pick_key[pid]
+            ok = st.get("src") == picked[pid] and not st["fail"].get(picked[pid])
+            print(f"photo pick {names.get(pid, pid)}: " + ("used" if ok else f"not usable ({st.get('why', 'error')}), kept {st.get('src') or 'no photo'}"))
     json.dump(credits, open(credits_path, "w"))
     json.dump(state, open(state_path, "w"))
     for pid in credits:  # once re-framed, older cut-outs are no longer needed in the cache
