@@ -102,3 +102,8 @@
 
 
 @media (prefers-reduced-motion: reduce) { .pcard .beam { animation: none; } .pcard .gauge circle.v, .pcard .spark path.ln, .pcard .meter .segs u { transition: none; } }
+/* players with no photo: their initials, big, in their team colour, where the photo would be */
+.pcard .front .photo .pc-init { align-self: center; width: 58%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 80%, #fff 20%), var(--tc) 70%); color: #fff;
+  font: 800 clamp(48px, 16vw, 92px)/1 var(--display, system-ui); letter-spacing: .02em;
+  box-shadow: 0 0 0 4px rgba(226, 182, 74, .45), 0 14px 30px rgba(0, 0, 0, .45); }

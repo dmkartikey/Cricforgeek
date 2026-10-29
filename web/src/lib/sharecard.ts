@@ -58,6 +58,14 @@ export async function cardPng(card: CardData): Promise<Blob | null> {
     fade.addColorStop(0, 'rgba(10,47,36,0)'); fade.addColorStop(1, 'rgba(10,47,36,1)');
     c.fillStyle = fade; c.fillRect(0, 600, W, 166);
     c.restore();
+  } else {
+    // no photo: the player's initials in a big team-coloured circle, as on the card
+    c.save();
+    c.beginPath(); c.arc(W / 2, 470, 230, 0, Math.PI * 2); c.fillStyle = card.colour; c.fill();
+    c.lineWidth = 10; c.strokeStyle = 'rgba(226,182,74,.55)'; c.stroke();
+    c.fillStyle = '#FFFFFF'; c.font = '800 200px Inter, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(card.initials, W / 2, 480);
+    c.restore();
   }
   // tier and rating
   const tier = tierOf(card.rating);

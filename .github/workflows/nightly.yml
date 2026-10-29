@@ -49,7 +49,10 @@ jobs:
         working-directory: pipeline
         env:
           CFG_MEMORY: 8GB
-        run: python -m cricforgeek.build --zip ../all_json.zip --people ../people.csv --work ../work --out ../web/public/data
+        run: |
+          set -o pipefail
+          python -m cricforgeek.build --zip ../all_json.zip --people ../people.csv --work ../work --out ../web/public/data 2>&1 | tee build.log || {
+            tail -n 15 build.log | cut -c1-300 | sed 's/^/::error::build: /'; exit 1; }
 
       # How complete Cricsheet is for each international format and year (from the official match numbers).
       - name: Coverage

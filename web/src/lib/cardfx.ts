@@ -1,7 +1,6 @@
 // @ts-nocheck -- ported as-is from the approved card mockup: DOM building and Web Animations, no app state.
 // The card is plain markup (every value passes through esc) mounted into a container the React component owns.
 import { GLOSSARY as TIPS } from './geek';
-const SIL = `<svg viewBox="0 0 200 260" aria-hidden="true"><path d="M96 20a20 20 0 1 1 0 40a20 20 0 1 1 0-40zM74 68c16-6 30-6 44 0l10 30 34-40 10 8-38 58-6 30 18 104h-22l-18-82h-8l-16 82H56l14-104-6-34-18 10-8-12z" fill="#2E3D63"/></svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const avgP = (rows) => { const v = rows.map((r) => r[2]).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
 function rating(p) {
@@ -38,7 +37,7 @@ function cardHtml(p) {
   const disc = p.role === 'all' ? `<div class="disc"><span>BAT ${Math.round(p.bat.rating ?? avgP(p.bat.meters))}</span><span>BOWL ${Math.round(p.bowl.rating ?? avgP(p.bowl.meters))}</span></div>` : '';
   return `<div class="face front"><span class="beam l"></span><span class="beam r"></span><span class="ring"></span>
       <span class="tier" style="background:${tg}">${tn} · ${esc(p.fmt)}</span><span class="ovr">${r}<small>RATING</small></span>${disc}
-      <div class="photo">${p.photo ? `<img src="${p.photo}" alt="">` : SIL}</div>
+      <div class="photo">${p.photo ? `<img src="${p.photo}" alt="">` : `<span class="pc-init" style="--tc:${esc(p.colour)}">${esc(p.initials)}</span>`}</div>
       <div class="pc-band"><h3>${esc(p.name)}</h3><div class="pc-chips"><span>${esc(p.team)}</span><span class="alt">${esc(p.roleText)}</span></div>
         <div class="trio">${p.trio.map(([l, v]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b></div>`).join('')}</div></div></div>
     <div class="face back"><span class="beam l"></span><span class="beam r"></span>

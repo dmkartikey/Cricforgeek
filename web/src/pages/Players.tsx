@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { usePageMeta } from '../lib/meta';
-import { useData, photoUrl } from '../lib/data';
+import { useData } from '../lib/data';
 import { fullName, norm, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
 import { initials, n0, signed } from '../lib/fmt';
-import { flagCode, flagUrl, badgeColour } from '../lib/teamflags';
+import { flagCode, flagUrl, teamColour } from '../lib/teamflags';
 import { ErrorBox, Loader, Mini, Panel, Seg, TeamMark } from '../components/ui';
 import { Table } from '../components/Table';
 import { ViewBar } from '../components/ViewBar';
@@ -15,28 +15,24 @@ import { ViewBar } from '../components/ViewBar';
 type Row = PlayerRow;
 type BoardRow = [string, string, number, { b?: number; r?: number; w?: number; o?: number; imp?: number; t?: string }];
 const FAM_SHORT: Record<string, string> = { TEST: 'Test', FC: 'FC', ODI: 'ODI', LA: 'List A', T20: 'T20', HUN: '100', MD: 'MD' };
-// team colours for the initials circles when there's no photo
-const TEAM_COLOUR: Record<string, string> = { India: '#1F5AA6', Australia: '#C9A227', England: '#1D3A6E', 'South Africa': '#1E7B4F', 'New Zealand': '#2A2D33',
-  Pakistan: '#1C6B3A', 'Sri Lanka': '#1C4E9E', 'West Indies': '#7A1F35', Bangladesh: '#127A52', Afghanistan: '#1F57A6', Zimbabwe: '#B8322E', Ireland: '#2C8A4A' };
-const teamColour = (t: string) => TEAM_COLOUR[t.replace(/ Women$/, '')] ?? badgeColour(t);
 const TEAMS = ['India', 'Australia', 'England', 'South Africa', 'New Zealand', 'Pakistan', 'Sri Lanka', 'West Indies', 'Bangladesh', 'Afghanistan', 'Zimbabwe', 'Ireland'];
 
-function Avatar({ id, name, team, photo, size = 56 }: { id: string; name: string; team: string; photo: boolean; size?: number }) {
+function Avatar({ name, team, size = 56 }: { name: string; team: string; size?: number }) {
   const code = flagCode(team);
   return (
     <span className="pt-av" style={{ width: size, height: size, ['--tc' as string]: teamColour(team) }}>
-      {photo ? <img src={photoUrl(id)} alt="" loading="lazy" decoding="async" /> : <b>{initials(name)}</b>}
+      <b>{initials(name)}</b>
       {code && <img className="pt-flag" src={flagUrl(code)} alt="" loading="lazy" />}
     </span>
   );
 }
 
-/** A player tile for the grid: photo or initials, full name, team, span, formats and matches. */
-function Tile({ p, photo, fmt }: { p: Row; photo: boolean; fmt: string }) {
+/** A player tile for the grid: initials, full name, team, span, formats and matches. */
+function Tile({ p, fmt }: { p: Row; fmt: string }) {
   const full = fullName(p);
   return (
     <Link to={`/player/${p[0]}`} className="ptile">
-      <Avatar id={p[0]} name={full || p[1]} team={p[4]} photo={photo} />
+      <Avatar name={full || p[1]} team={p[4]} />
       <span className="pt-body">
         <b className="pt-name">{full || p[1]}</b>
         <span className="pt-sub">{full && full !== p[1] ? `${p[1]} · ` : ''}{p[4]}</span>
@@ -50,7 +46,7 @@ function Tile({ p, photo, fmt }: { p: Row; photo: boolean; fmt: string }) {
 }
 
 /** A horizontal row of featured players from one leaderboard. */
-function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; sub: string; rows: BoardRow[]; photos: Record<string, string>; stat: (r: BoardRow) => [string, string]; to?: string; names: Map<string, string> }) {
+function Rail({ title, sub, rows, stat, to, names }: { title: string; sub: string; rows: BoardRow[]; stat: (r: BoardRow) => [string, string]; to?: string; names: Map<string, string> }) {
   if (!rows.length) return null;
   return (
     <section className="rail fade-in">
@@ -60,10 +56,10 @@ function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; su
           const [big, small] = stat(r);
           const team = r[3]?.t ?? '';
           return (
-            <Link key={r[0]} to={`/player/${r[0]}`} className={`rcard${photos[r[0]] ? ' has-photo' : ''}`}>
+            <Link key={r[0]} to={`/player/${r[0]}`} className="rcard">
               <span className="rc-rank">{i + 1}</span>
               <span className="rc-photo">
-                {photos[r[0]] ? <img src={photoUrl(r[0])} alt="" loading="lazy" decoding="async" /> : <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>}
+                <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>
               </span>
               <span className="rc-band">
                 <b className="rc-name" title={r[1]}>{names.get(r[0]) || r[1]}</b>
@@ -81,7 +77,6 @@ function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; su
 export default function Players() {
   const s = useSettings();
   const { data, error } = useData<{ players: Row[] }>('search.json');
-  const photos = useData<Record<string, string>>('photos/index.json').data ?? {};
   const homeIdx = useData<any>('home.json').data;
   const [sp, setSp] = useSearchParams();
   const [q, setQ] = useState(sp.get('q') ?? '');
@@ -141,11 +136,11 @@ export default function Players() {
 
       {browsing && home && (
         <>
-          <Rail title="In form" sub={`Biggest batting impact in ${fl} cricket over the last 365 days.`} rows={board('bat_imp:365')} photos={photos} names={names}
+          <Rail title="In form" sub={`Biggest batting impact in ${fl} cricket over the last 365 days.`} rows={board('bat_imp:365')} names={names}
             stat={(r) => [signed(r[2], 0), `impact · ${n0(r[3]?.r)} runs`]} to="/#leaders" />
-          <Rail title="Taking wickets" sub={`Most wickets in ${fl} cricket over the last 365 days.`} rows={board('bowl_wkts:365')} photos={photos} names={names}
+          <Rail title="Taking wickets" sub={`Most wickets in ${fl} cricket over the last 365 days.`} rows={board('bowl_wkts:365')} names={names}
             stat={(r) => [n0(r[2]), `wickets · ${n0(r[3]?.b)} balls`]} to="/#leaders" />
-          <Rail title="When it matters" sub="Best batting on the balls where the result swings most, last 365 days." rows={board('clutch:365')} photos={photos} names={names}
+          <Rail title="When it matters" sub="Best batting on the balls where the result swings most, last 365 days." rows={board('clutch:365')} names={names}
             stat={(r) => [signed(r[2], 0), 'runs above average under pressure']} />
         </>
       )}
@@ -161,7 +156,7 @@ export default function Players() {
         {!rows.length ? <div className="empty">No players match. Try fewer letters, or switch Active to “Ever”.</div>
           : view === 'grid' ? (
             <div className="ptile-wrap">
-              <div className="ptile-grid">{rows.slice(0, shown).map((p) => <Tile key={p[0]} p={p} photo={!!photos[p[0]]} fmt={s.fmt} />)}</div>
+              <div className="ptile-grid">{rows.slice(0, shown).map((p) => <Tile key={p[0]} p={p} fmt={s.fmt} />)}</div>
               {rows.length > shown && <button type="button" className="btn" onClick={() => setShown(shown + 48)}>Show more ({n0(rows.length - shown)} left)</button>}
             </div>
           ) : (

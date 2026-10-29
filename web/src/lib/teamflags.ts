@@ -130,3 +130,8 @@ export function badgeColour(name: string) {
   for (const ch of name.replace(/ Women$/, '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return HUES[h % HUES.length];
 }
+
+// National colours for initials badges (players with no photo); other teams get their steady badge colour.
+const TEAM_COLOUR: Record<string, string> = { India: '#1F5AA6', Australia: '#C9A227', England: '#1D3A6E', 'South Africa': '#1E7B4F', 'New Zealand': '#2A2D33',
+  Pakistan: '#1C6B3A', 'Sri Lanka': '#1C4E9E', 'West Indies': '#7A1F35', Bangladesh: '#127A52', Afghanistan: '#1F57A6', Zimbabwe: '#B8322E', Ireland: '#2C8A4A' };
+export const teamColour = (t: string) => TEAM_COLOUR[t.replace(/ Women$/, '')] ?? badgeColour(t);

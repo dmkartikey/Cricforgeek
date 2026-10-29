@@ -1,13 +1,15 @@
 // Builds the player card from a player's data file: headline numbers, percentile meters, career curve,
 // matchup notes and the reveal role. Mirrors the approved mockup.
 import { FULL_MEMBERS } from './winline';
+import { teamColour } from './teamflags';
+import { initials } from './fmt';
 
 // [label, value, percentile, glossary key for the tooltip]
 type Meter = [string, string, number, string?];
 type Pane = { hero: [string, string, string][]; meters: Meter[]; year: [string, number][]; phases: [string, number][]; up: string; dn: string; rating: number };
 export type CardData = {
   key: string; id: string; name: string; full: string; fmt: string; role: 'bat' | 'bowl' | 'all'; roleText: string; team: string;
-  span: string; credit: string; photo: string | null; trio: [string, string][]; bat?: Pane; bowl?: Pane; rating: number;
+  span: string; credit: string; photo: string | null; initials: string; colour: string; trio: [string, string][]; bat?: Pane; bowl?: Pane; rating: number;
 };
 
 // Rating weights by format and discipline: what matters most in each. Percentiles are against every qualified
@@ -55,6 +57,7 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
   const d: CardData = {
     key: p.id, id: p.id, name: p.name, full: p.full && p.full !== p.name ? p.full : p.name, fmt: `${gender === 'female' ? "Women's" : "Men's"} ${fk.split('-')[0] === 'TEST' ? 'Tests' : fk.split('-')[0]}`,
     role, roleText, team, span: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : '', credit, photo, trio: [], rating: 0,
+    initials: initials(p.full && p.full !== p.name ? p.full : p.name), colour: teamColour(String((nat ?? teams[0])?.[0] ?? p.name)),
   };
   const phaseName = ['POWERPLAY', 'MIDDLE', 'DEATH'];
   if (pc.bat && s.bat?.b) {

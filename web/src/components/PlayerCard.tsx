@@ -4,11 +4,16 @@ import { buildCard } from '../lib/card';
 import { mountCard } from '../lib/cardfx';
 import '../card.css';
 
-// The player card: shown for players with a free-licence photo (top teams for now). Tap to reveal the stats.
+// The player card, for every player: their photo when there's a free-licence one, else their initials. Tap to reveal the stats.
 export function usePlayerCard(p: any, fk: string) {
   // one of 16 small shards of the photo list (by the first character of the player id)
   const photos = useData<Record<string, string>>(p?.id ? `photos/index-${String(p.id)[0]}.json` : null);
-  return useMemo(() => (p && fk && photos.data && p.id in photos.data ? buildCard(p, fk, photos.data[p.id], photoUrl(p.id)) : null), [p, fk, photos.data]);
+  const ready = !photos.loading;  // wait for the list, so a photo doesn't pop in late
+  return useMemo(() => {
+    if (!p || !fk || !ready) return null;
+    const has = !!photos.data && p.id in photos.data;
+    return buildCard(p, fk, has ? photos.data![p.id] : '', has ? photoUrl(p.id) : null);
+  }, [p, fk, ready, photos.data]);
 }
 
 export default function PlayerCard({ card, back = false, hint = true }: { card: NonNullable<ReturnType<typeof usePlayerCard>>; back?: boolean; hint?: boolean }) {
