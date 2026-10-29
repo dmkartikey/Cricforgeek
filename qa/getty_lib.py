@@ -13,6 +13,7 @@ import duckdb
 
 work, out, cache = sys.argv[1:4]
 LIMIT = int(os.environ.get("GETTY_LIMIT", "70"))
+DEBUG = bool(os.environ.get("GETTY_DEBUG"))
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", "Accept-Language": "en"}
 FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
@@ -56,15 +57,18 @@ def find(name, team):
     # Some collections (ICC and BCCI portrait sessions among them) can't be embedded, so try up to 25 photos:
     # portraits first, but mixed with others, newest first within each kind
     ranked = sorted(cands, reverse=True)
+    if DEBUG: print(f"  getty {name}: {len(cands)} candidates, top {ranked[:6]}")
     port, other = [c for c in ranked if c[0] >= 3], [c for c in ranked if c[0] < 3]
     mixed = [x for pair in zip(port, other) for x in pair] + port[len(other):] + other[len(port):]
     for _, gid in mixed[:25]:
         try:
             oe = json.loads(get("https://embed.gettyimages.com/oembed?" + urllib.parse.urlencode({"url": f"http://gty.im/{gid}", "caption": "false"})))
-        except urllib.error.HTTPError:
+        except urllib.error.HTTPError as e:
+            if DEBUG: print(f"  getty try {gid}: {e.code}")
             time.sleep(0.4); continue  # this photo can't be embedded; try the next
         m_id, m_sig = re.search(r"id:'([^']+)'", oe.get("html", "")), re.search(r"sig:'([^']+)'", oe.get("html", ""))
         if not (m_id and m_sig):
+            if DEBUG: print(f"  getty try {gid}: no id/sig in {oe.get('html', '')[:120]!r}")
             continue
         credit = f"Photo: {oe.get('photographer') or 'Getty Images'} · Getty Images"
         return [m_id.group(1), m_sig.group(1), str(gid), int(oe.get("width") or 594), int(oe.get("height") or 396), credit[:120]]
