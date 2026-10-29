@@ -12,7 +12,8 @@ import json, os, re, sys, time, unicodedata, urllib.error, urllib.parse, urllib.
 import duckdb
 
 work, out, cache = sys.argv[1:4]
-LIMIT = int(os.environ.get("GETTY_LIMIT", "150"))
+LIMIT = int(os.environ.get("GETTY_LIMIT", "70"))
+DEBUG = bool(os.environ.get("GETTY_DEBUG"))
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", "Accept-Language": "en"}
 FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
@@ -41,7 +42,10 @@ def find(name, team):
     seen, cands = set(), []
     for q in (f"{name} cricket portrait", f"{name} cricket"):
         html = get("https://www.gettyimages.com/search/2/image?" + urllib.parse.urlencode({"phrase": q, "family": "editorial", "sort": "best"})).decode("utf-8", "ignore")
-        for slug, gid in re.findall(r'/detail/news-photo/([a-z0-9-]+)/(\d{6,})', html):
+        links = re.findall(r'/detail/news-photo/([a-z0-9-]+)/(\d{6,})', html)
+        if not links and "/detail/" not in html:
+            raise RuntimeError(f"Getty search gave no results page ({len(html)} bytes)")  # blocked or changed: retry another night
+        for slug, gid in links:
             words = slug.split("-")
             if gid in seen or not all(t in words for t in toks):
                 continue  # the caption must name the player
@@ -51,15 +55,30 @@ def find(name, team):
             score = (3 if "portrait" in words or "poses" in words or "headshot" in words else 0) + (1 if set(norm(team)) <= set(words) else 0)
             cands.append((score, int(gid)))
         time.sleep(2)
-        if any(s >= 3 for s, _ in cands):
+        if sum(1 for s, _ in cands) >= 30:
             break
-    for _, gid in sorted(cands, reverse=True)[:8]:  # best score first, newest first within a score
+    # Some collections (ICC and BCCI portrait sessions among them) can't be embedded, so try up to 25 photos:
+    # portraits first, but mixed with others, newest first within each kind
+    ranked = sorted(cands, reverse=True)
+    if DEBUG: print(f"  getty {name}: {len(cands)} candidates, top {ranked[:6]}")
+    port, other = [c for c in ranked if c[0] >= 3], [c for c in ranked if c[0] < 3]
+    mixed = [x for pair in zip(port, other) for x in pair] + port[len(other):] + other[len(port):]
+    failed, tries = [], 0
+    for _, gid in mixed:
+        if any(abs(gid - f) < 30000 for f in failed):
+            continue  # same photo shoot as one that can't be embedded (shoots share their embed setting)
+        tries += 1
+        if tries > 20:
+            break
         try:
             oe = json.loads(get("https://embed.gettyimages.com/oembed?" + urllib.parse.urlencode({"url": f"http://gty.im/{gid}", "caption": "false"})))
-        except urllib.error.HTTPError:
-            time.sleep(1); continue  # this photo can't be embedded; try the next
+        except urllib.error.HTTPError as e:
+            if DEBUG: print(f"  getty try {gid}: {e.code}")
+            failed.append(gid)
+            time.sleep(0.4); continue  # this photo can't be embedded; try the next shoot
         m_id, m_sig = re.search(r"id:'([^']+)'", oe.get("html", "")), re.search(r"sig:'([^']+)'", oe.get("html", ""))
         if not (m_id and m_sig):
+            if DEBUG: print(f"  getty try {gid}: no id/sig in {oe.get('html', '')[:120]!r}")
             continue
         credit = f"Photo: {oe.get('photographer') or 'Getty Images'} · Getty Images"
         return [m_id.group(1), m_sig.group(1), str(gid), int(oe.get("width") or 594), int(oe.get("height") or 396), credit[:120]]
@@ -88,14 +107,15 @@ def full(pid):
 recent = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 30 * 86400))
 looked = errors = 0
 for pid, team, _ in national:
-    if pid in have or (store.get(pid, {}).get("t", "") >= recent):
-        continue
+    st = store.get(pid, {})
+    if pid in have or (st.get("t", "") >= recent and (st.get("e") or st.get("v") == 2)):
+        continue  # found already, or searched lately with this version
     nm = full(pid)
     if not nm or looked >= LIMIT:
         continue
     looked += 1
     try:
-        store[pid] = {"t": time.strftime("%Y-%m-%d"), "e": find(nm, team.replace(" Women", ""))}
+        store[pid] = {"t": time.strftime("%Y-%m-%d"), "e": find(nm, team.replace(" Women", "")), "v": 2}
     except Exception as e:
         errors += 1
         print(f"getty search failed for {nm} ({type(e).__name__} {getattr(e, 'code', '')})")
