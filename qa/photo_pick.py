@@ -107,7 +107,8 @@ for s in range(0, len(report), 8):
         pid = r["players"][0]["id"] if r["players"] else None
         if pid and r["players"][0]["photo"]:
             try:
-                im = Image.open(io.BytesIO(get(f"{site}/data/photos/{pid}.webp"))).convert("RGBA"); im.thumbnail((TW - 8, TH - 20))
+                rawp = get(f"{site}/data/photos/{pid}.webp"); open(f"{out}/onsite-{pid}.webp", "wb").write(rawp)
+                im = Image.open(io.BytesIO(rawp)).convert("RGBA"); im.thumbnail((TW - 8, TH - 20))
                 bg = Image.new("RGBA", im.size, (40, 70, 55, 255)); bg.alpha_composite(im); sheet.paste(bg.convert("RGB"), (4, y + 16))
             except Exception:
                 pass
