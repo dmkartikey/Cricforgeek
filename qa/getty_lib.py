@@ -42,7 +42,10 @@ def find(name, team):
     seen, cands = set(), []
     for q in (f"{name} cricket portrait", f"{name} cricket"):
         html = get("https://www.gettyimages.com/search/2/image?" + urllib.parse.urlencode({"phrase": q, "family": "editorial", "sort": "best"})).decode("utf-8", "ignore")
-        for slug, gid in re.findall(r'/detail/news-photo/([a-z0-9-]+)/(\d{6,})', html):
+        links = re.findall(r'/detail/news-photo/([a-z0-9-]+)/(\d{6,})', html)
+        if not links and "/detail/" not in html:
+            raise RuntimeError(f"Getty search gave no results page ({len(html)} bytes)")  # blocked or changed: retry another night
+        for slug, gid in links:
             words = slug.split("-")
             if gid in seen or not all(t in words for t in toks):
                 continue  # the caption must name the player
