@@ -60,12 +60,19 @@ def find(name, team):
     if DEBUG: print(f"  getty {name}: {len(cands)} candidates, top {ranked[:6]}")
     port, other = [c for c in ranked if c[0] >= 3], [c for c in ranked if c[0] < 3]
     mixed = [x for pair in zip(port, other) for x in pair] + port[len(other):] + other[len(port):]
-    for _, gid in mixed[:25]:
+    failed, tries = [], 0
+    for _, gid in mixed:
+        if any(abs(gid - f) < 30000 for f in failed):
+            continue  # same photo shoot as one that can't be embedded (shoots share their embed setting)
+        tries += 1
+        if tries > 20:
+            break
         try:
             oe = json.loads(get("https://embed.gettyimages.com/oembed?" + urllib.parse.urlencode({"url": f"http://gty.im/{gid}", "caption": "false"})))
         except urllib.error.HTTPError as e:
             if DEBUG: print(f"  getty try {gid}: {e.code}")
-            time.sleep(0.4); continue  # this photo can't be embedded; try the next
+            failed.append(gid)
+            time.sleep(0.4); continue  # this photo can't be embedded; try the next shoot
         m_id, m_sig = re.search(r"id:'([^']+)'", oe.get("html", "")), re.search(r"sig:'([^']+)'", oe.get("html", ""))
         if not (m_id and m_sig):
             if DEBUG: print(f"  getty try {gid}: no id/sig in {oe.get('html', '')[:120]!r}")
