@@ -4,6 +4,7 @@ const fs = require('fs');
   fs.mkdirSync('out', { recursive: true });
   for (const [eng, name] of [[webkit, 'safari'], [chromium, 'chrome']]) {
     const b = await eng.launch(); const ctx = await b.newContext({ ...devices['iPhone 13'] });
+    const vr = await (await fetch('https://cricforgeek.site/version.json?t=' + Date.now())).text(); console.log('::notice::live version.json ' + vr);
     for (const [k, u] of [['abhishek', '/player/f29185a1'], ['kohli', '/player/ba607b88'], ['players', '/players']]) {
       const p = await ctx.newPage(); const errs = [], bad = [];
       p.on('pageerror', (e) => errs.push(e.message.slice(0, 200))); p.on('console', (m) => m.type() === 'error' && errs.push('console: ' + m.text().slice(0, 200)));
