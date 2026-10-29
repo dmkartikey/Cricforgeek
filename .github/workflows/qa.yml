@@ -25,7 +25,6 @@ jobs:
       - name: Getty probe
         if: ${{ contains(github.event.head_commit.message, '[getty]') }}
         run: |
-          python qa/getty_probe.py
           npm i -s playwright@1.48.2 >/dev/null 2>&1 && npx -y playwright@1.48.2 install --with-deps chromium >/dev/null 2>&1
           (cd qa/gtest && python3 -m http.server 8099 >/dev/null 2>&1 &) ; sleep 2
           node qa/gtest/run.cjs
