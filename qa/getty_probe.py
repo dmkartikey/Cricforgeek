@@ -1,13 +1,7 @@
-import os, time, re, urllib.parse
-os.environ["GETTY_DEBUG"] = "1"
-src = open("qa/getty_lib.py").read().split("\ncon = duckdb.connect")[0]
-src = src.replace("work, out, cache = sys.argv[1:4]", "work, out, cache = '.', 'out', 'out'").replace("import duckdb", "")
-g = {}; exec(src, g)
-html = g["get"]("https://www.gettyimages.com/search/2/image?" + urllib.parse.urlencode({"phrase": "Nicholas Pooran cricket", "family": "editorial", "sort": "best"})).decode("utf-8", "ignore")
-print("SEARCH", len(html), html.count("/detail/"), re.sub(r"\s+", " ", html[:400]))
-print("TITLE", re.findall(r"<title>([^<]*)", html)[:1])
-for nm, team in (("Nicholas Pooran", "West Indies"), ("Heinrich Klaasen", "South Africa"), ("Abhishek Sharma", "India"), ("Glenn Phillips", "New Zealand"), ("Mitchell Santner", "New Zealand"), ("Liam Livingstone", "England")):
-    try:
-        e = g["find"](nm, team); print("RESULT", nm, e)
-    except Exception as x:
-        print("ERROR", nm, x)
+import json, urllib.request
+get = lambda p: json.loads(urllib.request.urlopen(f"https://cricforgeek.site/data/{p}", timeout=60).read())
+g, s = get("photos/getty.json"), get("search.json")
+names = {r[0]: r[1] for r in s["players"]}
+print(f"ON SITE {len(g)}:", ", ".join(names.get(k, k) for k in g))
+for k in ("f29185a1", "3241e3fd", "235c2bb6", "0a509d6b", "e4a0deae", "50c6bc2b"):
+    print(names.get(k), "->", "yes" if k in g else "no")
