@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { usePageMeta } from '../lib/meta';
 import { useData, photoUrl } from '../lib/data';
-import GettyPhoto, { useGetty } from '../components/GettyPhoto';
 import { fullName, norm, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
@@ -52,7 +51,6 @@ function Tile({ p, photo, fmt }: { p: Row; photo: boolean; fmt: string }) {
 
 /** A horizontal row of featured players from one leaderboard. */
 function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; sub: string; rows: BoardRow[]; photos: Record<string, string>; stat: (r: BoardRow) => [string, string]; to?: string; names: Map<string, string> }) {
-  const getty = useGetty();
   if (!rows.length) return null;
   return (
     <section className="rail fade-in">
@@ -62,12 +60,10 @@ function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; su
           const [big, small] = stat(r);
           const team = r[3]?.t ?? '';
           return (
-            <Link key={r[0]} to={`/player/${r[0]}`} className={`rcard${photos[r[0]] || getty[r[0]] ? ' has-photo' : ''}`}>
+            <Link key={r[0]} to={`/player/${r[0]}`} className={`rcard${photos[r[0]] ? ' has-photo' : ''}`}>
               <span className="rc-rank">{i + 1}</span>
               <span className="rc-photo">
-                {photos[r[0]] ? <img src={photoUrl(r[0])} alt="" loading="lazy" decoding="async" />
-                  : getty[r[0]] ? <GettyPhoto e={getty[r[0]]} width={168} height={150} />
-                  : <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>}
+                {photos[r[0]] ? <img src={photoUrl(r[0])} alt="" loading="lazy" decoding="async" /> : <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>}
               </span>
               <span className="rc-band">
                 <b className="rc-name" title={r[1]}>{names.get(r[0]) || r[1]}</b>

@@ -104,15 +104,6 @@ jobs:
           # why new photos were skipped: the first few, so a bad source shows up in the run summary
           echo "::notice::photo skips ($(grep -c '^skip' photo.log || true)): $(grep -E '^skip|unavailable|failed' photo.log | head -n 6 | tr '\n' '|' | cut -c1-900)"
 
-      # Getty Images embeds for current internationals with no free-licence photo (Getty's own viewer, non-commercial use).
-      - name: Getty embeds
-        continue-on-error: true
-        timeout-minutes: 25
-        working-directory: pipeline
-        run: |
-          python scripts/getty.py ../work ../web/public/data ../photo-cache 2>&1 | tee getty.log
-          grep -E "^getty" getty.log | tail -n 3 | cut -c1-600 | sed 's/^/::notice::/' || true
-
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"

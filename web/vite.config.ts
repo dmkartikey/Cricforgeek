@@ -6,8 +6,6 @@ import react from '@vitejs/plugin-react';
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  // Getty Images' embedded viewer, for players with no free-licence photo (a frame only: no Getty script on our pages)
-  "frame-src https://embed.gettyimages.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
