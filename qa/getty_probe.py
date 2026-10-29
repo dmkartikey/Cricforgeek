@@ -1,5 +1,8 @@
-import json, urllib.request
-s = json.loads(urllib.request.urlopen("https://cricforgeek.site/data/search.json", timeout=60).read())
-for r in s["players"]:
-    if r[0] in ("d2c2b2d5", "4a8a2e3b", "740742ef", "dbe50b21"):
-        print(r[0], r[1], "->", r[9] if len(r) > 9 else None)
+import json, urllib.parse, urllib.request
+UA = {"User-Agent": "cricforgeek-names/1.0 (https://cricforgeek.site)"}
+vals = '"35320" "28081" "34102" "253802"'
+q = f"""SELECT ?ci ?label ?alt WHERE {{ VALUES ?ci {{ {vals} }} ?p wdt:P2697 ?ci . ?p rdfs:label ?label . FILTER(lang(?label) = "en")
+       OPTIONAL {{ ?p skos:altLabel ?alt . FILTER(lang(?alt) = "en") }} }}"""
+req = urllib.request.Request("https://query.wikidata.org/sparql", data=urllib.parse.urlencode({"query": q, "format": "json"}).encode(), headers={**UA, "Content-Type": "application/x-www-form-urlencoded"})
+rows = json.loads(urllib.request.urlopen(req, timeout=90).read())["results"]["bindings"]
+print(sorted({(b["ci"]["value"], b["label"]["value"]) for b in rows}))
