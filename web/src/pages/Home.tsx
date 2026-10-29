@@ -12,6 +12,7 @@ import { Table } from '../components/Table';
 import Tests from './Tests';
 import { Board as Scoreboard, SbCell } from '../components/Scoreboard';
 import { ViewBar } from '../components/ViewBar';
+import { useFullName } from '../lib/names';
 
 type Stats = { b: number; r: number; o?: number; w?: number; imp: number; wpa: number; xr: number; t: string };
 type Row = [string, string, number, Stats];
@@ -57,6 +58,7 @@ const metaOf = (b: Board, s: Stats) => (b.kind === 'bat'
 
 // One leaderboard with a tab per metric, its own filters, and a list / table switch
 function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board>; keys: string[]; kind: 'bat' | 'bowl'; scopeLabel: string }) {
+  const fullName = useFullName();
   const avail = keys.filter((k) => boards.get(k)?.rows.length);
   const [tab, setTab] = useState(avail[0] ?? '');
   const [top, setTop] = useState<'10' | '25' | '50'>('10');
@@ -85,7 +87,7 @@ function Leaders({ boards, keys, kind, scopeLabel }: { boards: Map<string, Board
       {view === 'list'
         ? <RankList unit={unitText(b)} base={baseOf(b)} rows={rows.map((r) => ({ id: r[0], name: r[1], meta: metaOf(b, r[3]), value: barVal(b, r[2], rows[0]?.[2] ?? 1), text: fmtBoard(b, r[2]), href: `/player/${r[0]}` }))} />
         : <Table rank rows={rows} cols={[
-            { key: 'n', label: kind === 'bat' ? 'Batter' : 'Bowler', left: true, sortable: false, get: (r: Row) => r[1], fmt: (v, r: Row) => <Link className="link" to={`/player/${r[0]}`}>{v}</Link> },
+            { key: 'n', label: kind === 'bat' ? 'Batter' : 'Bowler', left: true, sortable: false, get: (r: Row) => r[1], fmt: (v, r: Row) => <Link className="link" to={`/player/${r[0]}`}>{fullName(r[0], v)}</Link> },
             { key: 't', label: 'Team', left: true, get: (r: Row) => r[3].t },
             { key: 'v', label: SHORT[b.metric] ?? 'Value', get: (r: Row) => r[2], fmt: (v) => <b>{fmtBoard(b, v)}</b> },
             { key: 'b', label: 'Balls', get: (r: Row) => r[3].b, fmt: n0 },

@@ -3,7 +3,7 @@ import { usePageMeta } from '../lib/meta';
 import { Link, useSearchParams } from 'react-router-dom';
 import { load, useData } from '../lib/data';
 import { fullName, searchPlayers, type PlayerRow } from '../lib/nameSearch';
-import { useSettings } from '../lib/settings';
+import { FMTS, useSettings } from '../lib/settings';
 import { bat, bowl, batSplit, bowlSplit, ok, SplitRow } from '../lib/stats';
 import { d1, d2, n0, pct, signed } from '../lib/fmt';
 import { FAM_LABEL, MULTI, PHASES } from '../lib/labels';
@@ -12,6 +12,7 @@ import { LineChart, MultiBars, Scatter } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
 import { eraBaseline } from '../lib/geek';
 import { ViewBar } from '../components/ViewBar';
+import { useFullName } from '../lib/names';
 
 type P = any;
 
@@ -44,6 +45,7 @@ function Picker({ onPick, exclude }: { onPick: (id: string) => void; exclude: st
 }
 
 export default function Compare() {
+  const displayName = useFullName();
   usePageMeta('Compare players');
   const s = useSettings();
   const [sp, setSp] = useSearchParams();
@@ -66,6 +68,21 @@ export default function Compare() {
   const list = ids.map((id, i) => ({ id, p: players[id], color: SERIES[i] })).filter((x) => x.p);
   const has = list.filter((x) => (x.p.summary?.[fk]?.[role]?.b ?? 0) > 0);
   const missing = list.filter((x) => !has.includes(x));
+  // nobody has the chosen format (the choice carried over from another page): switch to the format these players
+  // have played the most of together, and say so
+  const [switched, setSwitched] = useState<string | null>(null);
+  useEffect(() => {
+    if (!list.length || list.length < ids.length || has.length) return;
+    const score = new Map<string, number>();
+    for (const x of list) for (const [k, v] of Object.entries<any>(x.p.summary ?? {})) {
+      const b = v?.[role]?.b ?? 0;
+      if (b > 0) score.set(k, (score.get(k) ?? 0) + Math.min(b, 20000) + 1e6);  // shared formats first, then most balls
+    }
+    const best = [...score.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!best) return;
+    const [f, g] = best[0].split('-');
+    if (FMTS.some((x) => x.k === f)) { s.set({ fmt: f as any, gender: g as any }); setSwitched(`${FMTS.find((x) => x.k === f)?.l} · ${g === 'male' ? 'men' : 'women'}`); }
+  }, [list.length, ids.length, has.length, role, fk]); // eslint-disable-line
 
   // years every selected player was active in (for same-period mode)
   const yearRows = (p: P) => (p.splits?.[fk]?.[role]?.year ?? []) as SplitRow[];
@@ -167,7 +184,7 @@ export default function Compare() {
           return (
             <div key={id} className="cmp-slot fade-in" style={{ ['--c' as string]: SERIES[i] }}>
               <button type="button" className="icon-btn x" aria-label="Remove" onClick={() => setIds(ids.filter((x) => x !== id))}>×</button>
-              <Link className="t" to={`/player/${id}`}>{p?.name ?? '…'}</Link>
+              <Link className="t" to={`/player/${id}`}>{p ? displayName(id, p.name) : '…'}</Link>
               <span className="muted" style={{ fontSize: 12 }}>{p?.teams?.[0]?.[0] ?? ''}</span>
               <span className="mono" style={{ fontSize: 12 }}>{sm ? (role === 'bat' ? `${n0(sm.r)} runs · ${n0(sm.b)} balls` : `${n0(sm.w)} wkts · ${n0(sm.b)} balls`) : p ? `No ${FAM_LABEL[s.fmt]} ${role === 'bat' ? 'batting' : 'bowling'}` : ''}</span>
             </div>
@@ -182,7 +199,8 @@ export default function Compare() {
         <div className="notice info">Search for a player above to start. Try <Link className="link" to="/compare?p=ba607b88,740742ef">Kohli and Rohit Sharma</Link>{' '}
           or <Link className="link" to="/compare?p=462411b3,9d430b40&r=bowl">Bumrah and Narine</Link>.</div>
       )}
-      {missing.length > 0 && <div className="notice">{missing.map((x) => x.p.name).join(', ')} {missing.length > 1 ? 'have' : 'has'} no {FAM_LABEL[s.fmt]} {role === 'bat' ? 'batting' : 'bowling'} in the data. Change the format above.</div>}
+      {switched && has.length > 0 && <div className="notice">Showing {switched}: the format these players have played most together.</div>}
+      {missing.length > 0 && <div className="notice">{missing.map((x) => displayName(x.id, x.p.name)).join(', ')} {missing.length > 1 ? 'have' : 'has'} no {FAM_LABEL[s.fmt]} {role === 'bat' ? 'batting' : 'bowling'} in the data. Change the format above.</div>}
       {mode === 'same' && has.length >= 2 && (!common || !common.length) && <div className="notice">These players never shared a season with 30+ balls each, so this shows whole careers.</div>}
       {same && <div className="notice info">Same years: {common![0]}–{common![common!.length - 1]} ({common!.length} seasons). Summary, table and yearly chart use only those years. Phase, pace/spin and pitch maps cover whole careers.</div>}
 

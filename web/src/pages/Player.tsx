@@ -55,16 +55,18 @@ function StatBand({ hero, groups, metrics, onDrill, plate }: { plate: string; he
 import { Columns, HBars, LineChart, PctBars } from '../components/charts';
 import { PitchMap } from '../components/PitchMap';
 import { Table } from '../components/Table';
+import { useFullName } from '../lib/names';
 
 const pretty = (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const teamKey = (team: string, gender: string) => team.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) + (gender === 'female' ? '-women' : '');
 const phaseShort = (fam: string, k: string) => (PHASES[fam] ?? PHASES.T20)[+k].split(' (')[0];
 
 export default function Player() {
+  const fullName = useFullName();
   const { id } = useParams();
   const { data: p, error } = useData<any>(`players/${id}.json`);
   const st = useSettings();
-  usePageMeta(p ? `${p.name} stats` : null);
+  usePageMeta(p ? `${fullName(p.id, p.name)} stats` : null);
   const meta = useData<any>('meta.json').data;
   // the pitch-map baseline is only needed on the Dismissals tab
   const zbase = useData<any>(new URLSearchParams(location.search).get('tab') === 'dismissals' ? 'zbase.json' : null).data;
@@ -99,8 +101,8 @@ export default function Player() {
         <div className="avatar" aria-hidden="true">{initials(p.name)}</div>
         <div className="stack" style={{ gap: 6 }}>
           <div className="eyebrow">Player profile</div>
-          <h1>{p.name}</h1>
-          <div className="sub">{[p.full !== p.name ? p.full : null, STYLE[p.bat], STYLE[p.bowl]].filter(Boolean).join(' · ') || 'Style not recorded'}</div>
+          <h1>{fullName(p.id, p.name)}</h1>
+          <div className="sub">{[fullName(p.id, p.name) !== p.name ? p.name : p.full !== p.name ? p.full : null, STYLE[p.bat], STYLE[p.bowl]].filter(Boolean).join(' · ') || 'Style not recorded'}</div>
           <div className="chips">{(p.teams ?? []).slice(0, 6).map((t: any) => <Link key={t[0] + t[1]} className="tag" to={`/team/${teamKey(t[0], t[1])}`}>{t[0]} <span className="muted mono">{t[2]}–{t[3]}</span></Link>)}</div>
           <p className="muted" style={{ margin: 0 }}>Played {n0((p.teams ?? []).reduce((a: number, t: any) => a + (t[4] ?? 0), 0))} recorded matches but never batted or bowled in them, so there are no stats to show.</p>
         </div>
@@ -126,8 +128,8 @@ export default function Player() {
           {!card && <div className="avatar" aria-hidden="true">{initials(p.name)}</div>}
           <div className="stack" style={{ gap: 6 }}>
             <div className="eyebrow">Player profile</div>
-            <h1>{p.name}</h1>
-            <div className="sub">{[p.full !== p.name ? p.full : null, STYLE[p.bat], STYLE[p.bowl]].filter(Boolean).join(' · ') || 'Style not recorded'}</div>
+            <h1>{fullName(p.id, p.name)}</h1>
+            <div className="sub">{[fullName(p.id, p.name) !== p.name ? p.name : p.full !== p.name ? p.full : null, STYLE[p.bat], STYLE[p.bowl]].filter(Boolean).join(' · ') || 'Style not recorded'}</div>
             <div className="chips">
               {teams.slice(0, 6).map((t) => (
                 <Link key={t[0] + t[1]} className="tag" to={`/team/${teamKey(t[0], t[1])}`}>{t[0]} <span className="muted mono">{t[2]}–{t[3]}</span></Link>
@@ -218,6 +220,7 @@ function useYears(p: any, fk: string, role: 'bat' | 'bowl', comp: string) {
 const yLabel = (k: string) => (/^\d{4}$/.test(k) ? `'${k.slice(2)}` : k.replace(/^20(\d\d)\/(\d\d)$/, '$1/$2'));
 
 function Batting({ p, fk, fam, cfg, zb, card, tab }: Ctx) {
+  const fullName = useFullName();
   const s = bat(p.summary[fk].bat);
   const adjAvg = p.summary[fk].bat.adj_r != null && s.o ? p.summary[fk].bat.adj_r / s.o : null;
   const sp = p.splits?.[fk]?.bat ?? {};
@@ -381,7 +384,7 @@ function Batting({ p, fk, fam, cfg, zb, card, tab }: Ctx) {
             <Mini label="Min balls" value={muMin} onChange={setMuMin} options={[['6', '6'], ['30', '30'], ['60', '60']]} />
           </>}>
           <Table rows={mus} sort="b" limit={10} empty="No bowler matches." cols={[
-            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'b', label: 'Balls', get: (x: any) => x[2] },
             { key: 'r', label: 'Runs', get: (x: any) => x[3] },
             { key: 'o', label: 'Outs', get: (x: any) => x[4] },
@@ -463,6 +466,7 @@ function OppVenue({ rows, ov, setOv, kind }: { rows: any[]; ov: 'opp' | 'venue';
 }
 
 function Bowling({ p, fk, fam, cfg, zb, tab }: Ctx) {
+  const fullName = useFullName();
   const s = bowl(p.summary[fk].bowl);
   const adjAvg = p.summary[fk].bowl.adj_r != null && s.w ? p.summary[fk].bowl.adj_r / s.w : null;
   const sp = p.splits?.[fk]?.bowl ?? {};
@@ -602,7 +606,7 @@ function Bowling({ p, fk, fam, cfg, zb, tab }: Ctx) {
             <Mini label="Min balls" value={muMin} onChange={setMuMin} options={[['6', '6'], ['30', '30'], ['60', '60']]} />
           </>}>
           <Table rows={mus} sort="b" limit={10} empty="No batter matches." cols={[
-            { key: 'n', label: 'Batter', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Batter', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'b', label: 'Balls', get: (x: any) => x[2] },
             { key: 'r', label: 'Runs', get: (x: any) => x[3] },
             { key: 'o', label: 'Wkts', get: (x: any) => x[4] },

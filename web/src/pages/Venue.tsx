@@ -10,11 +10,13 @@ import { ErrorBox, InfoTip, Loader, Panel, SectionHead, Seg } from '../component
 import { Columns, HBars } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, SbCell } from '../components/Scoreboard';
+import { useFullName } from '../lib/names';
 
 // venues/{key}.json: info, recent matches, and per format-gender: sum (results, toss, first-innings scores),
 // inns (by innings number), type (pace/spin wickets), phase (limited overs), days (estimated Test days),
 // bat/bowl leaders, highest totals and best chases.
 export default function Venue() {
+  const fullName = useFullName();
   const { key } = useParams();
   const { data: v, error } = useData<any>(`venues/${key}.json`);
   const st = useSettings();
@@ -105,7 +107,7 @@ export default function Venue() {
       <div className="grid g2">
         <Panel flush title="Top batters">
           <Table rows={f.bat ?? []} sort="r" cols={[
-            { key: 'n', label: 'Batter', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Batter', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'i', label: 'Inns', get: (x: any) => x[2] },
             { key: 'r', label: 'Runs', get: (x: any) => x[3], fmt: n0 },
             { key: 'a', label: 'Avg', get: (x: any) => (x[5] ? x[3] / x[5] : NaN), fmt: d1 },
@@ -115,7 +117,7 @@ export default function Venue() {
         </Panel>
         <Panel flush title="Top bowlers">
           <Table rows={f.bowl ?? []} sort="w" cols={[
-            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Bowler', left: true, get: (x: any) => x[1], fmt: (v, x: any) => <Link to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'i', label: 'Inns', get: (x: any) => x[2] },
             { key: 'w', label: 'Wkts', get: (x: any) => x[3] },
             { key: 'a', label: 'Avg', get: (x: any) => (x[3] ? x[5] / x[3] : NaN), fmt: d1 },

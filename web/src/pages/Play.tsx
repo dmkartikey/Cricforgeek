@@ -4,6 +4,7 @@ import { useData, photoUrl } from '../lib/data';
 import { usePageMeta } from '../lib/meta';
 import { initials } from '../lib/fmt';
 import { Loader, Seg } from '../components/ui';
+import { useFullName } from '../lib/names';
 
 // deck/{fmt}-{gender}.json rows, internationals only, full-member players:
 // [id, name, team, matches, first, last, runs, bat avg, SR, 100s, 50s, 6s, HS, wkts, econ, bowl avg, best, 5w, impact]
@@ -29,19 +30,20 @@ function cmp(a: Card, b: Card, s: Stat) {
 }
 
 function GameCard({ c, photo, hidden, pick, chosen, result, fmt }: { c: Card; photo?: boolean; hidden?: boolean; pick?: (s: Stat) => void; chosen?: Stat | null; result?: number; fmt: string }) {
+  const fullName = useFullName();
   if (hidden) return <div className="gcard back" aria-label="Opponent's card, face down"><span className="gc-ball" /><b>cricforgeek</b></div>;
   return (
     <div className={`gcard${result === 1 ? ' won' : result === -1 ? ' lost' : ''}`}>
       <div className="gc-top">
         <div className="gc-photo">{photo ? <img src={photoUrl(c[0])} alt="" /> : <span>{initials(c[1])}</span>}</div>
-        <div className="gc-id"><b>{c[1]}</b><span>{c[2]} · {fmt} · {c[4]}–{c[5]}</span></div>
+        <div className="gc-id"><b>{fullName(c[0], c[1])}</b><span>{c[2]} · {fmt} · {c[4]}–{c[5]}</span></div>
       </div>
       <div className="gc-stats">
         {STATS.map((s) => {
           const v = val(c, s);
           return (
             <button key={s.k} type="button" disabled={!pick} onClick={() => pick?.(s)} className={chosen?.k === s.k ? 'on' : ''}>
-              <span>{s.l}{s.low ? <><small className="lw"> lower wins</small><small className="lw-i" title="Lower wins"> ↓</small></> : null}</span><b>{v == null ? '–' : s.f ? s.f(v) : v.toLocaleString('en-IN')}</b>
+              <span>{s.l}{s.low ? <><small className="lw"> lower wins</small><small className="lw-i" title="Lower wins"> ↓</small></> : null}</span><b>{v == null ? '–' : s.f ? s.f(v) : v.toLocaleString('en-GB')}</b>
             </button>
           );
         })}

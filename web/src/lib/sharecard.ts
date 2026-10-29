@@ -73,6 +73,9 @@ export async function cardPng(card: CardData): Promise<Blob | null> {
   rr(c, 110, 110, 330, 64, 32); c.fill();
   c.fillStyle = '#0B2A20'; c.font = '800 28px Inter, system-ui, sans-serif'; c.textBaseline = 'middle';
   c.fillText(`${tier} · ${card.fmt.toUpperCase()}`.slice(0, 22), 134, 143);
+  if (card.partial) {  // say the record is incomplete on the shared image too
+    c.font = '700 24px Inter, system-ui, sans-serif'; c.fillStyle = 'rgba(246,241,225,.85)'; c.fillText(card.partial.toUpperCase(), 112, 206);
+  }
   c.fillStyle = '#F6F1E1'; c.textAlign = 'right'; c.font = '900 150px Inter, system-ui, sans-serif'; c.textBaseline = 'alphabetic';
   c.fillText(String(card.rating), W - 110, 250);
   c.font = '700 26px Inter, system-ui, sans-serif'; c.fillStyle = 'rgba(246,241,225,.7)'; c.fillText('RATING', W - 112, 290);

@@ -6,6 +6,7 @@ import { useSettings } from '../lib/settings';
 import { d2, dateShort, n0, overs } from '../lib/fmt';
 import { ErrorBox, JumpLinks, Loader, Panel, SectionHead, Seg } from '../components/ui';
 import { Table, type Col } from '../components/Table';
+import { useFullName } from '../lib/names';
 
 // records/{fmt}-{gender}[-fm].json: lists of rows (column order noted on each table below) and a names map.
 function T({ title, sub, rows, cols, id }: { title: string; sub?: string; rows?: any[]; cols: Col<any>[]; id?: string }) {
@@ -15,13 +16,14 @@ function T({ title, sub, rows, cols, id }: { title: string; sub?: string; rows?:
 const FMTS: [string, string][] = [['TEST', 'Tests'], ['ODI', 'ODIs'], ['T20', 'T20Is']];
 
 export default function Records() {
+  const fullName = useFullName();
   usePageMeta('Cricket records and oddities');
   const st = useSettings();
   const [fmt, setFmt] = useState<string>(['TEST', 'ODI', 'T20'].includes(st.fmt) ? st.fmt : 'ODI');
   const [g, setG] = useState<string>(st.gender);
   const [fm, setFm] = useState<'fm' | 'all'>('fm');
   const { data: R, error } = useData<any>(`records/${fmt}-${g}${fm === 'fm' ? '-fm' : ''}.json`);
-  const nm = (p: string) => R?.names?.[p] ?? p;
+  const nm = (p: string) => fullName(p, R?.names?.[p] ?? p);
   const P = (p: string) => <Link to={`/player/${p}`}>{nm(p)}</Link>;
   const M = (id: string, text: string) => <Link to={`/match/${id}`}>{text}</Link>;
   const D: Col<any> = { key: 'd', label: 'Date', left: true, get: (x) => x[1], fmt: (v) => dateShort(String(v)) };

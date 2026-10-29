@@ -17,7 +17,7 @@ function spark(series, label, unit) {
   const pts = series.map((s, i) => [series.length > 1 ? (i / (series.length - 1)) * W : W / 2, H - (s[1] / max) * (H - 3) - 1.5]);
   const d = pts.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' ');
   const pk = series.reduce((a, s) => (s[1] > a[1] ? s : a), series[0]); const pi = series.indexOf(pk);
-  return `<div class="spark"><span class="t">${esc(label)} by year</span><span class="pk">Peak ${esc(pk[1].toLocaleString('en'))} ${unit} · ${esc(pk[0])}</span>
+  return `<div class="spark"><span class="t">${esc(label)} by year</span><span class="pk">Peak ${esc(pk[1].toLocaleString('en-GB'))} ${unit} · ${esc(pk[0])}</span>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="${esc(label)} by year"><path d="${d} L${W},${H} L0,${H} Z" fill="rgba(143,224,176,.14)"/>
     <path class="ln" d="${d}" pathLength="1" fill="none" stroke="#8FE0B0" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
     <circle cx="${pts[pi][0]}" cy="${pts[pi][1]}" r="1.8" fill="#E2B64A"/></svg></div>`;
@@ -36,7 +36,7 @@ function cardHtml(p) {
   const main = p.role === 'bowl' ? p.bowl : p.bat;
   const disc = p.role === 'all' ? `<div class="disc"><span>BAT ${Math.round(p.bat.rating ?? avgP(p.bat.meters))}</span><span>BOWL ${Math.round(p.bowl.rating ?? avgP(p.bowl.meters))}</span></div>` : '';
   return `<div class="face front"><span class="beam l"></span><span class="beam r"></span><span class="ring"></span>
-      <span class="tier" style="background:${tg}">${tn} · ${esc(p.fmt)}</span><span class="ovr">${r}<small>RATING</small></span>${disc}
+      <span class="tier" style="background:${tg}">${tn} · ${esc(p.fmt)}</span>${p.partial ? `<span class="pc-partial" title="Ball-by-ball records don't cover this player's whole career, so totals are short of the official record">${esc(p.partial)}</span>` : ''}<span class="ovr">${r}<small>RATING</small></span>${disc}
       <div class="photo">${p.photo ? `<img src="${p.photo}" alt="">` : `<span class="pc-init" style="--tc:${esc(p.colour)}">${esc(p.initials)}</span>`}</div>
       <div class="pc-band"><h3>${esc(p.name)}</h3><div class="pc-chips"><span>${esc(p.team)}</span><span class="alt">${esc(p.roleText)}</span></div>
         <div class="trio">${p.trio.map(([l, v]) => `<div><small>${esc(l)}</small><b>${esc(v)}</b></div>`).join('')}</div></div></div>

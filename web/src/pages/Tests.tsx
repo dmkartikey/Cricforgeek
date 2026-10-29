@@ -5,6 +5,7 @@ import { d1, n0, pct, signed } from '../lib/fmt';
 import { CountUp, ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, SectionHead, Tiles } from '../components/ui';
 import { Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
+import { useFullName } from '../lib/names';
 
 type T = {
   yearly: { year: number; p: number; dec: number; d: number; t: number; hw: number; aw: number; rpw: number; rpo: number; pace_share: number; dot_pct: number }[];
@@ -25,6 +26,7 @@ const BANDS: [string, number, number][] = [['< 150', 0, 149], ['150–199', 150,
 const INN_NAME = ['', '1st innings', '2nd innings', '3rd innings', '4th innings'];
 
 export default function Tests({ gender: g }: { gender: 'male' | 'female' }) {
+  const fullName = useFullName();
   const { data: t, error } = useData<T>(`tests/${g}.json`);
   const [era, setEra] = useState('all');
   const [ym, setYm] = useState<'res' | 'rpw' | 'pace' | 'dot'>('res');
@@ -212,7 +214,7 @@ export default function Tests({ gender: g }: { gender: 'male' | 'female' }) {
         <div className="lb stagger" key={li + lr}>
           {lead.map((x, i) => (
             <Link key={x[0]} to={`/player/${x[0]}`} className={`lb-row ${i === 0 ? 'first' : ''}`}>
-              <span className="lb-rank">{i + 1}</span><span className="lb-name">{x[1]}</span>
+              <span className="lb-rank">{i + 1}</span><span className="lb-name">{fullName(x[0], x[1])}</span>
               <span className="lb-val">{signed(x[2].imp, 0)}</span>
               <span className="lb-meta">{lr === 'bat' ? `${n0(x[2].r)} runs · ${n0(x[2].i)} inns · avg ${d1(x[2].r / Math.max(1, x[2].o))}` : `${n0(x[2].w)} wkts · ${n0(x[2].i)} inns · avg ${d1(x[2].r / Math.max(1, x[2].w))}`}</span>
             </Link>

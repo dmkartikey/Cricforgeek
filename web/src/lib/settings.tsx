@@ -20,8 +20,9 @@ type Ctx = S & { set: (p: Partial<S>) => void };
 const C = createContext<Ctx | null>(null);
 const KEY = 'cfg.settings.v3';
 
+export const DEFAULT_VIEW = { fmt: 'T20' as Fmt, gender: 'male' as Gender, level: 'top' as Level };
 const read = (): S => {
-  const d: S = { fmt: 'T20', gender: 'male', level: 'top', theme: 'light' };
+  const d: S = { ...DEFAULT_VIEW, theme: 'light' };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) return { ...d, ...JSON.parse(raw) };

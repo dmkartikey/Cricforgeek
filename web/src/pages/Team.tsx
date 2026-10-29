@@ -10,11 +10,13 @@ import { ErrorBox, Legend, Loader, Mini, MiniSelect, Panel, RankList, SectionHea
 import { Butterfly, Columns, HBars, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, SbCell } from '../components/Scoreboard';
+import { useFullName } from '../lib/names';
 
 const ORDER = ['TEST', 'ODI', 'T20', 'FC', 'LA', 'HUN'];
 const pretty = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function Team() {
+  const fullName = useFullName();
   const { key } = useParams();
   const st = useSettings();
   const { data: t, error } = useData<any>(`teams/${key}.json`);
@@ -188,17 +190,17 @@ export default function Team() {
               meta: lb === 'bat' ? `${n0(x[2])} runs · avg ${d1(x[2] / Math.max(1, x[6]))} · SR ${d1((100 * x[2]) / Math.max(1, x[3]))}`
                 : lb === 'bowl' ? `${n0(x[2])} wkts · econ ${d2((6 * x[6]) / Math.max(1, x[3]))} · avg ${d1(x[6] / Math.max(1, x[2]))}` : `${x[3]}–${x[4]}` }))} />
           <Table key={'t' + lb} rank limit={15} rows={(lb === 'bat' ? t.top_bat?.[fam] ?? [] : lb === 'bowl' ? t.top_bowl?.[fam] ?? [] : t.caps?.[fam] ?? [])} cols={lb === 'bat' ? [
-            { key: 'n', label: 'Batter', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Batter', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'i', label: 'Inns', get: (x: any) => x[5] }, { key: 'r', label: 'Runs', get: (x: any) => x[2], fmt: n0 },
             { key: 'a', label: 'Avg', get: (x: any) => x[2] / Math.max(1, x[6]), fmt: d1 }, { key: 'sr', label: 'SR', get: (x: any) => (100 * x[2]) / Math.max(1, x[3]), fmt: d1 },
             { key: 'imp', label: 'Impact', get: (x: any) => x[4], fmt: (v) => signed(v, 0) },
           ] : lb === 'bowl' ? [
-            { key: 'n', label: 'Bowler', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Bowler', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'i', label: 'Inns', get: (x: any) => x[5] }, { key: 'w', label: 'Wkts', get: (x: any) => x[2] },
             { key: 'e', label: 'Econ', get: (x: any) => (6 * x[6]) / Math.max(1, x[3]), fmt: d2 }, { key: 'a', label: 'Avg', get: (x: any) => x[6] / Math.max(1, x[2]), fmt: d1 },
             { key: 'imp', label: 'Impact', get: (x: any) => x[4], fmt: (v) => signed(v, 0) },
           ] : [
-            { key: 'n', label: 'Player', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{v}</Link> },
+            { key: 'n', label: 'Player', left: true, sortable: false, get: (x: any) => x[1], fmt: (v, x: any) => <Link className="link" to={`/player/${x[0]}`}>{fullName(x[0], v)}</Link> },
             { key: 'm', label: 'Matches', get: (x: any) => x[2] }, { key: 's', label: 'Span', get: (x: any) => `${x[3]}–${x[4]}`, sortable: false },
           ]} />
         </div>

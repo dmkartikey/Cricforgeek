@@ -1244,3 +1244,38 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .checks small { font-size: 12px; color: var(--muted); }
 .cov-note { font-size: 13px; }
 
+
+/* "Showing The Hundred · Women  Reset ✕": the remembered format choice, with a one-tap way back */
+.vb-chip { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); }
+.vb-chip b { color: var(--text); }
+.vb-chip button { border: 1px solid var(--line-2); background: var(--surface); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.vb-chip button:hover { border-color: var(--accent); }
+
+/* ---------- phones: nothing hidden off the side without a hint ---------- */
+@media (max-width: 760px) {
+  /* format bar: every format visible in a grid, and it scrolls away with the page instead of covering a third of it */
+  .viewbar { position: static; }
+  .vb-fmts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; width: 100%; }
+  .vb-fmts button { padding: 6px 8px; }
+  /* player page tabs wrap onto two lines instead of running off the edge */
+  .ptabs-list { flex-wrap: wrap; overflow: visible; }
+  .ptabs { position: static; }
+  /* tables: the player (or first) column stays put while the numbers scroll, with a shadow showing there's more */
+  .tbl .rank { position: sticky; left: 0; z-index: 2; background: var(--surface); min-width: 34px; width: 34px; padding-left: 10px; padding-right: 4px; }
+  .tbl tr > .rank + .left, .tbl tr > .left:first-child { position: sticky; z-index: 2; background: var(--surface); box-shadow: 6px 0 8px -6px rgba(0, 0, 0, .22); }
+  .tbl tr > .rank + .left { left: 34px; }
+  .tbl tr > .left:first-child { left: 0; }
+  .tbl thead .rank, .tbl thead .rank + .left, .tbl thead .left:first-child { z-index: 3; }
+}
+.tbl-wrap, .sc-scroll {
+  background: linear-gradient(to left, var(--surface) 40%, transparent) right / 24px 100% no-repeat local,
+              radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, .16), transparent) right / 12px 100% no-repeat scroll;
+}
+
+/* partial-record warning at the top of a player's stats */
+.cov-note.partial { border-color: #C2552F; background: color-mix(in srgb, #C2552F 10%, var(--surface)); }
+.cov-badge { display: inline-block; margin-right: 6px; padding: 2px 9px; border-radius: 999px; background: #A0281E; color: #FFF; font: 700 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+
+/* Grounds list on phones: the city under each ground's name ("County Ground" alone could be any of six) */
+.vn-city { display: none; }
+@media (max-width: 760px) { .vn-city { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; } }

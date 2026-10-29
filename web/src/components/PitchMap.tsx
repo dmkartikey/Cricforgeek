@@ -234,7 +234,7 @@ export function PitchMap({ role, zc, base, cfg, fam, hand, btype, compact }: {
             </div>
           )}
           <div className="muted" style={{ fontSize: 12 }}>
-            {g.outs} {bat ? 'dismissals' : 'wickets'} in {g.balls.toLocaleString()} balls{lefty ? ' · mirrored for a left-hander' : ''} · viewed from the bowler's end.
+            {g.outs} {bat ? 'dismissals' : 'wickets'} in {g.balls.toLocaleString('en-GB')} balls{lefty ? ' · mirrored for a left-hander' : ''} · viewed from the bowler's end.
           </div>
         </div>
       </div>

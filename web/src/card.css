@@ -107,3 +107,6 @@
   background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 80%, #fff 20%), var(--tc) 70%); color: #fff;
   font: 800 clamp(48px, 16vw, 92px)/1 var(--display, system-ui); letter-spacing: .02em;
   box-shadow: 0 0 0 4px rgba(226, 182, 74, .45), 0 14px 30px rgba(0, 0, 0, .45); }
+/* the record doesn't cover the whole career (e.g. Tests before 2001): said on the card itself */
+.pcard .front .pc-partial { position: absolute; top: 12.5cqw; left: 4.5cqw; z-index: 4; font: 700 2.6cqw var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  padding: 1cqw 2.4cqw; border-radius: 999px; color: #F6F1E1; background: rgba(160, 40, 30, .82); border: 1px solid rgba(255, 210, 170, .45); }

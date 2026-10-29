@@ -77,6 +77,9 @@ const teamKey = (team, gender) => team.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 // ---------- shared data ----------
 const meta = J('meta.json');
 const search = J('search.json');
+// everyday full names ("Virat Kohli"), written by the nightly full-names step; scorecard names when missing
+let FULLN = {}; try { FULLN = J('names.json'); } catch { /* not built yet */ }
+const fullOf = (id, name) => FULLN[id] || name;
 const compIdx = has('comps/index.json') ? J('comps/index.json') : meta.comps;
 const compLabel = Object.fromEntries(compIdx.map((c) => [c.key, c.label]));
 const teamIdx = has('teams/index.json') ? J('teams/index.json') : [];
@@ -94,10 +97,10 @@ page('/', {
     { '@type': 'Dataset', name: 'cricforgeek ball-by-ball cricket statistics', description: 'Player, team and match statistics derived from Cricsheet ball-by-ball data.', url: SITE + '/',
       license: 'https://opendatacommons.org/licenses/by/1-0/', isBasedOn: 'https://cricsheet.org', dateModified: dataTo },
   ] },
-  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards, records and ground pages for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${p[1]} (${p[4]})`]))}`,
+  body: `<h1>Ball-by-ball cricket stats for geeks</h1><p>Impact, win probability, inferred pitch maps, full scorecards, records and ground pages for ${n0(meta.counts.matches)} matches and ${n0(meta.counts.players)} players, updated every night from Cricsheet. Data to ${esc(dateLong(dataTo))}.</p><h2>Most-capped players</h2>${linkList(topPlayers.slice(0, 30).map((p) => [`/player/${p[0]}`, `${fullOf(p[0], p[1])} (${p[4]})`]))}`,
 });
 page('/players', { title: 'Cricket players: stats for every player', desc: `Stats for ${n0(search.players.length)} cricketers with ball-by-ball records: runs, averages, strike rates, wickets, economy, impact and pitch maps.`,
-  body: `<h1>Players</h1><p>Every cricketer with ball-by-ball records, sorted by matches played.</p>${linkList(topPlayers.map((p) => [`/player/${p[0]}`, `${p[1]}, ${p[4]}, ${p[5]}–${p[6]}`]))}` });
+  body: `<h1>Players</h1><p>Every cricketer with ball-by-ball records, sorted by matches played.</p>${linkList(topPlayers.map((p) => [`/player/${p[0]}`, `${fullOf(p[0], p[1])}, ${p[4]}, ${p[5]}–${p[6]}`]))}` });
 page('/teams', { title: 'Cricket teams: records and stats', desc: `Records for ${n0(teamIdx.length)} international and domestic cricket teams: results by season, head to head, leaders and team records.`,
   body: `<h1>Teams</h1>${linkList(teamIdx.slice(0, 200).map((t) => [`/team/${t[0]}`, t[1] + (t[2] === 'female' ? ' (women)' : '')]))}` });
 page('/competitions', { title: 'Cricket competitions and leagues', desc: `Every competition with ball-by-ball records: Tests, ODIs, T20 internationals, the IPL, BBL, county cricket, Ranji Trophy and more. ${compIdx.length} competitions.`,
@@ -112,7 +115,7 @@ page('/matches', { title: 'Cricket match scorecards', desc: 'Full ball-by-ball s
 page('/live', { title: 'Live predictions are paused', desc: 'Live win predictions are switched off for now. Recent results are on the Matches page.', body: '<h1>Live predictions are paused</h1><p>See the latest results on the <a href="/matches">Matches</a> page.</p>', noindex: true });
 page('/predictor', { title: 'Live predictions are paused', desc: 'Live win predictions are switched off for now.', body: '<h1>Live predictions are paused</h1><p>See the latest results on the <a href="/matches">Matches</a> page.</p>', noindex: true });
 page('/compare', { title: 'Compare cricket players side by side', desc: 'Compare up to four cricketers: averages, strike rates, impact, year-by-year form, phase splits, pace v spin and pitch maps, over whole careers or the same years.',
-  body: `<h1>Compare players</h1><p>Pick up to four players and see their averages, strike rates, impact, year-by-year form, phase splits, record against pace and spin, and pitch maps on the same charts. Same-period mode keeps only the years all of them were playing, so different eras are not mixed up.</p><h2>Popular players to compare</h2>${linkList(topPlayers.slice(0, 20).map((p) => [`/player/${p[0]}`, p[1]]))}` });
+  body: `<h1>Compare players</h1><p>Pick up to four players and see their averages, strike rates, impact, year-by-year form, phase splits, record against pace and spin, and pitch maps on the same charts. Same-period mode keeps only the years all of them were playing, so different eras are not mixed up.</p><h2>Popular players to compare</h2>${linkList(topPlayers.slice(0, 20).map((p) => [`/player/${p[0]}`, fullOf(p[0], p[1])]))}` });
 page('/explore', { title: 'Cricket stats explorer and query builder', desc: 'Filter cricket stats by format, competition, years and minimum balls, sort by any metric and download CSV.',
   body: `<h1>Explorer</h1><p>Build your own leaderboard: choose a format, one or more competitions, a range of years and a minimum number of balls, then sort batters or bowlers by runs, average, strike rate, economy, impact or win probability added, and download the table as CSV.</p><h2>Competitions you can filter by</h2>${linkList(compIdx.slice(0, 40).map((c) => [`/league/${c.key}`, c.label]))}` });
 page('/methodology', { title: 'How cricforgeek works: models and methods', desc: 'How the impact, win probability and pitch-zone models are built, how complete the data is, and the checks run every night.',
@@ -130,6 +133,7 @@ const fkLabel = (fk) => { const [f, g] = fk.split('-'); return `${G[g] === 'wome
 for (const f of readdirSync(join(data, 'players'))) {
   if (!f.endsWith('.json')) continue;
   const p = J(`players/${f}`);
+  if (FULLN[p.id]) { p.full = FULLN[p.id]; }
   const fks = Object.entries(p.summary ?? {}).sort((a, b) => ((b[1].bat?.b ?? 0) + (b[1].bowl?.b ?? 0)) - ((a[1].bat?.b ?? 0) + (a[1].bowl?.b ?? 0)));
   if (!fks.length) continue;
   const bits = [], rows = [];
@@ -146,12 +150,12 @@ for (const f of readdirSync(join(data, 'players'))) {
   const lastPlayed = [...(p.recent?.bat ?? []), ...(p.recent?.bowl ?? [])].reduce((m, r) => (r[0] > m ? r[0] : m), '');
   const photo = photoIdx[p.id] ? `${SITE}/data/photos/${p.id}.webp` : undefined;
   page(`/player/${p.id}`, {
-    title: `${p.name} stats`, desc, type: 'profile', group: 'players', lastmod: lastPlayed || undefined, image: photo,
+    title: `${p.full || p.name} stats`, desc, type: 'profile', group: 'players', lastmod: lastPlayed || undefined, image: photo,
     ld: { '@context': 'https://schema.org', '@graph': [
       { '@type': 'Person', name: p.full || p.name, alternateName: p.full && p.full !== p.name ? p.name : undefined, url: `${SITE}/player/${p.id}`, image: photo, jobTitle: 'Cricketer',
         affiliation: teams.map((t) => ({ '@type': 'SportsTeam', name: t[0], sport: 'Cricket', url: `${SITE}/team/${teamKey(t[0], t[1])}` })) },
-      crumbs([['Players', '/players'], [p.name, `/player/${p.id}`]]) ] },
-    body: `<h1>${esc(p.name)}</h1><p>${esc(p.full && p.full !== p.name ? p.full + '. ' : '')}${esc(role)}${role ? '. ' : ''}${esc(bits.join('; '))}.</p>`
+      crumbs([['Players', '/players'], [p.full || p.name, `/player/${p.id}`]]) ] },
+    body: `<h1>${esc(p.full || p.name)}</h1><p>${esc(p.full && p.full !== p.name ? p.full + '. ' : '')}${esc(role)}${role ? '. ' : ''}${esc(bits.join('; '))}.</p>`
       + table(['Format', 'Inns', 'Runs', 'Avg', 'SR', '100/50', 'Wkts', 'Bowl avg', 'Econ', 'Best'], rows)
       + (teams.length ? `<h2>Teams</h2>${linkList(teams.map((t) => [`/team/${teamKey(t[0], t[1])}`, `${t[0]} (${t[2]}–${t[3]})`]))}` : ''),
   });

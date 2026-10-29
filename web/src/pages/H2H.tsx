@@ -8,12 +8,14 @@ import { kindsText } from '../components/PlayerGeek';
 import { PlayerPick } from '../components/PlayerPick';
 import { Loader, Panel } from '../components/ui';
 import { Board, SbCell } from '../components/Scoreboard';
+import { useFullName } from '../lib/names';
 
 // Matchup rows (both players' files): [other id, other name, balls, runs, outs, dots, 4s, 6s, expected runs, impact, {dismissal kind: n}]
 // Each player file keeps their 25 most-faced opponents per format, so the pair is looked up from both sides.
 type Mu = [string, string, number, number, number, number, number, number, number, number, Record<string, number>?];
 
 export default function H2H() {
+  const fullName = useFullName();
   const [sp, setSp] = useSearchParams();
   const batId = sp.get('bat') ?? '', bowlId = sp.get('bowl') ?? '';
   const [bat, setBat] = useState<any>(null), [bowl, setBowl] = useState<any>(null);
@@ -38,7 +40,7 @@ export default function H2H() {
       <section className="phead fade-in">
         <div className="stack">
           <div className="eyebrow">Head to head</div>
-          <h1>{bat && bowl ? <><Link to={`/player/${batId}`}>{bat.name}</Link> <span className="muted" style={{ fontWeight: 400 }}>v</span> <Link to={`/player/${bowlId}`}>{bowl.name}</Link></> : 'Batter v bowler'}</h1>
+          <h1>{bat && bowl ? <><Link to={`/player/${batId}`}>{fullName(batId, bat.name)}</Link> <span className="muted" style={{ fontWeight: 400 }}>v</span> <Link to={`/player/${bowlId}`}>{fullName(bowlId, bowl.name)}</Link></> : 'Batter v bowler'}</h1>
           <p className="lede">Every ball one batter has faced from one bowler: runs, strike rate, how often he got them and how.</p>
         </div>
       </section>

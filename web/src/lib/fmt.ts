@@ -1,6 +1,7 @@
+// Numbers use one style everywhere: international thousands separators (11,715,797), whatever the phone's language.
 import { ok } from './stats';
 
-export const n0 = (v: unknown) => (ok(v) ? Math.round(v).toLocaleString('en-IN') : '–');
+export const n0 = (v: unknown) => (ok(v) ? Math.round(v).toLocaleString('en-GB') : '–');
 export const d1 = (v: unknown) => (ok(v) ? v.toFixed(1) : '–');
 export const d2 = (v: unknown) => (ok(v) ? v.toFixed(2) : '–');
 export const d3 = (v: unknown) => (ok(v) ? v.toFixed(3) : '–');

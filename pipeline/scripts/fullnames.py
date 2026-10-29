@@ -52,3 +52,18 @@ for p in idx["players"]:
     n += bool(extra)
 json.dump(idx, open(path, "w"), separators=(",", ":"), ensure_ascii=False)
 print(f"full names added for {n} of {len(idx['players'])} players")
+
+# Display names for the site ("Virat Kohli" for "V Kohli"): the Wikidata name, kept only when it is clearly the same
+# person's everyday name: same surname as the register, no brackets, and not a very long formal name.
+disp = {}
+for p in idx["players"]:
+    reg = p[1]
+    for cand in names.get(p[0], [])[:1]:
+        c = cand.strip()
+        if "(" in c or len(c) > 26 or c.lower() == reg.lower() or " " not in c:
+            continue
+        if c.split()[-1].lower() != reg.split()[-1].lower():
+            continue  # surname differs: likely a formal or different name, keep the register name
+        disp[p[0]] = c
+json.dump(disp, open(f"{out}/names.json", "w"), separators=(",", ":"), ensure_ascii=False)
+print(f"display names: {len(disp)} players shown by full name")

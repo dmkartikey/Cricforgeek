@@ -9,7 +9,7 @@ type Meter = [string, string, number, string?];
 type Pane = { hero: [string, string, string][]; meters: Meter[]; year: [string, number][]; phases: [string, number][]; up: string; dn: string; rating: number };
 export type CardData = {
   key: string; id: string; name: string; full: string; fmt: string; role: 'bat' | 'bowl' | 'all'; roleText: string; team: string;
-  span: string; credit: string; photo: string | null; initials: string; colour: string; trio: [string, string][]; bat?: Pane; bowl?: Pane; rating: number;
+  span: string; credit: string; photo: string | null; initials: string; colour: string; partial?: string; trio: [string, string][]; bat?: Pane; bowl?: Pane; rating: number;
 };
 
 // Rating weights by format and discipline: what matters most in each. Percentiles are against every qualified
@@ -35,7 +35,7 @@ const BOWL_STYLE: Record<string, string> = {
   lf: 'Left-arm fast', lfm: 'Left-arm fast-medium', lmf: 'Left-arm medium-fast', lm: 'Left-arm medium',
   ob: 'Off-spin', rs: 'Off-spin', lb: 'Leg-spin', lbg: 'Leg-spin', sla: 'Left-arm orthodox', ls: 'Left-arm orthodox', lws: 'Left-arm wrist-spin',
 };
-const n1 = (v: number) => v.toLocaleString('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const n1 = (v: number) => v.toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const signed = (v: number) => `${v >= 0 ? '+' : '−'}${n1(Math.abs(v))}`;
 // "Royal Challengers Bengaluru" -> "RCB"; national sides stay as they are
@@ -68,7 +68,7 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
     if (vs.length < 2) vs = (x.type ?? []).filter((r: any) => r[0] !== 'unknown' && r[1] >= 100).map((r: any) => [r[0] === 'pace' ? 'pace' : 'spin', (100 * r[2]) / r[1]] as [string, number]).sort((m: any, n: any) => m[1] - n[1]);
     const phases = (x.phase ?? []).filter((r: any) => r[1]).sort((m: any, n: any) => +m[0] - +n[0]).map((r: any) => [phaseName[+r[0]] ?? r[0], Math.round((100 * r[2]) / r[1])] as [string, number]);
     d.bat = {
-      hero: [['Runs', a.r.toLocaleString('en'), `${a.i} inns`], ['Average', n1(avg), `HS ${a.hs != null ? `${a.hs}${a.hs_no ? '*' : ''}` : '–'}`], ['Strike rate', n1(sr), `${a.c50 ?? 0}×50 · ${a.c100 ?? 0}×100`]],
+      hero: [['Runs', a.r.toLocaleString('en-GB'), `${a.i} inns`], ['Average', n1(avg), `HS ${a.hs != null ? `${a.hs}${a.hs_no ? '*' : ''}` : '–'}`], ['Strike rate', n1(sr), `${a.c50 ?? 0}×50 · ${a.c100 ?? 0}×100`]],
       meters: ([['Average', n1(avg), b.avg], ...(b.adj != null && a.adj_r != null ? [['Adj. average', n1(a.adj_r / Math.max(a.o, 1)), b.adj, 'adj'] as Meter] : []),
         ['Strike rate', n1(sr), b.sr], ['Boundary %', `${n1((100 * (a.f4 + a.s6)) / a.b)}%`, b.bnd], ['Dot balls', `${n1((100 * a.d) / a.b)}%`, b.dotp],
         ['Impact / 100', signed((100 * a.imp) / a.b), b.imp100, 'imp100'], ...(b.wpa100 != null ? [['Win prob. added', signed(a.wpa), b.wpa100, 'wpa'] as Meter] : [])] as Meter[])
@@ -84,7 +84,7 @@ export function buildCard(p: any, fk: string, credit: string, photo: string | nu
     const phases = (x.phase ?? []).filter((r: any) => r[1]).sort((m: any, n: any) => +m[0] - +n[0]).map((r: any) => [phaseName[+r[0]] ?? r[0], Math.round((600 * r[2]) / r[1]) / 100] as [string, number]);
     const lo = [...phases].sort((m, n) => m[1] - n[1])[0], hi = [...phases].sort((m, n) => n[1] - m[1])[0];
     d.bowl = {
-      hero: [['Wickets', w.w.toLocaleString('en'), `${w.i} inns`], ['Economy', econ.toFixed(2), `best ${w.best ?? '–'}`], ['Average', n1(bavg), `SR ${n1(bsr)}`]],
+      hero: [['Wickets', w.w.toLocaleString('en-GB'), `${w.i} inns`], ['Economy', econ.toFixed(2), `best ${w.best ?? '–'}`], ['Average', n1(bavg), `SR ${n1(bsr)}`]],
       meters: ([['Economy', econ.toFixed(2), b.econ], ['Average', n1(bavg), b.bavg], ...(b.adj != null && w.adj_r != null && w.w ? [['Adj. average', n1(w.adj_r / w.w), b.adj, 'adjBowl'] as Meter] : []),
         ['Strike rate', n1(bsr), b.bsr], ['Dot balls', `${n1((100 * w.d) / w.b)}%`, b.dotp],
         ['Impact / 100', signed((100 * w.imp) / w.b), b.imp100, 'imp100'], ...(b.wpa100 != null ? [['Win prob. added', signed(w.wpa), b.wpa100, 'wpa'] as Meter] : [])] as Meter[])

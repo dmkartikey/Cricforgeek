@@ -10,6 +10,7 @@ import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
 import { Board, Flap } from '../components/Scoreboard';
 import { ParChase, PartnershipTrack, Sessions, TurningCallout, VenueLink } from '../components/MatchGeek';
+import { useFullName } from '../lib/names';
 
 // bat:  [inn, player, runs, balls, 4s, 6s, kind, bowler, impact, wpa, team, fielder, pos]
 // bowl: [inn, player, balls, runs, wkts, dots, wides, noballs, impact, wpa, maidens]
@@ -34,6 +35,7 @@ function howOut(b: Bat, nm: (p: string) => string) {
 }
 
 export default function Match() {
+  const fullName = useFullName();
   const { id } = useParams();
   const { data: m, error } = useData<any>(`matches/${id}.json`);
   const [inn, setInn] = useState(1);
@@ -44,7 +46,7 @@ export default function Match() {
   if (error) return <ErrorBox error={error} />;
   if (!m) return <Loader text="Loading match" />;
 
-  const i = m.info, nm = (p: string) => m.names[p] ?? p.replace(/^~/, '');
+  const i = m.info, nm = (p: string) => fullName(p, m.names[p] ?? p.replace(/^~/, ''));
   const bpo = i.balls_per_over ?? 6;
   const ovs: any[] = m.overs;
   const bats: Bat[] = m.bat, bowls: Bowl[] = m.bowl;

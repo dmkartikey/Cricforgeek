@@ -7,6 +7,7 @@ import { MULTI, PHASES, TIER } from '../lib/labels';
 import { ErrorBox, Legend, Loader, Mini, MiniSearch, MiniSelect, Panel, SERIES, Tiles } from '../components/ui';
 import { Columns, LineChart } from '../components/charts';
 import { Table } from '../components/Table';
+import { useFullName } from '../lib/names';
 
 const LEADERS: [string, string, (v: any) => string][] = [
   ['bat_runs', 'Most runs', (v) => n0(v.r)], ['bat_imp', 'Batting impact', (v) => signed(v.imp, 0)],
@@ -15,6 +16,7 @@ const LEADERS: [string, string, (v: any) => string][] = [
 ];
 
 export default function League() {
+  const fullName = useFullName();
   const { key } = useParams();
   const { data: c, error } = useData<any>(`comps/${key}.json`);
   usePageMeta(c ? `${c.meta.label} stats and records` : null);
@@ -126,7 +128,7 @@ export default function League() {
                   <h3 style={{ marginBottom: 6 }}>{label}</h3>
                   {(lead[k] ?? []).slice(0, +ltop).map((x: any, i: number) => (
                     <Link key={x[0]} to={`/player/${x[0]}`} className="lb-row" style={{ padding: '7px 0' }}>
-                      <span className="lb-rank">{i + 1}</span><span className="lb-name">{x[1]}</span><span className="lb-val">{f(x[2])}</span>
+                      <span className="lb-rank">{i + 1}</span><span className="lb-name">{fullName(x[0], x[1])}</span><span className="lb-val">{f(x[2])}</span>
                     </Link>
                   ))}
                 </div>
@@ -161,13 +163,14 @@ export default function League() {
 }
 
 function Records({ c }: { c: any }) {
+  const fullName = useFullName();
   const [rs, setRs] = useState('all');
   const seasons = (c.trends ?? []).map((t: any) => String(t.season));
   const keep = (x: any) => rs === 'all' || seasons.slice(-(+rs)).includes(String(x.season));
   const r0 = c.records ?? {};
   const r = Object.fromEntries(Object.entries<any[]>(r0).map(([k, v]) => [k, v.filter(keep)]));
   const team = (x: any) => <Link to={`/match/${x.match_id}`}>{x.bat} v {x.bowl}</Link>;
-  const ply = (x: any) => <Link to={`/player/${x.player}`}>{x.name}</Link>;
+  const ply = (x: any) => <Link to={`/player/${x.player}`}>{fullName(x.player, x.name)}</Link>;
   return (
     <div className="stack" style={{ gap: 22 }}>
     <div className="mini-bar"><Mini label="Seasons" value={rs} onChange={setRs} options={[['all', 'All time'], ['5', 'Last 5'], ['3', 'Last 3'], ['1', 'Latest']]} />

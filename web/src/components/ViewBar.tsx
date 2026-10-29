@@ -1,6 +1,6 @@
 // The view filters (format, men or women, level) shown on the pages that use them, instead of in the sidebar.
 // The choice is still remembered across pages.
-import { FMTS, LEVELS, useSettings, type Fmt } from '../lib/settings';
+import { DEFAULT_VIEW, FMTS, LEVELS, useSettings, type Fmt } from '../lib/settings';
 
 export function ViewBar({ level = false, formats, gender = true, note }: { level?: boolean; formats?: Fmt[]; gender?: boolean; note?: string }) {
   const s = useSettings();
@@ -27,6 +27,13 @@ export function ViewBar({ level = false, formats, gender = true, note }: { level
           </select>
         )}
       </div>
+      {(s.fmt !== DEFAULT_VIEW.fmt || s.gender !== DEFAULT_VIEW.gender || (level && s.level !== DEFAULT_VIEW.level)) && (
+        // the choice is remembered across pages, so say what's showing and offer a one-tap way back
+        <div className="vb-chip" role="status">
+          Showing <b>{FMTS.find((f) => f.k === s.fmt)?.l} · {s.gender === 'male' ? 'Men' : 'Women'}{level && s.level !== 'top' ? ` · ${LEVELS.find(([k]) => k === s.level)?.[1]}` : ''}</b>
+          <button type="button" onClick={() => s.set({ ...DEFAULT_VIEW })} aria-label="Reset to T20, men">Reset ✕</button>
+        </div>
+      )}
       {note && <div className="vb-note">{note}</div>}
     </div>
   );

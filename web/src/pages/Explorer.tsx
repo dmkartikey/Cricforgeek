@@ -8,11 +8,13 @@ import { d1, d2, n0, pct, signed } from '../lib/fmt';
 import { famKeyLabel, MULTI } from '../lib/labels';
 import { ErrorBox, Loader, Panel, Seg } from '../components/ui';
 import { Col, Table } from '../components/Table';
+import { useFullName } from '../lib/names';
 
 const FKS = ['TEST-male', 'TEST-female', 'ODI-male', 'ODI-female', 'T20-male', 'T20-female', 'FC-male', 'LA-male', 'LA-female', 'HUN-male', 'HUN-female'];
 const yearOf = (s: string) => +String(s).slice(0, 4);
 
 export default function Explorer() {
+  const fullName = useFullName();
   usePageMeta('Explorer');
   const st = useSettings();
   const [fk, setFk] = useState(FKS.includes(`${st.fmt}-${st.gender}`) ? `${st.fmt}-${st.gender}` : 'T20-male');
@@ -69,7 +71,7 @@ export default function Explorer() {
 
   const limited = !MULTI(fk.split('-')[0]);
   const who: Col<any> = { key: 'n', label: 'Player', left: true, get: (x) => names.get(x.player) ?? x.player,
-    fmt: (v, x) => <><Link to={`/player/${x.player}`}>{v}</Link>{x.season && <span className="muted"> · {x.season}</span>}{x.comp && <span className="muted"> · {compLabel.get(x.comp) ?? x.comp}</span>}</> };
+    fmt: (v, x) => <><Link to={`/player/${x.player}`}>{fullName(x.player, v)}</Link>{x.season && <span className="muted"> · {x.season}</span>}{x.comp && <span className="muted"> · {compLabel.get(x.comp) ?? x.comp}</span>}</> };
   const batCols: Col<any>[] = [who,
     { key: 'i', label: 'Inns', get: (x) => x.i }, { key: 'r', label: 'Runs', get: (x) => x.r, fmt: n0 }, { key: 'b', label: 'Balls', get: (x) => x.b, fmt: n0 },
     { key: 'avg', label: 'Avg', get: (x) => x.avg, fmt: d1 }, { key: 'sr', label: 'SR', get: (x) => x.sr, fmt: d1 },

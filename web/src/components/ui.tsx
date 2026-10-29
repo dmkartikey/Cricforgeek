@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { PREVIEW } from '../lib/data';
 import { addPin, isPinned, Pin, removePin, useBoards } from '../lib/pins';
 import { ok } from '../lib/stats';
+import { useFullName } from '../lib/names';
 
 type PinSpec = Omit<Pin, 'at'> | null | undefined;
 
@@ -188,6 +189,7 @@ export const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)'];
 export type RankRow = { id: string; name: string; meta?: string; value: number; text: string; href?: string };
 
 export function RankList({ rows, unit, lead = true, base = 0 }: { rows: RankRow[]; unit?: string; lead?: boolean; base?: number }) {
+  const fullName = useFullName();
   if (!rows.length) return <div className="empty">Nobody qualifies with these filters.</div>;
   const ext = Math.max(...rows.map((r) => Math.abs(r.value - base)), 1e-9);
   const first = rows[0];
@@ -198,7 +200,7 @@ export function RankList({ rows, unit, lead = true, base = 0 }: { rows: RankRow[
         <Link className="rl-lead" to={first.href ?? '#'}>
           <span className="stack" style={{ gap: 2, minWidth: 0 }}>
             <span className="eyebrow">No. 1</span>
-            <span className="who">{first.name}</span>
+            <span className="who">{fullName(first.id, first.name)}</span>
             {first.meta && <span className="meta">{first.meta}</span>}
           </span>
           <span className="stack" style={{ gap: 2 }}>
@@ -213,7 +215,7 @@ export function RankList({ rows, unit, lead = true, base = 0 }: { rows: RankRow[
           return (
             <Link key={r.id + i} className={`rl-row ${n <= 3 ? 'podium' : ''}`} to={r.href ?? '#'}>
               <span className="rl-rank">{n}</span>
-              <span className="rl-who"><b>{r.name}</b>{r.meta && <small>{r.meta}</small>}</span>
+              <span className="rl-who"><b>{fullName((r as any).id, r.name)}</b>{r.meta && <small>{r.meta}</small>}</span>
               <span className="rl-bar" aria-hidden="true"><i className="sweep" style={{ width: `${Math.max(2, (Math.abs(r.value - base) / ext) * 100)}%` }} /></span>
               <span className="rl-val">{r.text}</span>
             </Link>
@@ -229,6 +231,7 @@ export function Dumbbell({ rows, fmt, thenLabel, nowLabel }: {
   rows: { id: string; name: string; meta?: string; then: number; now: number; href?: string }[];
   fmt: (v: number) => string; thenLabel: string; nowLabel: string;
 }) {
+  const fullName = useFullName();
   if (!rows.length) return <div className="empty">Nobody has enough balls in both periods.</div>;
   const rawLo = Math.min(0, ...rows.flatMap((r) => [r.then, r.now])), rawHi = Math.max(0, ...rows.flatMap((r) => [r.then, r.now]));
   // round the ends out to a tidy step so the axis reads −60 · 0 · +60, not −55.9 · 0 · 54.4
@@ -250,7 +253,7 @@ export function Dumbbell({ rows, fmt, thenLabel, nowLabel }: {
         const a = pos(Math.min(r.then, r.now)), b = pos(Math.max(r.then, r.now));
         return (
           <Link key={r.id} to={r.href ?? '#'} className="db-row" title={`${thenLabel}: ${fmt(r.then)} → ${nowLabel}: ${fmt(r.now)}`}>
-            <span className="rl-who"><b>{r.name}</b>{r.meta && <small>{r.meta}</small>}</span>
+            <span className="rl-who"><b>{fullName((r as any).id, r.name)}</b>{r.meta && <small>{r.meta}</small>}</span>
             <span className="db-track">
               <span className="zero" style={{ left: `${pos(0)}%` }} />
               <span className="seg-l" style={{ left: `${a}%`, width: `${b - a}%` }} />
@@ -267,6 +270,7 @@ export function Dumbbell({ rows, fmt, thenLabel, nowLabel }: {
 
 // ---------- lollipop: one value per row, stick from zero ----------
 export function Lollipop({ rows, fmt }: { rows: { id: string; name: string; meta?: string; value: number; sub?: string; href?: string }[]; fmt: (v: number) => string }) {
+  const fullName = useFullName();
   if (!rows.length) return <div className="empty">Nobody qualifies with these filters.</div>;
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1e-9);
   return (
@@ -274,7 +278,7 @@ export function Lollipop({ rows, fmt }: { rows: { id: string; name: string; meta
       {rows.map((r, i) => (
         <Link key={r.id} className={`rl-row ${i < 3 ? 'podium' : ''}`} to={r.href ?? '#'}>
           <span className="rl-rank">{i + 1}</span>
-          <span className="rl-who"><b>{r.name}</b>{r.meta && <small>{r.meta}</small>}</span>
+          <span className="rl-who"><b>{fullName((r as any).id, r.name)}</b>{r.meta && <small>{r.meta}</small>}</span>
           <span className="rl-lol" style={{ position: 'relative', height: 14 }} aria-hidden="true">
             <span className="sweep" style={{ position: 'absolute', left: 0, top: 6, height: 2, width: `${(Math.abs(r.value) / max) * 100}%`, background: 'var(--line-2)' }} />
             <span style={{ position: 'absolute', top: 1, left: `calc(${(Math.abs(r.value) / max) * 100}% - 6px)`, width: 12, height: 12, borderRadius: '50%',

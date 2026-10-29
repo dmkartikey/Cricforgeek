@@ -33,7 +33,7 @@ export default function Venues() {
           <Mini label="Show" value={kind} onChange={setKind} options={[['intl', 'International grounds'], ['all', 'All grounds']]} />
         </>}>
         <Table rows={rows} sort="n" limit={60} cols={[
-          { key: 'name', label: 'Ground', left: true, get: (r) => r[1], fmt: (v, r) => <Link to={`/venue/${r[0]}`}>{v}</Link> },
+          { key: 'name', label: 'Ground', left: true, get: (r) => r[1], fmt: (v, r) => <><Link to={`/venue/${r[0]}`}>{v}</Link>{r[2] && <small className="vn-city">{r[2]}</small>}</> },
           { key: 'city', label: 'City', left: true, get: (r) => r[2] ?? '' },
           { key: 'host', label: 'Country', left: true, get: (r) => r[3] ?? '' },
           { key: 'n', label: 'Matches', get: (r) => r[4], fmt: n0 },
