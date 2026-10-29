@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
 export const BASE_URL = import.meta.env.BASE_URL + 'data/';
+// Player photo address. The version matches the framing version in pipeline/scripts/photos.py (V): when every photo is
+// re-made, bumping it makes browsers fetch the new files instead of showing the copies they saved before.
+export const PHOTO_V = 'v4';
+export const photoUrl = (id: string) => `${BASE_URL}photos/${id}.webp?${PHOTO_V}`;
 const BASE = BASE_URL;
 const cache = new Map<string, Promise<unknown>>();
 

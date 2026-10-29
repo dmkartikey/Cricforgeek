@@ -27,7 +27,7 @@ FIXES = os.path.join(os.path.dirname(__file__), "..", "cricforgeek", "seeds", "p
 FULL = ["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies",
         "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]
 OFFICIAL = "('men-test', 'women-test', 'men-odi', 'women-odi', 'men-t20i', 'women-t20i')"
-V = "v4"  # framing version: bump to re-process every photo
+V = "v4"  # framing version: bump to re-process every photo, and bump PHOTO_V in web/src/lib/data.ts with it
 R = "r3"  # quality-rules version: bump to give rejected photos one more try under new rules
 
 

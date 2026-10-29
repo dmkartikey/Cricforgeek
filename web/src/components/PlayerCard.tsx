@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { BASE_URL, useData } from '../lib/data';
+import { useData, photoUrl } from '../lib/data';
 import { buildCard } from '../lib/card';
 import { mountCard } from '../lib/cardfx';
 import '../card.css';
@@ -8,7 +8,7 @@ import '../card.css';
 export function usePlayerCard(p: any, fk: string) {
   // one of 16 small shards of the photo list (by the first character of the player id)
   const photos = useData<Record<string, string>>(p?.id ? `photos/index-${String(p.id)[0]}.json` : null);
-  return useMemo(() => (p && fk && photos.data && p.id in photos.data ? buildCard(p, fk, photos.data[p.id], `${BASE_URL}photos/${p.id}.webp`) : null), [p, fk, photos.data]);
+  return useMemo(() => (p && fk && photos.data && p.id in photos.data ? buildCard(p, fk, photos.data[p.id], photoUrl(p.id)) : null), [p, fk, photos.data]);
 }
 
 export default function PlayerCard({ card, back = false, hint = true }: { card: NonNullable<ReturnType<typeof usePlayerCard>>; back?: boolean; hint?: boolean }) {

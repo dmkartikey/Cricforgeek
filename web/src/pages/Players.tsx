@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { usePageMeta } from '../lib/meta';
-import { BASE_URL, useData } from '../lib/data';
+import { useData, photoUrl } from '../lib/data';
 import { fullName, norm, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
@@ -25,7 +25,7 @@ function Avatar({ id, name, team, photo, size = 56 }: { id: string; name: string
   const code = flagCode(team);
   return (
     <span className="pt-av" style={{ width: size, height: size, ['--tc' as string]: teamColour(team) }}>
-      {photo ? <img src={`${BASE_URL}photos/${id}.webp`} alt="" loading="lazy" decoding="async" /> : <b>{initials(name)}</b>}
+      {photo ? <img src={photoUrl(id)} alt="" loading="lazy" decoding="async" /> : <b>{initials(name)}</b>}
       {code && <img className="pt-flag" src={flagUrl(code)} alt="" loading="lazy" />}
     </span>
   );
@@ -63,7 +63,7 @@ function Rail({ title, sub, rows, photos, stat, to, names }: { title: string; su
             <Link key={r[0]} to={`/player/${r[0]}`} className={`rcard${photos[r[0]] ? ' has-photo' : ''}`}>
               <span className="rc-rank">{i + 1}</span>
               <span className="rc-photo">
-                {photos[r[0]] ? <img src={`${BASE_URL}photos/${r[0]}.webp`} alt="" loading="lazy" decoding="async" /> : <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>}
+                {photos[r[0]] ? <img src={photoUrl(r[0])} alt="" loading="lazy" decoding="async" /> : <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>}
               </span>
               <span className="rc-band">
                 <b className="rc-name" title={r[1]}>{names.get(r[0]) || r[1]}</b>

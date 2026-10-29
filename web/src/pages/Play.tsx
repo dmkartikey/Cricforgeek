@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BASE_URL, useData } from '../lib/data';
+import { useData, photoUrl } from '../lib/data';
 import { usePageMeta } from '../lib/meta';
 import { initials } from '../lib/fmt';
 import { Loader, Seg } from '../components/ui';
@@ -33,7 +33,7 @@ function GameCard({ c, photo, hidden, pick, chosen, result, fmt }: { c: Card; ph
   return (
     <div className={`gcard${result === 1 ? ' won' : result === -1 ? ' lost' : ''}`}>
       <div className="gc-top">
-        <div className="gc-photo">{photo ? <img src={`${BASE_URL}photos/${c[0]}.webp`} alt="" /> : <span>{initials(c[1])}</span>}</div>
+        <div className="gc-photo">{photo ? <img src={photoUrl(c[0])} alt="" /> : <span>{initials(c[1])}</span>}</div>
         <div className="gc-id"><b>{c[1]}</b><span>{c[2]} · {fmt} · {c[4]}–{c[5]}</span></div>
       </div>
       <div className="gc-stats">
