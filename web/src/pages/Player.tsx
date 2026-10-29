@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useData } from '../lib/data';
 import PlayerCard, { usePlayerCard } from '../components/PlayerCard';
+import GettyPhoto, { useGetty } from '../components/GettyPhoto';
 import type { CardData } from '../lib/card';
 import { bat, bowl, batSplit, bowlSplit } from '../lib/stats';
 import { d1, d2, initials, n0, overs, pct, plus, signed, dateShort } from '../lib/fmt';
@@ -91,6 +92,7 @@ export default function Player() {
   const all = fk === 'all';
   const viewFk = all ? fks[0] ?? '' : fk; // the card and hero use the main format in the all-formats view
   const card = usePlayerCard(p, viewFk);
+  const getty = useGetty();
   if (error) return <ErrorBox error={error} />;
   if (p && !fks.length) return (
     // appeared in matches but never batted or bowled (did not bat, kept wicket briefly, substitute)
@@ -122,8 +124,13 @@ export default function Player() {
     <>
       <section className={`player-head fade-in${card ? ' has-card hero' : ''}`}>
         {card && <div className="hero-card"><PlayerCard card={card} /></div>}
+        {!card && getty[p.id] && (
+          <figure className="hero-getty">
+            <GettyPhoto e={getty[p.id]} width={Math.min(420, (typeof window === 'undefined' ? 420 : window.innerWidth) - 48)} />
+          </figure>
+        )}
         <div className="row hero-id" style={{ gap: 18, alignItems: 'center' }}>
-          {!card && <div className="avatar" aria-hidden="true">{initials(p.name)}</div>}
+          {!card && !getty[p.id] && <div className="avatar" aria-hidden="true">{initials(p.name)}</div>}
           <div className="stack" style={{ gap: 6 }}>
             <div className="eyebrow">Player profile</div>
             <h1>{p.name}</h1>
