@@ -6,12 +6,13 @@ import { PREVIEW, useData } from './lib/data';
 import { useSettings } from './lib/settings';
 import { useBoards } from './lib/pins';
 import { dateShort } from './lib/fmt';
+import { freshReload, onNavigate } from './lib/fresh';
 // Pages load on first visit. After a deploy, an open tab can ask for a page file that no longer exists:
 // reload once to pick up the new site instead of showing a blank page.
 function page<T extends { default: React.ComponentType<any> }>(load: () => Promise<T>) {
   return lazy(() => load().catch((e) => {
     const key = 'cfg.reloaded';
-    try { if (!sessionStorage.getItem(key)) { sessionStorage.setItem(key, '1'); location.reload(); return new Promise<T>(() => {}); } } catch { /* storage blocked */ }
+    try { if (!sessionStorage.getItem(key)) { sessionStorage.setItem(key, '1'); freshReload(); return new Promise<T>(() => {}); } } catch { /* storage blocked */ }
     throw e;
   }));
 }
@@ -72,7 +73,7 @@ export default function App() {
   const meta = useData<any>('meta.json').data; // small, and the player and match pages need it anyway
   const boards = useBoards();
   const pins = boards.reduce((a, b) => a + b.pins.length, 0);
-  useEffect(() => { window.scrollTo(0, 0); setOpen(false); }, [loc.pathname]);
+  useEffect(() => { window.scrollTo(0, 0); setOpen(false); onNavigate(); }, [loc.pathname]);
   const seg = loc.pathname.split('/')[1] ?? '';
   const dark = s.theme === 'dark';
 

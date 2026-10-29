@@ -29,8 +29,16 @@ const securityMeta = {
 
 // The live site is served from the domain root with real paths (/player/abc), so assets load from "/".
 // Preview builds (VITE_PREVIEW=1) use hash routing and relative paths instead.
+// Each build gets an id; the app compares it with version.json to know when a newer version is out.
+const BUILD_ID = process.env.GITHUB_SHA?.slice(0, 12) || String(Date.now());
+const versionFile = {
+  name: 'version-file',
+  generateBundle(this: any) { this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ id: BUILD_ID }) }); },
+};
+
 export default defineConfig({
-  plugins: process.env.VITE_PREVIEW === '1' ? [react()] : [react(), securityMeta],
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID) },
+  plugins: process.env.VITE_PREVIEW === '1' ? [react()] : [react(), securityMeta, versionFile],
   base: process.env.VITE_PREVIEW === '1' ? './' : process.env.BASE_PATH || '/',
   build: { outDir: 'dist', chunkSizeWarningLimit: 800 },
 });

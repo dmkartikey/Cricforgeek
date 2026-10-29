@@ -4,6 +4,7 @@ import { BrowserRouter, HashRouter } from 'react-router-dom';
 import App from './App';
 import { SettingsProvider } from './lib/settings';
 import { PREVIEW } from './lib/data';
+import { freshReload, tidyUrl, watchVersion } from './lib/fresh';
 import './styles.css';
 
 // Refuse to run inside someone else's frame (clickjacking). Headers can't be set on GitHub Pages, so this is the fallback.
@@ -20,7 +21,9 @@ const Router = PREVIEW ? HashRouter : BrowserRouter;
 
 // A page loaded fine: allow one automatic reload again next time a deploy leaves an old file behind.
 window.addEventListener('load', () => setTimeout(() => { try { sessionStorage.removeItem('cfg.reloaded'); } catch { /* ignore */ } }, 5000));
-window.addEventListener('vite:preloadError', () => { try { if (!sessionStorage.getItem('cfg.reloaded')) { sessionStorage.setItem('cfg.reloaded', '1'); location.reload(); } } catch { /* ignore */ } });
+window.addEventListener('vite:preloadError', () => { try { if (!sessionStorage.getItem('cfg.reloaded')) { sessionStorage.setItem('cfg.reloaded', '1'); freshReload(); } } catch { /* ignore */ } });
+tidyUrl();
+watchVersion();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
