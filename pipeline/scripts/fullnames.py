@@ -81,4 +81,8 @@ for p in idx["players"]:
         disp[p[0]] = c
         break
 json.dump(disp, open(f"{out}/names.json", "w"), separators=(",", ":"), ensure_ascii=False)
+# 16 small pieces by the first character of the id, so a page fetches only the names it shows (about 5 KB each)
+os.makedirs(f"{out}/names", exist_ok=True)
+for h in "0123456789abcdef":
+    json.dump({k: v for k, v in disp.items() if k[0] == h}, open(f"{out}/names/{h}.json", "w"), separators=(",", ":"), ensure_ascii=False)
 print(f"display names: {len(disp)} players shown by full name")

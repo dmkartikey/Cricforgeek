@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { usePageMeta } from '../lib/meta';
-import { useData } from '../lib/data';
+import { useData, load } from '../lib/data';
 import { fullName, norm, searchPlayers, type PlayerRow } from '../lib/nameSearch';
 import { useSettings } from '../lib/settings';
 import { FAM_LABEL } from '../lib/labels';
@@ -10,6 +10,7 @@ import { flagCode, flagUrl, teamColour } from '../lib/teamflags';
 import { ErrorBox, Loader, Mini, Panel, Seg, TeamMark } from '../components/ui';
 import { Table } from '../components/Table';
 import { ViewBar } from '../components/ViewBar';
+import { useFullName } from '../lib/names';
 
 // search.json players: [id, name, register name, gender, main team, from, to, matches, formats, full names]
 type Row = PlayerRow;
@@ -47,6 +48,7 @@ function Tile({ p, fmt }: { p: Row; fmt: string }) {
 
 /** A horizontal row of featured players from one leaderboard. */
 function Rail({ title, sub, rows, stat, to, names }: { title: string; sub: string; rows: BoardRow[]; stat: (r: BoardRow) => [string, string]; to?: string; names: Map<string, string> }) {
+  const displayName = useFullName();
   if (!rows.length) return null;
   return (
     <section className="rail fade-in">
@@ -59,10 +61,10 @@ function Rail({ title, sub, rows, stat, to, names }: { title: string; sub: strin
             <Link key={r[0]} to={`/player/${r[0]}`} className="rcard">
               <span className="rc-rank">{i + 1}</span>
               <span className="rc-photo">
-                <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || r[1])}</b>
+                <b style={{ background: teamColour(team) }}>{initials(names.get(r[0]) || displayName(r[0], r[1]))}</b>
               </span>
               <span className="rc-band">
-                <b className="rc-name" title={r[1]}>{names.get(r[0]) || r[1]}</b>
+                <b className="rc-name" title={r[1]}>{names.get(r[0]) || displayName(r[0], r[1])}</b>
                 <span className="rc-team">{team && <TeamMark name={team} size={12} />}{team}</span>
                 <span className="rc-stat"><b>{big}</b><small>{small}</small></span>
               </span>
@@ -78,6 +80,8 @@ export default function Players() {
   const s = useSettings();
   const { data, error } = useData<{ players: Row[] }>('search.json');
   const homeIdx = useData<any>('home.json').data;
+  // start the likely leaderboard file now, in parallel with the list that names it
+  useEffect(() => { load(`home/${s.fmt}-${s.gender}-top.json`).catch(() => null); }, [s.fmt, s.gender]);
   const [sp, setSp] = useSearchParams();
   const [q, setQ] = useState(sp.get('q') ?? '');
   usePageMeta('Players');
@@ -105,8 +109,8 @@ export default function Players() {
     return data.players.filter((p) => keep(p) && norm(p[4]).includes(norm(q)));
   }, [data, q, s.gender, s.fmt, scope, active, team]);
   if (error) return <ErrorBox error={error} />;
-  if (!data) return <Loader text="Loading players" />;
-  const total = data.players.filter((p) => p[3] === s.gender).length;
+  // the rails and the page show straight away; only the search and the full list wait for the (larger) player list
+  const total = data ? data.players.filter((p) => p[3] === s.gender).length : null;
   const browsing = !norm(q) && !team;
   const fl = FAM_LABEL[s.fmt];
   const pickTeam = (t: string) => { setTeam(t === team ? '' : t); setShown(36); const n = new URLSearchParams(sp); if (t && t !== team) n.set('team', t); else n.delete('team'); setSp(n, { replace: true }); };
@@ -117,7 +121,7 @@ export default function Players() {
         <div className="ph-text">
           <div className="eyebrow">Directory · {s.gender === 'male' ? 'Men' : 'Women'}</div>
           <h1>Players</h1>
-          <p className="lede">{n0(total)} cricketers with ball-by-ball records. Search by name (full names work, so do typos), or by team.</p>
+          <p className="lede">{total != null ? `${n0(total)} cricketers` : 'Every cricketer'} with ball-by-ball records. Search by name (full names work, so do typos), or by team.</p>
         </div>
         <label className="ph-search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
@@ -146,14 +150,14 @@ export default function Players() {
       )}
 
       <Panel flush title={team ? `${team} players` : norm(q) ? `Results for “${q}”` : 'Browse every player'}
-        sub={`${n0(rows.length)} players${scope === 'fmt' ? ` who have played ${fl}` : ''}${active === 'now' ? ', active in the last two years' : ''}. Most matches first.`}
+        sub={data ? `${n0(rows.length)} players${scope === 'fmt' ? ` who have played ${fl}` : ''}${active === 'now' ? ', active in the last two years' : ''}. Most matches first.` : 'Loading the full player list…'}
         tools={<>
           <Mini label="Format" value={scope} onChange={setScope} options={[['fmt', fl], ['any', 'Any']]} />
           <Mini label="Active" value={active} onChange={setActive} options={[['now', 'Recently'], ['all', 'Ever']]} />
           {team && <button type="button" className="chip" aria-pressed="true" onClick={() => pickTeam(team)}>{team} ×</button>}
           <span style={{ marginLeft: 'auto' }}><Seg label="View" value={view} onChange={setView} options={[['grid', 'Cards'], ['table', 'Table']]} /></span>
         </>}>
-        {!rows.length ? <div className="empty">No players match. Try fewer letters, or switch Active to “Ever”.</div>
+        {!data ? <Loader text="Loading players" /> : !rows.length ? <div className="empty">No players match. Try fewer letters, or switch Active to “Ever”.</div>
           : view === 'grid' ? (
             <div className="ptile-wrap">
               <div className="ptile-grid">{rows.slice(0, shown).map((p) => <Tile key={p[0]} p={p} fmt={s.fmt} />)}</div>

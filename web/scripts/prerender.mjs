@@ -33,6 +33,18 @@ let pages = 0, bytes = 0;
 const urls = { pages: [], players: [], teams: [], comps: [], matches: [], venues: [] };
 
 const OG_IMAGE = `${SITE}/og.png`;
+// Data files a page needs first (the app fetches the same addresses, so the browser reuses these downloads).
+function preloadsFor(path) {
+  const f = ['meta.json'];
+  let m;
+  if ((m = path.match(/^\/player\/([0-9a-f]+)$/))) f.push(`players/${m[1]}.json`, `photos/index-${m[1][0]}.json`, `names/${m[1][0]}.json`, 'coverage.json');
+  else if ((m = path.match(/^\/match\/([^/]+)$/))) f.push(`matches/${m[1]}.json`);
+  else if ((m = path.match(/^\/team\/([^/]+)$/))) f.push(`teams/${m[1]}.json`);
+  else if ((m = path.match(/^\/venue\/([^/]+)$/))) f.push(`venues/${m[1]}.json`);
+  else if (path === '/' || path === '/players') f.push('home.json', 'home/T20-male-top.json');
+  return f;
+}
+
 function page(path, { title, desc, body, ld, noindex, type = 'website', group = 'pages', lastmod, image }) {
   const url = SITE + (path === '/' ? '/' : path);
   const fullTitle = path === '/' ? title : `${title} · cricforgeek`;
@@ -54,6 +66,8 @@ function page(path, { title, desc, body, ld, noindex, type = 'website', group = 
     `<meta name="twitter:title" content="${esc(title)}" />`,
     `<meta name="twitter:description" content="${esc(clip(desc, 200))}" />`,
     ...(ld ? [`<script type="application/ld+json">${ldJson(ld)}</script>`] : []),
+    // start the page's data downloading straight away, alongside the code, instead of after the code has run
+    ...preloadsFor(path).map((f) => `<link rel="preload" href="/data/${f}" as="fetch" crossorigin />`),
   ].join('\n    ');
   let html = template
     .replace(/<title>[\s\S]*?<\/title>/, '')

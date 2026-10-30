@@ -21,13 +21,17 @@ export default function Explorer() {
   const [disc, setDisc] = useState<'bat' | 'bowl'>('bat');
   const [by, setBy] = useState<'player' | 'season' | 'comp'>('player');
   const [comps, setComps] = useState<string[]>([]);
-  const [from, setFrom] = useState(0);
+  const [fromSel, setFrom] = useState<number | null>(null);  // null: from the start of the recent file
   const [to, setTo] = useState(9999);
   const [minB, setMinB] = useState(300);
-  const ex = useData<any>(`explorer/${fk}.json`);
-  const search = useData<any>('search.json');
+  // Batting or bowling only, and the last six seasons first: older seasons are fetched only if the years are widened.
+  const recent = useData<any>(`explorer/${fk}-${disc}-recent.json`);
+  const split: number = recent.data?.split ?? 0;
+  const from = fromSel ?? split;
+  const old = useData<any>(recent.data && from < split ? `explorer/${fk}-${disc}-old.json` : null);
+  const ex = useMemo(() => (recent.data ? { error: recent.error, data: { cols: recent.data.cols, rows: old.data ? [...old.data.rows, ...recent.data.rows] : recent.data.rows } } : { error: recent.error, data: null as any }), [recent.data, recent.error, old.data]);
   const meta = useData<any>('meta.json').data;
-  const names = useMemo(() => new Map<string, string>((search.data?.players ?? []).map((p: any) => [p[0], p[1]])), [search.data]);
+  const names = useMemo(() => new Map<string, string>([...Object.entries<string>(old.data?.names ?? {}), ...Object.entries<string>(recent.data?.names ?? {})]), [recent.data, old.data]);
   const compLabel = useMemo(() => new Map<string, string>((meta?.comps ?? []).map((c: any) => [c.key, c.label])), [meta]);
 
   const idx = useMemo(() => Object.fromEntries((ex.data?.cols ?? []).map((c: string, i: number) => [c, i])), [ex.data]);
@@ -36,10 +40,7 @@ export default function Explorer() {
     for (const r of ex.data?.rows ?? []) m.set(r[1], (m.get(r[1]) ?? 0) + (r[idx.bb] ?? 0) + (r[idx.wb] ?? 0));
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
   }, [ex.data, idx]);
-  const years = useMemo(() => {
-    const ys = (ex.data?.rows ?? []).map((r: any) => yearOf(r[2]));
-    return ys.length ? [Math.min(...ys), Math.max(...ys)] : [2000, 2026];
-  }, [ex.data]);
+  const years = useMemo(() => [recent.data?.first ?? 2000, recent.data?.last ?? 2026], [recent.data]);
 
   const rows = useMemo(() => {
     if (!ex.data) return [];
@@ -67,7 +68,7 @@ export default function Explorer() {
       }
     }
     return out;
-  }, [ex.data, idx, disc, by, comps, from, to, minB]);
+  }, [ex.data, idx, disc, by, comps, from, to, minB, old.loading]);
 
   const limited = !MULTI(fk.split('-')[0]);
   const who: Col<any> = { key: 'n', label: 'Player', left: true, get: (x) => names.get(x.player) ?? x.player,
@@ -111,7 +112,7 @@ export default function Explorer() {
       <Panel>
         <div className="row" style={{ alignItems: 'flex-end', gap: 16 }}>
           <label className="field">Format
-            <select className="input" value={fk} onChange={(e) => { setFk(e.target.value); setComps([]); setFrom(0); setTo(9999); }}>
+            <select className="input" value={fk} onChange={(e) => { setFk(e.target.value); setComps([]); setFrom(null); setTo(9999); }}>
               {FKS.map((k) => <option key={k} value={k}>{famKeyLabel(k)}</option>)}
             </select>
           </label>
@@ -141,7 +142,7 @@ export default function Explorer() {
       </Panel>
       {ex.error && <ErrorBox error={ex.error} />}
       {!ex.data ? <Loader text="Loading explorer data" /> : (
-        <Panel flush title={`${n0(rows.length)} results`} sub="Click a column to sort.">
+        <Panel flush title={`${n0(rows.length)} results`} sub={old.loading ? `Loading seasons before ${split}…` : 'Click a column to sort.'}>
           <Table key={`${disc}-${by}`} rows={rows} cols={cols} sort="imp" rank limit={50} empty="No players match. Lower the minimum balls or widen the years." />
         </Panel>
       )}

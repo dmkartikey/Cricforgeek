@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { usePageMeta } from '../lib/meta';
 import { Link } from 'react-router-dom';
-import { useData } from '../lib/data';
+import { useData, load } from '../lib/data';
 import { FMTS, LEVELS, useSettings } from '../lib/settings';
 import { MULTI, PHASES } from '../lib/labels';
 import { d1, d2, dateShort, n0, signed } from '../lib/fmt';
@@ -118,6 +118,8 @@ export default function Home() {
   const idx = useData<HomeIdx>('home.json');
   const scopes = idx.data?.scopes ?? [];
   const want = `${s.fmt}-${s.gender}-${s.level}`;
+  // start the likely leaderboard file now, in parallel with the list that names it
+  useEffect(() => { load(`home/${want}.json`).catch(() => null); }, [want]);
   const fallback = scopes.find((x) => x.key === want) ?? ['top', 'intl', 'all'].map((l) => scopes.find((x) => x.key === `${s.fmt}-${s.gender}-${l}`)).find(Boolean);
   const { data, error } = useData<Scope>(fallback ? `home/${fallback.key}.json` : null);
   const [win, setWin] = useState<'365' | 'all'>('365');

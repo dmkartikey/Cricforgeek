@@ -891,6 +891,7 @@ def _scope_home(con, fmt, cut365, cut730, cut1095, names):
 
 
 def _export_explorer(con, w):
+    pnames = dict(con.execute("select player, name from P").fetchall())
     for fam in FAMS:
         for gender in ("male", "female"):
             res = con.execute("""
@@ -908,10 +909,20 @@ def _export_explorer(con, w):
             """, [fam, gender, fam, gender]).fetchall()
             if not res:
                 continue
-            w.write(f"explorer/{fam}-{gender}.json", {
-                "cols": ["player", "comp", "season", "bi", "br", "bb", "bo", "f4", "s6", "bd", "bxr", "bxo", "bimp", "bwpa",
-                         "wi", "wb", "wr", "ww", "wd", "wxr", "wxw", "wimp", "wwpa"],
-                "rows": [[r(v, 3) for v in t] for t in res]})
+            # Split four ways so a phone downloads only what's on screen: batting or bowling, and the last six seasons
+            # (the default view) or the older ones (fetched only when the years are widened). Each file carries the
+            # names of its players, so the page doesn't need the whole search list.
+            last = max(int(str(t[2])[:4]) for t in res)
+            split = last - 5
+            for kind, cols, lo, hi, balls in (("bat", ["bi", "br", "bb", "bo", "f4", "s6", "bd", "bxr", "bxo", "bimp", "bwpa"], 3, 14, 5),
+                                              ("bowl", ["wi", "wb", "wr", "ww", "wd", "wxr", "wxw", "wimp", "wwpa"], 14, 23, 15)):
+                part = [t for t in res if t[balls] is not None]  # has balls faced / bowled in this discipline
+                for era, keep in (("recent", lambda y: y >= split), ("old", lambda y: y < split)):
+                    rws = [[t[0], t[1], t[2]] + [r(v, 3) for v in t[lo:hi]] for t in part if keep(int(str(t[2])[:4]))]
+                    ids = {x[0] for x in rws}
+                    w.write(f"explorer/{fam}-{gender}-{kind}-{era}.json", {
+                        "cols": ["player", "comp", "season"] + cols, "rows": rws, "split": split, "first": min(int(str(t[2])[:4]) for t in res),
+                        "last": last, "names": {k: v for k, v in pnames.items() if k in ids}})
 
 
 def _export_search(con, w, comps):
