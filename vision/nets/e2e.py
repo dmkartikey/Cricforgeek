@@ -18,6 +18,7 @@ from .fit import calibrate, fit_delivery, fit_session
 
 RETURN_Y = 1.32
 NET = None
+LENS_PRIOR = os.environ.get("LENS_PRIOR", "1") == "1"
 
 
 def load_net(path):
@@ -159,7 +160,9 @@ def run_one(js):
     readout_guess = 0.65 / fps
     obs = [(meta["t0"] + f / fps, u, v, r) for f, u, v, p, r in best["frames"]]
     # the camera is refined together with the flight (gravity and the frame clock give the scale)
-    cam, res_s = fit_session(taps, [obs], meta["camera"]["W"], meta["camera"]["H"], readout=readout_guess)
+    # the user says whether they zoomed; at the normal 1x lens the width of view is known to about +-12%
+    lens = dict(hfov_deg=69.0, sig_f=0.12) if meta["camera"].get("zoom", 1.0) == 1.0 and LENS_PRIOR else {}
+    cam, res_s = fit_session(taps, [obs], meta["camera"]["W"], meta["camera"]["H"], readout=readout_guess, **lens)
     res = res_s[0]
     if res is not None and res["rms_px"] > 2.0:
         # drop the frames the flight can't explain (a wrong pick by the tracker) and fit again
@@ -176,6 +179,17 @@ def run_one(js):
         row["fail"] = "fit"
         return row
     row["fail"] = ""
+    # diagnosis: the same detections with the true camera, and the camera error
+    c = meta["camera"]
+    camT = Camera(W=c["W"], H=c["H"], f=c["f"], C=np.array(c["C"]), R=np.array(c["R"]))
+    rt = fit_delivery(camT, obs, readout=readout_guess)
+    if rt is not None:
+        row["speed_truecam"] = rt["speed_kmh"] - tr["speed_crease_kmh"]
+        if "length_m" in rt and "length_m" in tr:
+            row["length_truecam"] = rt["length_m"] - tr["length_m"]
+    row["cam_dC"] = float(np.linalg.norm(cam.C - camT.C)); row["cam_df"] = float(cam.f / c["f"] - 1)
+    row["n_taps"] = len(taps)
+    row["bad_frames"] = len(best["frames"]) - good
     row.update(speed=res["speed_kmh"] - tr["speed_crease_kmh"], true_speed=tr["speed_crease_kmh"], rms_px=res["rms_px"],
                speed_sd=res.get("speed_kmh_sd"))
     for key, name in (("length_m", "length"), ("line_y", "line"), ("height_z", "height"), ("swing_m", "swing"), ("bounce_y", "bounce_line")):

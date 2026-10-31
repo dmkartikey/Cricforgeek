@@ -13,7 +13,7 @@ import subprocess
 import numpy as np
 import cv2
 
-from .deliveries import PITCH, CREASE, STUMP_H, STUMP_W, BALL_R, random_delivery, simulate, position_at, truth
+from .deliveries import Delivery, PITCH, CREASE, STUMP_H, STUMP_W, BALL_R, random_delivery, simulate, position_at, truth
 from .camera import random_camera
 
 BALL_COLOURS = {"red": (0.62, 0.10, 0.08), "worn red": (0.42, 0.13, 0.10), "white": (0.92, 0.91, 0.88),
@@ -88,6 +88,7 @@ def scene(cam, rng, outdoor):
         # fine mesh aliases in the distance: blur it into a haze there
         a = cv2.GaussianBlur(a, (0, 0), 0.8)
         img[mn] = (img * (1 - a[..., None]) + netcol * a[..., None])[mn]
+    scene.net_y = yn  # the batter-response code stops a hit ball at the side net
     return img
 
 
@@ -189,19 +190,68 @@ def draw_ball(img, samples, cam, colour, occ_mask=None):
 
 
 # ---------------------------------------------------------------- one delivery to video
-def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True):
+def setup(rng, W=1280, H=720, fps=None):
+    """The fixed part of a filming session: the phone, the net, the light, the ball and the players' kit."""
+    cam, cinfo = random_camera(rng, W, H, fps)
+    outdoor = cinfo["outdoor"]
+    st = dict(cam=cam, cinfo=cinfo, outdoor=outdoor, bg=scene(cam, rng, outdoor), net_y=0.0,
+              gain=rng.uniform(0.75, 1.25) * (1.0 if outdoor else rng.uniform(0.55, 0.9)),
+              wb=np.array([rng.uniform(0.92, 1.08), 1.0, rng.uniform(0.9, 1.1)], np.float32),
+              noise_sd=(rng.uniform(0.004, 0.012) if outdoor else rng.uniform(0.01, 0.03)),
+              ball_col=BALL_COLOURS[rng.choice(list(BALL_COLOURS), p=[0.45, 0.3, 0.17, 0.08])],
+              kit=tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.15, 0.25, 0.55], [0.1, 0.1, 0.1], [0.75, 0.2, 0.2], [0.2, 0.5, 0.3]])) * 1.0),
+              bat_kit=tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.2, 0.3, 0.6], [0.1, 0.1, 0.12]])) * 1.0))
+    st["net_y"] = getattr(scene, "net_y", 2.4)
+    return st
+
+
+SHOTS = [("left", 0.25), ("missed", 0.12), ("defended", 0.23), ("attacking", 0.33), ("edged", 0.07)]
+
+
+def batter_response(seed, d, ts, ps, bat_x, bat_y, net_y=2.4):
+    """What the batter does with the ball: leave or miss it (it carries on), or hit it, which sends it off on a new
+    flight from the point of contact. Returns the ball's whole path and the true outcome."""
+    rng = np.random.default_rng(seed + 7_777_777)  # its own stream, so the delivery itself is unchanged
+    kind = SHOTS[rng.choice(len(SHOTS), p=[w for _, w in SHOTS])][0]
+    i = int(np.searchsorted(ps[:, 0], bat_x))
+    reach = 0 < i < len(ps) and abs(ps[i, 1] - bat_y) < 1.3 and ps[i, 2] < 2.0
+    if kind in ("left", "missed") or not reach:
+        return ts, ps, {"outcome": "left" if kind == "left" or not reach else "missed"}
+    t_c, p_c = float(ts[i]), ps[i].copy()
+    v_in = (ps[i] - ps[i - 1]) / (ts[i] - ts[i - 1])
+    if kind == "defended":
+        sp, az, el = rng.uniform(2, 8), rng.normal(0, 25), rng.uniform(-25, -2)
+    elif kind == "attacking":
+        sp, az, el = rng.uniform(12, 38), rng.uniform(-110, 110), rng.choice([rng.uniform(-12, 5), rng.uniform(5, 40)], p=[0.6, 0.4])
+    else:  # edged: carries on behind, deflected
+        sp, az, el = np.linalg.norm(v_in) * rng.uniform(0.5, 0.85), 180 + rng.choice([-1, 1]) * rng.uniform(8, 40), rng.uniform(-5, 15)
+    # azimuth 0 = straight back past the bowler (-x); +90 = to the bowler's right (+y)
+    a, e = np.radians(az), np.radians(el)
+    v = sp * np.array([-np.cos(e) * np.cos(a), np.cos(e) * np.sin(a), np.sin(e)])
+    hit = Delivery(p0=p_c, v0=v, cd=0.45, cs=0.0, e_bounce=0.45, k_bounce=0.7, dev_deg=0.0)
+    ts2, ps2, _ = simulate(hit, t_end=1.6, x_stop=1e9)
+    # the net catches it: from the moment it reaches a side net or the roof it drops down the netting
+    out = np.nonzero((np.abs(ps2[:, 1]) > net_y - BALL_R) | (ps2[:, 2] > 4.0) | (ps2[:, 0] > PITCH + 3.5))[0]
+    if len(out):
+        j = int(out[0]); ph, th = ps2[j].copy(), ts2[j]
+        ph[1] = np.clip(ph[1], -(net_y - BALL_R), net_y - BALL_R)
+        for q in range(j, len(ps2)):
+            dt = ts2[q] - th
+            ps2[q] = [ph[0], ph[1], max(BALL_R, min(ph[2], 4.0) - 0.5 * 9.81 * dt * dt * 0.6)]
+    ts_all = np.r_[ts[:i], t_c + ts2]
+    ps_all = np.r_[ps[:i], ps2]
+    return ts_all, ps_all, {"outcome": kind, "t_contact": t_c, "contact": p_c.tolist(), "exit_kmh": float(sp * 3.6),
+                            "azimuth_deg": float(az), "elevation_deg": float(el)}
+
+
+def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True, st=None):
     rng = np.random.default_rng(seed)
     d = random_delivery(rng)
     ts, ps, info = simulate(d)
-    cam, cinfo = random_camera(rng, W, H, fps)
-    outdoor = cinfo["outdoor"]
-    bg = scene(cam, rng, outdoor)
-    gain = rng.uniform(0.75, 1.25) * (1.0 if outdoor else rng.uniform(0.55, 0.9))
-    wb = np.array([rng.uniform(0.92, 1.08), 1.0, rng.uniform(0.9, 1.1)], np.float32)
-    noise_sd = (rng.uniform(0.004, 0.012) if outdoor else rng.uniform(0.01, 0.03))
-    ball_col = BALL_COLOURS[rng.choice(list(BALL_COLOURS), p=[0.45, 0.3, 0.17, 0.08])]
-    kit = tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.15, 0.25, 0.55], [0.1, 0.1, 0.1], [0.75, 0.2, 0.2], [0.2, 0.5, 0.3]])) * 1.0)
-    bat_kit = tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.2, 0.3, 0.6], [0.1, 0.1, 0.12]])) * 1.0)
+    if st is None:
+        st = setup(rng, W, H, fps)
+    cam, cinfo, outdoor, bg = st["cam"], st["cinfo"], st["outdoor"], st["bg"]
+    gain, wb, noise_sd, ball_col, kit, bat_kit = st["gain"], st["wb"], st["noise_sd"], st["ball_col"], st["kit"], st["bat_kit"]
 
     # bowler: runs in, gathers, releases at t = 0 with the hand at the release point
     side = np.sign(d.p0[1]) or 1.0
@@ -223,9 +273,12 @@ def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True
     bat_y = rng.choice([-1, 1]) * rng.uniform(0.25, 0.45)
     bat_x = PITCH - rng.uniform(0.3, 1.2)
     t_arrive = info.get("t_stumps", 0.6)
+    ts, ps, shot = batter_response(seed, d, ts, ps, bat_x, bat_y, st.get("net_y", 2.4))
 
     t0 = -rng.uniform(0.25, 0.7)
     t1 = t_arrive + rng.uniform(0.15, 0.4)
+    if "t_contact" in shot:
+        t1 = max(t1, shot["t_contact"] + 0.8)  # follow the ball after the shot
     n = int(np.ceil((t1 - t0) * cam.fps))
     n_sub = int(np.clip(np.ceil(cam.exposure * 2000), 3, 24))
     frames, labels = [], []
@@ -277,7 +330,7 @@ def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True
                 calib[f"{name}_{k}_{hk}"] = [float(uv[0, 0]), float(uv[0, 1]), [x, y, z]]
     meta = {"seed": int(seed), "camera": {"W": W, "H": H, "f": float(cam.f), "C": cam.C.tolist(), "R": cam.R.tolist(),
                                            "fps": cam.fps, "exposure": cam.exposure, "readout": cam.readout, "k1": cam.k1, **cinfo},
-            "delivery": d.as_dict(), "truth": tr, "t0": t0, "calib": calib, "frames": labels,
+            "delivery": d.as_dict(), "truth": tr, "shot": shot, "t0": t0, "calib": calib, "frames": labels,
             "crf": None}
     if write:
         os.makedirs(out_dir, exist_ok=True)

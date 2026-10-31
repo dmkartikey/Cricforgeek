@@ -1,0 +1,5 @@
+__pycache__
+ci
+*.mp4
+*.npz
+*.npy
