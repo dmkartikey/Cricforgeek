@@ -1,0 +1,35 @@
+all: 180/200 deliveries measured {'no track': 20, 'fit': 0}
+  ball frames found by the tracker: median 73%
+  speed    median   8.76 km/h  80%   32.17  90%   52.64  (n=180)
+  length   median  34.88 cm    80%  135.62  90%  246.27  (n=148)
+  line     median   4.82 cm    80%   17.42  90%   39.67  (n=170)
+  height   median   6.96 cm    80%   21.09  90%   40.26  (n=170)
+  swing    median   5.66 cm    80%   15.11  90%   26.69  (n=148)
+30 fps: 38/48 deliveries measured {'no track': 10, 'fit': 0}
+  ball frames found by the tracker: median 83%
+  speed    median  13.91 km/h  80%   32.77  90%   42.82  (n=38)
+  length   median  33.61 cm    80%  145.28  90%  169.82  (n=31)
+  line     median   5.43 cm    80%   14.77  90%   28.41  (n=37)
+  height   median   7.06 cm    80%   20.34  90%   24.40  (n=37)
+  swing    median   5.67 cm    80%   18.39  90%   28.20  (n=31)
+60 fps: 70/78 deliveries measured {'no track': 8, 'fit': 0}
+  ball frames found by the tracker: median 82%
+  speed    median   6.58 km/h  80%   24.65  90%   48.79  (n=70)
+  length   median  33.73 cm    80%  109.22  90%  262.42  (n=56)
+  line     median   3.53 cm    80%   19.79  90%   38.00  (n=65)
+  height   median   4.99 cm    80%   20.29  90%   56.60  (n=65)
+  swing    median   5.56 cm    80%   15.63  90%   22.75  (n=56)
+120 fps: 50/51 deliveries measured {'no track': 1, 'fit': 0}
+  ball frames found by the tracker: median 66%
+  speed    median   7.10 km/h  80%   33.55  90%   55.83  (n=50)
+  length   median  43.55 cm    80%  119.27  90%  164.42  (n=43)
+  line     median   7.18 cm    80%   29.81  90%   51.85  (n=48)
+  height   median   8.29 cm    80%   20.12  90%   32.76  (n=48)
+  swing    median   6.78 cm    80%   13.65  90%   18.99  (n=43)
+240 fps: 22/23 deliveries measured {'no track': 1, 'fit': 0}
+  ball frames found by the tracker: median 69%
+  speed    median  14.82 km/h  80%   45.45  90%   64.42  (n=22)
+  length   median  69.35 cm    80%  193.78  90%  557.56  (n=18)
+  line     median   2.54 cm    80%    9.77  90%   23.79  (n=20)
+  height   median  14.24 cm    80%   25.66  90%   31.73  (n=20)
+  swing    median   4.83 cm    80%   14.19  90%   43.22  (n=18)
