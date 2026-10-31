@@ -14,7 +14,7 @@ from .track import find_tracks
 from .train_det import BallNet
 from .camera import Camera
 from .deliveries import Delivery, simulate, truth, PITCH, CREASE, STUMP_W, STUMP_H
-from .fit import calibrate, fit_delivery
+from .fit import calibrate, fit_delivery, fit_session
 
 RETURN_Y = 1.32
 NET = None
@@ -50,6 +50,60 @@ def detect_video(frames, fps, net, max_n=60):
             found.append((float(u), float(v), float(p), float(max(o[3], 0.5))))
         dets[i] = found
     return dets
+
+
+def _query(frames, k, i, u, v, net):
+    """Ask the network about one spot in frame i: (u, v, p, r) of the ball it sees there."""
+    if i - k < 0 or i + k >= len(frames):
+        return None
+    p, (cu, cv_) = patch(frames[i - k], frames[i], frames[i + k], u, v)
+    with torch.no_grad():
+        o = net(torch.from_numpy(p[None]))[0].numpy()
+    return (float(cu + o[1]), float(cv_ + o[2]), float(1 / (1 + np.exp(-o[0]))), float(max(o[3], 0.5)))
+
+
+def extend_track(frames, fps, track, net, p_min=0.35):
+    """Fill the frames the first pass missed: inside the track by interpolation, and beyond both ends by
+    extrapolating the last few points, each time asking the network to look exactly there."""
+    k = gap_for(fps)
+    pts = {f: (u, v, p, r) for f, u, v, p, r in track["frames"]}
+    fs = sorted(pts)
+    # gaps inside
+    for a, b in zip(fs[:-1], fs[1:]):
+        for f in range(a + 1, b):
+            w = (f - a) / (b - a)
+            u = pts[a][0] * (1 - w) + pts[b][0] * w
+            v = pts[a][1] * (1 - w) + pts[b][1] * w
+            q = _query(frames, k, f, u, v, net)
+            if q and q[2] >= p_min and np.hypot(q[0] - u, q[1] - v) < 6:
+                pts[f] = q
+    # beyond each end
+    for direction in (+1, -1):
+        misses = 0
+        while misses < max(3, int(fps / 30)):
+            fs = sorted(pts)
+            end = fs[-1] if direction > 0 else fs[0]
+            near = fs[-3:] if direction > 0 else fs[:3][::-1]
+            if len(near) < 3:
+                break
+            f = end + direction * (misses + 1)
+            if f < k or f >= len(frames) - k:
+                break
+            P = np.array([pts[x][:2] for x in near]); T = np.array(near, float)
+            c = [np.polyfit(T, P[:, j], 2 if len(set(T)) > 2 else 1) for j in range(2)]
+            u, v = np.polyval(c[0], f), np.polyval(c[1], f)
+            if not (0 <= u < frames[0].shape[1] and 0 <= v < frames[0].shape[0]):
+                break
+            step = np.hypot(*(P[-1] - P[-2])) / max(abs(T[-1] - T[-2]), 1)
+            q = _query(frames, k, f, u, v, net)
+            if q and q[2] >= p_min and np.hypot(q[0] - u, q[1] - v) < 3 + 0.5 * step * (misses + 1):
+                pts[f] = q
+                misses = 0
+            else:
+                misses += 1
+    track = dict(track)
+    track["frames"] = [(f,) + tuple(pts[f]) for f in sorted(pts)]
+    return track
 
 
 def user_taps(meta, rng, tap_px=1.5):
@@ -96,16 +150,17 @@ def run_one(js):
     if not tracks:
         row["fail"] = "no track"
         return row
-    best = tracks[0]
+    best = extend_track(frames, fps, tracks[0], NET)
     good = sum(1 for f, u, v, p, r in best["frames"] if "u" in labs[f] and np.hypot(u - labs[f]["u"], v - labs[f]["v"]) < 4)
     row.update(track_len=len(best["frames"]), track_good=good,
                ball_frames=sum(1 for L in labs if L.get("released") and L.get("inframe") and L.get("vis", 0) >= 0.3))
     rng = np.random.default_rng(meta["seed"])
     taps = user_taps(meta, rng)
-    cam, rms = calibrate(taps, meta["camera"]["W"], meta["camera"]["H"])
     readout_guess = 0.65 / fps
     obs = [(meta["t0"] + f / fps, u, v, r) for f, u, v, p, r in best["frames"]]
-    res = fit_delivery(cam, obs, readout=readout_guess)
+    # the camera is refined together with the flight (gravity and the frame clock give the scale)
+    cam, res_s = fit_session(taps, [obs], meta["camera"]["W"], meta["camera"]["H"], readout=readout_guess)
+    res = res_s[0]
     if res is not None and res["rms_px"] > 2.0:
         # drop the frames the flight can't explain (a wrong pick by the tracker) and fit again
         res0 = res

@@ -180,11 +180,18 @@ def _initial(cam, tt, u, v, keep=3):
         if pb is not None and 0.0 < pb[2] < 2.5:
             anchors.append((pb, tt[-1]))
     d0 = _ray(cam, u[0], v[0])
+    # general anchor (a part of the flight only, with no bounce or batter's end in view): the last sighting at a
+    # range of depths along its ray
+    d1 = _ray(cam, u[-1], v[-1])
+    for lam in np.linspace(3.0, 30.0, 19):
+        pb = cam.C + lam * d1
+        if 0.0 < pb[2] < 3.2 and -2 < pb[0] < PITCH + 3:
+            anchors.append((pb, tt[-1]))
     cands = []
     for pb, tb in anchors:
         if tb <= 0:
             continue
-        for lam in np.linspace(1.0, 16.0, 46):
+        for lam in np.linspace(1.0, 16.0, 31):
             P0 = cam.C + lam * d0
             if P0[2] < 0.3 or P0[2] > 3.2:
                 continue

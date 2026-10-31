@@ -1,0 +1,82 @@
+name: Nets vision (train + test)
+# Renders synthetic net videos in parallel, cuts training patches, trains the ball network, then runs the whole
+# analyser end to end on fresh videos it never saw. Weights and the report go to the vision-results branch.
+on:
+  push:
+    branches: [vision-ci]
+    paths: [".github/workflows/vision.yml", "vision/**"]
+permissions:
+  contents: write
+concurrency: { group: vision, cancel-in-progress: true }
+env:
+  PY_DEPS: numpy==2.2.6 scipy==1.15.3 opencv-python-headless==4.10.0.84
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      matrix: { shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - name: Render and cut patches
+        working-directory: vision
+        env: { FRAME_BUDGET: "30", NEG_PER_FRAME: "5" }
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q $PY_DEPS
+          N=$(cat ci/videos_per_shard 2>/dev/null || echo 60)
+          python -m nets.make_videos /tmp/v $((100000 + ${{ matrix.shard }} * 1000)) $N 4
+          python -m nets.patches /tmp/v /tmp/patches-${{ matrix.shard }}.npz 0:100000 4
+      - uses: actions/upload-artifact@v4
+        with: { name: "patches-${{ matrix.shard }}", path: "/tmp/patches-${{ matrix.shard }}.npz", retention-days: 3, compression-level: 0 }
+  testset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      matrix: { shard: [0, 1, 2, 3] }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - name: Render test videos (seeds never used for training)
+        working-directory: vision
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q $PY_DEPS
+          N=$(cat ci/test_per_shard 2>/dev/null || echo 50)
+          python -m nets.make_videos /tmp/t $((900000 + ${{ matrix.shard }} * 1000)) $N 4
+      - uses: actions/upload-artifact@v4
+        with: { name: "test-${{ matrix.shard }}", path: "/tmp/t", retention-days: 3, compression-level: 0 }
+  train:
+    needs: [render, testset]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - uses: actions/download-artifact@v4
+        with: { path: /tmp/a }
+      - name: Train
+        working-directory: vision
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q $PY_DEPS
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          mkdir -p /tmp/out
+          # hold out shard 0's patches to score the network on videos it did not train on
+          TR=$(ls /tmp/a/patches-*/patches-*.npz | grep -v 'patches-0.npz' | paste -sd, -)
+          EP=$(cat ci/epochs 2>/dev/null || echo 10)
+          python -m nets.train_det "$TR" /tmp/a/patches-0/patches-0.npz /tmp/out/ballnet.json $EP 2>&1 | grep -v Warning | tee /tmp/out/train.log
+      - name: End to end on the test videos
+        working-directory: vision
+        run: |
+          mkdir -p /tmp/t && cp /tmp/a/test-*/* /tmp/t/
+          python -m nets.e2e /tmp/t /tmp/out/ballnet.json 0:100000 4 /tmp/out/e2e.json 2>&1 | grep -v Warning | tee /tmp/out/e2e.log
+      - name: Publish
+        if: always()
+        run: |
+          cd /tmp/out && git init -q -b vision-results && git add -A && git -c user.name=vision -c user.email=vision@users.noreply.github.com commit -qm "vision $(date -u +%FT%TZ) ${{ github.sha }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" vision-results

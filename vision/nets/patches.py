@@ -24,7 +24,7 @@ def frames_of(mp4):
     return out
 
 
-def from_video(js, neg_per_frame=6, frame_budget=60, seed=0):
+def from_video(js, neg_per_frame=int(os.environ.get("NEG_PER_FRAME", 6)), frame_budget=int(os.environ.get("FRAME_BUDGET", 60)), seed=0):
     meta = json.load(open(js))
     fr = frames_of(js[:-5] + ".mp4")
     rng = np.random.default_rng(meta["seed"] + seed)
