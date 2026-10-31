@@ -1,9 +1,14 @@
-import json, urllib.parse, urllib.request
-UA = {"User-Agent": "cricforgeek-names/1.0 (https://cricforgeek.site)"}
-q = """SELECT ?ci ?label ?alt WHERE { VALUES ?ci { "35320" "28081" "253802" } ?p wdt:P2697 ?ci .
-           OPTIONAL { ?p rdfs:label ?en . FILTER(lang(?en) = "en") } OPTIONAL { ?p rdfs:label ?mul . FILTER(lang(?mul) = "mul") }
-           BIND(COALESCE(?en, ?mul) AS ?label) FILTER(BOUND(?label))
-           OPTIONAL { ?p skos:altLabel ?alt . FILTER(lang(?alt) IN ("en", "mul")) } }"""
-req = urllib.request.Request("https://query.wikidata.org/sparql", data=urllib.parse.urlencode({"query": q, "format": "json"}).encode(), headers={**UA, "Content-Type": "application/x-www-form-urlencoded"})
-rows = json.loads(urllib.request.urlopen(req, timeout=90).read())["results"]["bindings"]
-print(sorted({(b["ci"]["value"], b["label"]["value"]) for b in rows}))
+import json, urllib.request
+def get(u): return json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "cricforgeek-research"}), timeout=60).read())
+seen = set()
+for q in ("cricket ball", "cricket", "ball tracking", "cricket bowling", "ball detection"):
+    for d in get(f"https://huggingface.co/api/datasets?search={q.replace(' ', '%20')}&limit=60&full=true"):
+        if d["id"] in seen: continue
+        seen.add(d["id"])
+        tags = d.get("tags", [])
+        lic = [t for t in tags if t.startswith("license:")]
+        size = [t for t in tags if t.startswith("size_categories:")]
+        print(d["id"], lic, size, d.get("downloads"), [t for t in tags if t.startswith("task_categories:")][:2])
+for q in ("cricket",):
+    for m in get(f"https://huggingface.co/api/models?search={q}&limit=40"):
+        print("MODEL", m["id"], m.get("downloads"), m.get("pipeline_tag"))
