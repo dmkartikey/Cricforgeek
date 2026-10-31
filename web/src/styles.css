@@ -1307,7 +1307,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .table tr.sel td { background: var(--hover, rgba(127,127,127,.08)); }
 .nets-coach-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .nets-coach { display: flex; gap: 18px; align-items: center; margin-bottom: 12px; }
-.nets-coach h3 { margin: 0 0 4px; font-size: 18px; }
+.nets-coach h3 { margin: 0 0 4px; font-size: 18px; font-family: inherit; text-transform: none; letter-spacing: 0; }
 .nets-coach p { margin: 0; font-size: 14px; }
 .nets-score { min-width: 86px; height: 86px; border-radius: 50%; border: 3px solid var(--s1); display: grid; place-content: center; text-align: center; }
 .nets-score b { font-size: 28px; line-height: 1; } .nets-score small { color: var(--text-2); }

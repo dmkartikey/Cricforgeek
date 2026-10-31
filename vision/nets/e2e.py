@@ -51,10 +51,28 @@ class _F:
         return self.f[i].astype(np.float32)
 
 
-def detect_video(frames, fps, net, max_n=60):
+def sub_step(fps):
+    """Slow motion is tracked at about 60 frames a second (every 2nd or 4th frame): at the far end the ball moves
+    under a pixel between slow-motion frames, which is too little to follow; every frame is used again afterwards."""
+    return max(1, int(round(fps / 60)))
+
+
+def detect_and_track(frames, fps, net):
+    s = sub_step(fps)
+    dets = detect_video(frames, fps, net, step=s)
+    sub = [dets[i] for i in range(0, len(frames), s)]
+    tracks = find_tracks(sub, fps / s)
+    for t in tracks:
+        t["frames"] = [(f * s,) + tuple(x) for f, *x in t["frames"]]
+    return dets, tracks
+
+
+def detect_video(frames, fps, net, max_n=60, step=1):
     k = gap_for(fps)
     dets = [[] for _ in range(len(frames))]
     for i in range(k, len(frames) - k):
+        if i % step:
+            continue
         a, b, c3 = frames[i - k], frames[i], frames[i + k]
         cands, _ = candidates(a, b, c3, max_n=max_n)
         if not cands:
@@ -165,8 +183,7 @@ def run_one(js):
     meta = json.load(open(js))
     fps = meta["camera"]["fps"]
     frames = _F(frames_u8(js[:-5] + ".mp4"))
-    dets = detect_video(frames, fps, NET)
-    tracks = find_tracks(dets, fps)
+    dets, tracks = detect_and_track(frames, fps, NET)
     tr = true_numbers(meta)
     row = {"seed": meta["seed"], "fps": fps, "outdoor": meta["camera"]["outdoor"], "kind": tr["kind"], "crf": meta["crf"]}
     # how many true ball frames the best track got right

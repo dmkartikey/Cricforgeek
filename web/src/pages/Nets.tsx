@@ -398,7 +398,7 @@ function CoachPanel({ res }: { res: Analysis }) {
         <Seg label="Bowling" value={kindSel} onChange={setKindSel} options={[['auto', 'Auto'], ['pace', 'Pace'], ['spin', 'Spin']]} />
       </span>}>
       <div className="nets-coach">
-        <div className="nets-score"><b>{rep.score}</b><small>/ 100</small></div>
+        {(role === 'bowler' || hasShots) && <div className="nets-score"><b>{rep.score}</b><small>/ 100</small></div>}
         <div><h3>{rep.headline}</h3>
           {role === 'batter' && !hasShots && <p className="muted">Shot details (played, left, edged, how hard and where) come with the cloud analysis. Below is what you faced.</p>}
           {role === 'bowler' && bowl.best && <p>Best ball: <b>ball {bowl.best.index + 1}</b>, {bowl.best.why}</p>}

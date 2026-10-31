@@ -212,7 +212,7 @@ export function coachBatter(faced: Faced[], hand: Hand, kindIn?: Kind): BatRepor
   ins.push({ tone: 'info', area: 'Faced', title: `${n} balls faced at ${mean(faced.map(f => f.result.speedKmh)).toFixed(1)} km/h on average`,
     detail: `${pct(faced.filter(f => onStumps(f.result)).length, n)}% were on line to hit the stumps; ${pct(faced.filter(f => (f.result.lengthM ?? 0) >= 8).length, n)}% were short.` +
       (known.length < n ? ` What happened after the ball reached you is clear on ${known.length} of them.` : '') })
-  if (!known.length) return { score: 0, headline: 'The shots could not be read on this clip.', insights: ins, focus: [], grid: [], shots: [] }
+  if (!known.length) return { score: 0, headline: 'What you faced', insights: ins, focus: [], grid: [], shots: [] }
 
   // decisions: leaving straight balls, playing at wide ones
   const leftStraight = notHit.filter(f => onStumps(f.result))

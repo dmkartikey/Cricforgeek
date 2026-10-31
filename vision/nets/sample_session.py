@@ -1,5 +1,5 @@
 """A demo clip for the website: one phone set-up, several deliveries back to back, plus the pitch marks a user would
-tap. Usage: python -m nets.sample_session OUT_DIR SEED [balls] [fps]"""
+tap. Usage: python -m nets.sample_session OUT_DIR SEED [balls] [fps] [pace|spin]"""
 import sys, os, json, subprocess
 import numpy as np
 
@@ -23,8 +23,17 @@ def main():
     cam = st["cam"]
     frames, truths = [], []
     t = 0.0
-    for b in range(balls):
+    kind = sys.argv[5] if len(sys.argv) > 5 else "pace"
+    b = 0
+    for _ in range(balls):
+        # one bowler: keep only deliveries of the chosen kind
+        while True:
+            from .deliveries import random_delivery
+            if random_delivery(np.random.default_rng(seed * 100 + b)).kind == kind:
+                break
+            b += 1
         meta, fr = render_delivery(seed * 100 + b, out, write=False, st=st)
+        b += 1
         truths.append({"start_s": t, **meta["truth"]})
         frames += fr
         t += len(fr) / cam.fps

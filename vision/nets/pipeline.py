@@ -75,7 +75,8 @@ def _load_net(path):
 
 def _detect_range(args):
     """Runs in a worker process: detections for frames lo..hi (needs frames lo-k .. hi+k)."""
-    shm_path, shape, lo, hi, k, weights = args
+    shm_path, sub, lo, hi, k, weights = args
+    sub = sub or 1
     frames = np.load(shm_path, mmap_mode="r")
     net = _load_net(weights)
     out = []
@@ -89,6 +90,8 @@ def _detect_range(args):
                 del cache[key]
         return cache[j]
     for i in range(lo, hi):
+        if i % sub:
+            continue
         (a, pa), (b, pb), (c, pc) = get(i - k), get(i), get(i + k)
         cands, _ = candidates(a, b, c, max_n=60, preps=(pa, pb, pc))
         if not cands:
@@ -210,9 +213,11 @@ def analyse(path, taps, W, H, weights, slow=1.0, lens="normal", workers=None, pr
     stack_path = path + ".frames.npy"
     np.save(stack_path, np.stack(frames))
     workers = workers or max(1, min(8, os.cpu_count() or 1))
-    idx = list(range(k, n - k))
+    # slow motion is tracked at about 60 frames a second (the gap-filling afterwards uses every frame)
+    sub = max(1, int(round(fps / 60)))
+    idx = [i for i in range(k, n - k) if i % sub == 0]
     step = max(8, len(idx) // (workers * 4) + 1)
-    jobs = [(stack_path, None, idx[i], min(idx[i] + step, n - k), k, weights) for i in range(0, len(idx), step)]
+    jobs = [(stack_path, sub, idx[i], min(idx[i] + step * sub, n - k), k, weights) for i in range(0, len(idx), step)]
     dets = [[] for _ in range(n)]
     done = 0
     progress("finding", 0, len(idx))
@@ -226,8 +231,11 @@ def analyse(path, taps, W, H, weights, slow=1.0, lens="normal", workers=None, pr
     # 2. flights: chains of sightings, filled in where the first pass missed the ball
     progress("tracking", 0, 1)
     net = _load_net(weights)
-    min_len = max(6, int(round(fps * 0.12)))
-    tracks = [t for t in find_tracks(dets, fps, min_len=min_len) if _plausible(t, fps)]
+    subdets = [dets[i] for i in range(0, n, sub)]
+    tracks = find_tracks(subdets, fps / sub, min_len=max(6, int(round(fps / sub * 0.12))))
+    for t in tracks:
+        t["frames"] = [(f * sub,) + tuple(x) for f, *x in t["frames"]]
+    tracks = [t for t in tracks if _plausible(t, fps)]
     tracks.sort(key=lambda t: t["frames"][0][0])
     tracks = [extend_track(frames, fps, t, net) for t in tracks]
     # 3. calibrate and measure every delivery together
@@ -250,7 +258,8 @@ def analyse(path, taps, W, H, weights, slow=1.0, lens="normal", workers=None, pr
         if not is_delivery(r):
             continue
         try:
-            shot = analyse_shot(r, [o[0] for o in obs], dets, times, cam, fps)
+            others = [o for o in tracks if o is not t]
+            shot = analyse_shot(r, [o[0] for o in obs], dets, times, cam, fps, others)
         except Exception:
             shot = {"outcome": "unclear"}
         deliveries.append({"track": {"score": t["score"], "frames": [list(f) for f in t["frames"]]},
@@ -292,7 +301,7 @@ def _flight_at(r, times):
     return flight(np.array(p[:3]), np.array(p[3:6]), np.asarray(times) - r["_t0"], *p[6:])[0]
 
 
-def analyse_shot(r, obs_times, dets, times, cam, fps):
+def analyse_shot(r, obs_times, dets, times, cam, fps, other_tracks=()):
     """After the ball reaches the batter: was it hit, and how? Looks for sightings that leave the batter on a path the
     delivery's own flight can't explain, chains them, and fits their launch from the contact point.
     Returns {outcome, exitKmh, azimuthDeg, elevationDeg, inAir} or {outcome: 'not hit' | 'unclear'}."""
@@ -323,13 +332,23 @@ def analyse_shot(r, obs_times, dets, times, cam, fps):
             if z[0] > 0 and np.hypot(u - pr[0, 0], v - pr[0, 1]) < 5:
                 continue  # that's the unhit ball carrying on
             pts.append((f, u, v, pb, rad))
-    # chain them: the longest run of sightings moving smoothly away from the contact point
+    # first choice: a track of its own that starts near the batter soon after the delivery ends (the hit ball)
+    pr_c0, _ = cam.project(_flight_at(r, [min(t_last + 1 / fps, t_stumps)]))
     best = []
+    for t in other_tracks:
+        f_first = t["frames"][0]
+        dt = times[int(f_first[0])] - t_last
+        if 0 < dt < 0.4 and np.hypot(f_first[1] - pr_c0[0, 0], f_first[2] - pr_c0[0, 1]) < 160 and len(t["frames"]) >= 3:
+            if not best or len(t["frames"]) > len(best):
+                best = [tuple(x) for x in t["frames"]]
+    if best:
+        pts = []  # skip the raw-sighting search
+    # otherwise chain raw sightings: the longest run moving smoothly away from the contact point
     by_f = {}
     for q in pts:
         by_f.setdefault(q[0], []).append(q)
     pr_c, _ = cam.project(_flight_at(r, [min(t_last + 1 / fps, t_stumps)]))
-    for start in sorted(pts, key=lambda q: q[0]):
+    for start in ([] if best else sorted(pts, key=lambda q: q[0])):
         if start[0] > f0 + max(3, int(0.12 * fps)) or np.hypot(start[1] - pr_c[0, 0], start[2] - pr_c[0, 1]) > 120:
             continue
         chain = [start]
@@ -353,15 +372,17 @@ def analyse_shot(r, obs_times, dets, times, cam, fps):
             return {"outcome": "bowled" if hits_stumps else "not hit"}
         return {"outcome": "unclear"}
     # launch fit: contact time tc and velocity V; the ball starts where the delivery was at tc
-    ft = np.array([times[q[0]] for q in best]); fu = np.array([q[1] for q in best]); fv = np.array([q[2] for q in best])
+    ft = np.array([times[int(q[0])] for q in best]); fu = np.array([q[1] for q in best]); fv = np.array([q[2] for q in best])
+    fr_ = np.array([q[4] if len(q) > 4 else np.nan for q in best], float)  # ball size: it grows as the ball comes back
 
     def res(x):
         tc, V = x[0], x[1:]
         P = _flight_at(r, [tc])[0]
         P = np.array([P[0], P[1], max(P[2], 0.05)])
         pos2, _ = flight(P, V, ft - tc, 0.45, 0.0, 0.45, 0.7, 0.0)
-        pr2, _ = cam.project(pos2)
-        return np.r_[(pr2 - np.c_[fu, fv]).ravel(), [(np.linalg.norm(V) - 15) / 40.0]]
+        pr2, z2 = cam.project(pos2)
+        rr = np.where(np.isnan(fr_), 0.0, (0.036 * cam.f / np.maximum(z2, 0.3) - np.nan_to_num(fr_)) / (0.15 * np.nan_to_num(fr_) + 0.4))
+        return np.r_[(pr2 - np.c_[fu, fv]).ravel(), 2.0 * rr, [(np.linalg.norm(V) - 15) / 40.0]]
     tc0 = min(ft[0] - 0.5 / fps, t_stumps)
     starts = [np.r_[tc0, -15, 0, 3], np.r_[tc0, -15, 10, 3], np.r_[tc0, -15, -10, 3], np.r_[tc0, -3, 0, -2], np.r_[tc0, 15, 3, 1]]
     sols = [least_squares(res, x0, loss="soft_l1", f_scale=2.0, max_nfev=300,
@@ -371,7 +392,7 @@ def analyse_shot(r, obs_times, dets, times, cam, fps):
     sp = float(np.linalg.norm(V))
     az = float(np.degrees(np.arctan2(V[1], -V[0])))       # 0 = straight back past the bowler, +90 = bowler's right
     el = float(np.degrees(np.arcsin(np.clip(V[2] / max(sp, 1e-6), -1, 1))))
-    rms = float(np.sqrt(np.mean(sol.fun[:-1] ** 2)))
+    rms = float(np.sqrt(np.mean(sol.fun[:2 * len(ft)] ** 2)))
     if sp * 3.6 < 30:
         outcome = "defended"
     elif abs(az) > 120:

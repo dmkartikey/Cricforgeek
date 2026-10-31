@@ -65,17 +65,21 @@ export async function analyse(file: File, track: Track, taps: Tap[], W: number, 
   try {
     // 1. find the ball in every frame, the clip split into one stretch per worker
     const dets: Det[][] = Array.from({ length: n }, () => [])
+    // slow motion is tracked at about 60 frames a second (the gap-filling afterwards uses every frame)
+    const sub = Math.max(1, Math.round(fps / 60))
     const seg = Math.ceil(n / nw)
     const doneBy = new Array(nw).fill(0)
     const report = () => opts.onProgress?.({ stage: 'finding', done: doneBy.reduce((a, b) => a + b, 0), total: n })
     await Promise.all(Array.from({ length: nw }, (_, i) => pool.run<[number, Det[]][]>(i,
-      { type: 'detect', file, track, from: i * seg, to: Math.min(n, (i + 1) * seg), fps, weights: w },
+      { type: 'detect', file, track, from: i * seg, to: Math.min(n, (i + 1) * seg), fps, weights: w, step: sub },
       d => { doneBy[i] = d; report() }).then(res => { for (const [f, d] of res) dets[f] = d })))
     if (opts.signal?.aborted) throw new Error('Stopped')
     // 2. chain into flights, keep the ones that look like deliveries
     opts.onProgress?.({ stage: 'tracking', done: 0, total: 1 })
-    const minLen = Math.max(6, Math.round(fps * 0.12))
-    let tracks = findTracks(dets, fps, minLen).filter(t => plausible(t, fps))
+    const subDets = dets.filter((_, i) => i % sub === 0)
+    let tracks = findTracks(subDets, fps / sub, Math.max(6, Math.round((fps / sub) * 0.12)))
+      .map(t => ({ ...t, frames: t.frames.map(([f, ...x]) => [f * sub, ...x] as [number, number, number, number, number]) }))
+      .filter(t => plausible(t, fps))
     tracks = tracks.sort((a, b) => a.frames[0][0] - b.frames[0][0])
     if (tracks.length) {
       tracks = await pool.run<BallTrack[]>(0, { type: 'extend', file, track, fps, weights: w, tracks, nFrames: n },

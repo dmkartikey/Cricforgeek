@@ -5,7 +5,7 @@ import { decodeAll, Track } from './video'
 import { fitSession, Tap, Obs } from './fit'
 
 type Msg =
-  | { type: 'detect'; file: File; track: Track; from: number; to: number; fps: number; weights: unknown; id: number }
+  | { type: 'detect'; file: File; track: Track; from: number; to: number; fps: number; weights: unknown; step?: number; id: number }
   | { type: 'extend'; file: File; track: Track; fps: number; weights: unknown; tracks: BallTrack[]; nFrames: number; id: number }
   | { type: 'fit'; taps: Tap[]; balls: Obs[][]; W: number; H: number; readout: number; hfov?: number; sigF?: number; id: number }
 
@@ -38,10 +38,10 @@ async function detect(m: Extract<Msg, { type: 'detect' }>) {
   await decodeAll(m.file, m.track, async ({ index, frame }) => {
     ring.set(index, { f: frame, p: prepFrame(frame) })
     const i = index - k // the frame that now has both neighbours
-    if (i >= m.from && i < m.to && ring.has(i - k) && ring.has(i)) {
+    if (i >= m.from && i < m.to && i % (m.step ?? 1) === 0 && ring.has(i - k) && ring.has(i)) {
       const a = ring.get(i - k)!, b = ring.get(i)!, c = ring.get(index)!
       dets.push([i, detectFrame(a.f, b.f, c.f, nn, 60, [a.p, b.p, c.p])])
-      if (++done % 4 === 0) post({ type: 'progress', id: m.id, done, total: m.to - m.from })
+      if (++done % 4 === 0) post({ type: 'progress', id: m.id, done: done * (m.step ?? 1), total: m.to - m.from })
     }
     for (const key of ring.keys()) if (key < index - 2 * k) ring.delete(key)
   }, { from: lo, to: hi })
