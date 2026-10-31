@@ -49,7 +49,7 @@ def find_tracks(dets, fps, min_len=6, max_tracks=50, min_score=0.25):
         sc = sum(_logit(pool[f][q][2]) + 2.0 for f, q in chain)
         tracks.append((sc, chain))
     tracks.sort(key=lambda t: -t[0])
-    tracks = _merge(pool, tracks, max_gap)
+    tracks = _merge(pool, tracks, max_gap, join_gap=max(3 * max_gap, int(round(0.3 * fps))))
     out, taken = [], []
     for sc, chain in tracks:
         f0, f1 = chain[0][0], chain[-1][0]
@@ -96,7 +96,7 @@ def _grow(pool, chain, direction, max_gap):
         chain.append((best[1], best[2]))
 
 
-def _merge(pool, tracks, max_gap):
+def _merge(pool, tracks, max_gap, join_gap=None):
     """Join a chain with a later one that carries on from it (typically the halves either side of the bounce):
     a short time gap, and the later start close to where the earlier one was heading sideways."""
     tracks = [list(t) for t in tracks]
@@ -110,7 +110,7 @@ def _merge(pool, tracks, max_gap):
                     continue
                 fb = b[1][0][0]
                 gap = fb - fa
-                if not (0 < gap <= 3 * max_gap):
+                if not (0 < gap <= (join_gap or 3 * max_gap)):
                     continue
                 (f1, q1), (f2, q2) = a[1][-2], a[1][-1]
                 p1, p2 = np.array(pool[f1][q1][:2]), np.array(pool[f2][q2][:2])
@@ -118,7 +118,8 @@ def _merge(pool, tracks, max_gap):
                 pb = np.array(pool[fb][b[1][0][1]][:2])
                 pred = p2 + vel * gap
                 sp = np.hypot(*vel)
-                if abs(pb[0] - pred[0]) < 4 + 0.4 * sp * gap and abs(pb[1] - pred[1]) < 4 + 2.5 * abs(vel[1]) * gap + 0.4 * sp * gap:
+                if abs(pb[0] - pred[0]) < 4 + 0.4 * sp * gap and abs(pb[1] - pred[1]) < 4 + 2.5 * abs(vel[1]) * gap + 0.4 * sp * gap \
+                        and _smooth_join(pool, a[1], b[1]):
                     a[1] = a[1] + b[1]
                     a[0] += b[0]
                     tracks.remove(b)
@@ -128,3 +129,15 @@ def _merge(pool, tracks, max_gap):
                 break
     tracks.sort(key=lambda t: -t[0])
     return [tuple(t) for t in tracks]
+
+
+def _smooth_join(pool, ca, cb, k=8):
+    """Two pieces of one flight join smoothly sideways: the bounce kinks the ball's up-and-down motion in the
+    picture but not its left-right motion. A quadratic through the ends of both pieces must fit within a few px."""
+    pts = [(f, pool[f][q][0]) for f, q in ca[-k:]] + [(f, pool[f][q][0]) for f, q in cb[:k]]
+    if len(pts) < 5:
+        return True
+    t = np.array([p[0] for p in pts], float); u = np.array([p[1] for p in pts])
+    c = np.polyfit(t - t.mean(), u, 2)
+    res = np.abs(np.polyval(c, t - t.mean()) - u)
+    return float(res.max()) < 4.0 + 0.02 * float(np.ptp(u))

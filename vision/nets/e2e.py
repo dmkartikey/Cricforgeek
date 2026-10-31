@@ -10,6 +10,18 @@ from multiprocessing import Pool
 
 from .detect import candidates, patch, gap_for
 from .patches import frames_of
+
+
+def frames_u8(mp4):
+    import cv2
+    cap = cv2.VideoCapture(mp4)
+    out = []
+    while True:
+        ok, f = cap.read()
+        if not ok:
+            break
+        out.append(f)
+    return out
 from .track import find_tracks
 from .train_det import BallNet
 from .camera import Camera
@@ -29,16 +41,27 @@ def load_net(path):
     return net
 
 
+class _F:
+    """Frames kept as bytes (a 240 fps clip as floats would need gigabytes); each is made float when used."""
+    def __init__(self, frames):
+        self.f = frames
+    def __len__(self):
+        return len(self.f)
+    def __getitem__(self, i):
+        return self.f[i].astype(np.float32)
+
+
 def detect_video(frames, fps, net, max_n=60):
     k = gap_for(fps)
-    dets = [[] for _ in frames]
+    dets = [[] for _ in range(len(frames))]
     for i in range(k, len(frames) - k):
-        cands, _ = candidates(frames[i - k], frames[i], frames[i + k], max_n=max_n)
+        a, b, c3 = frames[i - k], frames[i], frames[i + k]
+        cands, _ = candidates(a, b, c3, max_n=max_n)
         if not cands:
             continue
         P, C = [], []
         for (u, v, s, snr) in cands:
-            p, c = patch(frames[i - k], frames[i], frames[i + k], u, v)
+            p, c = patch(a, b, c3, u, v)
             P.append(p); C.append(c)
         with torch.no_grad():
             out = net(torch.from_numpy(np.stack(P))).numpy()
@@ -141,7 +164,7 @@ def true_numbers(meta):
 def run_one(js):
     meta = json.load(open(js))
     fps = meta["camera"]["fps"]
-    frames = frames_of(js[:-5] + ".mp4")
+    frames = _F(frames_u8(js[:-5] + ".mp4"))
     dets = detect_video(frames, fps, NET)
     tracks = find_tracks(dets, fps)
     tr = true_numbers(meta)
@@ -164,17 +187,6 @@ def run_one(js):
     lens = dict(hfov_deg=69.0, sig_f=0.12) if meta["camera"].get("zoom", 1.0) == 1.0 and LENS_PRIOR else {}
     cam, res_s = fit_session(taps, [obs], meta["camera"]["W"], meta["camera"]["H"], readout=readout_guess, **lens)
     res = res_s[0]
-    if res is not None and res["rms_px"] > 2.0:
-        # drop the frames the flight can't explain (a wrong pick by the tracker) and fit again
-        res0 = res
-        from .fit import _prep, _fit_ball
-        d = _prep(cam, obs, readout_guess)
-        sol = _fit_ball(cam, d)
-        rr = np.hypot(sol.fun[0:2 * d["n"]:2], sol.fun[1:2 * d["n"]:2])
-        keep = rr < max(4.0, 3 * np.median(rr))
-        order = np.argsort([o[0] for o in obs])
-        obs2 = [obs[j] for j, k in zip(order, keep) if k]
-        res = fit_delivery(cam, obs2, readout=readout_guess) or res0
     if res is None:
         row["fail"] = "fit"
         return row
@@ -210,8 +222,15 @@ def main():
     workers = int(sys.argv[4]) if len(sys.argv) > 4 else 4
     out = sys.argv[5] if len(sys.argv) > 5 else None
     files = sorted(glob.glob(os.path.join(vdir, "*.json")))[int(a):int(b)]
-    with Pool(workers, initializer=_init, initargs=(wpath,)) as p:
-        rows = list(p.imap_unordered(run_one, files))
+    from concurrent.futures import ProcessPoolExecutor
+    rows = []
+    with ProcessPoolExecutor(workers, initializer=_init, initargs=(wpath,)) as ex:
+        futs = {ex.submit(run_one, f): f for f in files}
+        for fu in futs:
+            try:
+                rows.append(fu.result(timeout=1800))
+            except Exception as e:  # a crashed or stuck clip is reported, not waited on forever
+                rows.append({"seed": os.path.basename(futs[fu]), "fail": "error", "error": repr(e)[:200]})
     report(rows)
     if out:
         json.dump(rows, open(out, "w"), default=float)

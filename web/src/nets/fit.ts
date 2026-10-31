@@ -163,17 +163,37 @@ function trimmed(cam: Cam, obsIn: Obs[], readout: number): { d: Prep; sol: Sol; 
     d2.p0 = [sol.x, ...d2.p0]
     d = d2; sol = fitBall(cam, d2)
   }
-  // the first sightings pull hardest on the release speed: test each by prediction from the others
-  for (let i = 0; i < 3 && d.n >= 8; i++) {
-    const o2 = obs.slice(1)
-    const d2 = prep(cam, o2, readout)
-    if (!d2) break
-    const s2 = fitBall(cam, d2)
-    const tFirst = obs[0].t + readout * obs[0].v / cam.H - d2.t0
-    const p = s2.x
-    const { pos } = flight([p[0], p[1], p[2]], [p[3], p[4], p[5]], [tFirst], p[6], p[7], p[8], p[9], p[10])
+  // The track can begin with the ball in the hand or on the arm, or end on the batter or the net. A few such
+  // sightings together can bend the fit until each looks fine, so hold a block out: fit the rest, check the held-out
+  // sightings against that clean fit, cut at the last one it can't explain; if the misfits reach the block's edge,
+  // grow the block. Then the same from the other end. (Same as vision/nets/fit.py.)
+  const missOf = (dd: Prep, ss: Sol, held: Obs[]) => held.map(o => {
+    const p = ss.x
+    const { pos } = flight([p[0], p[1], p[2]], [p[3], p[4], p[5]], [o.t + readout * o.v / cam.H - dd.t0], p[6], p[7], p[8], p[9], p[10])
     const [pu, pv] = project(cam, pos[0])
-    if (Math.hypot(pu - obs[0].u, pv - obs[0].v) > Math.max(3.5, 4 * posRms(s2, d2.n))) { d = d2; sol = s2; obs = o2 } else break
+    return Math.hypot(pu - o.u, pv - o.v)
+  })
+  for (const side of ['start', 'end'] as const) {
+    const n0 = obs.length
+    for (const m of [4, 8, 16, 24, 32, 48, 64, 96]) {
+      if (d.n < 10 || m > Math.floor(0.6 * n0)) break
+      const core = side === 'start' ? obs.slice(m) : obs.slice(0, n0 - m)
+      const held = side === 'start' ? obs.slice(0, m) : obs.slice(n0 - m)
+      const d2 = prep(cam, core, readout)
+      if (!d2) break
+      const s2 = fitBall(cam, d2)
+      const thr = Math.max(3, 3.5 * posRms(s2, d2.n))
+      const bad = missOf(d2, s2, held).map((x, i) => x > thr ? i : -1).filter(i => i >= 0)
+      if (!bad.length) break
+      const j = side === 'start' ? bad[bad.length - 1] + 1 : bad[0]
+      const reaches = side === 'start' ? j >= m : j === 0
+      if (!reaches) {
+        const keep = side === 'start' ? obs.slice(j) : obs.slice(0, n0 - m + j)
+        const d3 = prep(cam, keep, readout)
+        if (d3) { d = d3; sol = fitBall(cam, d3, [s2.x, ...d3.p0]); obs = keep }
+        break
+      }
+    }
   }
   return { d, sol, obs }
 }

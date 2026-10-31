@@ -280,7 +280,7 @@ export function findTracks(dets: Det[][], fps: number, minLen = 6, maxTracks = 5
     tracks.push([chain.reduce((s, [f, q]) => s + logit(pool[f][q][2]) + 2, 0), chain])
   }
   tracks.sort((a, b) => b[0] - a[0])
-  tracks = merge(pool, tracks, maxGap)
+  tracks = merge(pool, tracks, maxGap, Math.max(3 * maxGap, Math.round(0.3 * fps)))
   const out: Track[] = [], taken: [number, number][] = []
   for (const [sc, chain] of tracks) {
     const f0 = chain[0][0], f1 = chain[chain.length - 1][0]
@@ -324,7 +324,7 @@ function grow(pool: Det[][], chain: [number, number][], dir: number, maxGap: num
   }
 }
 
-function merge(pool: Det[][], tracks: [number, [number, number][]][], maxGap: number) {
+function merge(pool: Det[][], tracks: [number, [number, number][]][], maxGap: number, joinGap = 3 * maxGap) {
   let changed = true
   while (changed) {
     changed = false
@@ -333,13 +333,13 @@ function merge(pool: Det[][], tracks: [number, [number, number][]][], maxGap: nu
       for (const b of tracks) {
         if (a === b) continue
         const fb = b[1][0][0], gap = fb - fa
-        if (!(gap > 0 && gap <= 3 * maxGap)) continue
+        if (!(gap > 0 && gap <= joinGap)) continue
         const [f1, q1] = a[1][a[1].length - 2], [f2, q2] = a[1][a[1].length - 1]
         const p1 = pool[f1][q1], p2 = pool[f2][q2]
         const vel = [(p2[0] - p1[0]) / (f2 - f1), (p2[1] - p1[1]) / (f2 - f1)]
         const pb = pool[fb][b[1][0][1]]
         const pu = p2[0] + vel[0] * gap, pv = p2[1] + vel[1] * gap, sp = Math.hypot(vel[0], vel[1])
-        if (Math.abs(pb[0] - pu) < 4 + 0.4 * sp * gap && Math.abs(pb[1] - pv) < 4 + 2.5 * Math.abs(vel[1]) * gap + 0.4 * sp * gap) {
+        if (Math.abs(pb[0] - pu) < 4 + 0.4 * sp * gap && Math.abs(pb[1] - pv) < 4 + 2.5 * Math.abs(vel[1]) * gap + 0.4 * sp * gap && smoothJoin(pool, a[1], b[1])) {
           a[1] = a[1].concat(b[1]); a[0] += b[0]
           tracks.splice(tracks.indexOf(b), 1)
           changed = true
@@ -396,4 +396,32 @@ function quadAt(t: number[], y: number[], x: number): number {
   const [t0, t1, t2] = t, [y0, y1, y2] = y
   if (t0 === t1 || t1 === t2 || t0 === t2) return y2 + (y2 - y1) * (x - t2) / ((t2 - t1) || 1)
   return y0 * (x - t1) * (x - t2) / ((t0 - t1) * (t0 - t2)) + y1 * (x - t0) * (x - t2) / ((t1 - t0) * (t1 - t2)) + y2 * (x - t0) * (x - t1) / ((t2 - t0) * (t2 - t1))
+}
+
+/** Two pieces of one flight join smoothly sideways (the bounce kinks only the up-and-down motion in the picture):
+ *  a quadratic through the ends of both pieces must fit within a few pixels. */
+function smoothJoin(pool: Det[][], ca: [number, number][], cb: [number, number][], k = 8): boolean {
+  const pts = [...ca.slice(-k), ...cb.slice(0, k)].map(([f, q]) => [f, pool[f][q][0]])
+  if (pts.length < 5) return true
+  const tm = pts.reduce((s, p) => s + p[0], 0) / pts.length
+  // least-squares quadratic u = a + b t + c t^2 via the normal equations
+  const S = [0, 0, 0, 0, 0], T = [0, 0, 0]
+  for (const [f, u] of pts) { const t = f - tm; let p = 1; for (let i = 0; i < 5; i++) { S[i] += p; if (i < 3) T[i] += p * u; p *= t } }
+  const M = [[S[0], S[1], S[2]], [S[1], S[2], S[3]], [S[2], S[3], S[4]]]
+  const c = solve3(M, T)
+  if (!c) return true
+  const us = pts.map(p => p[1])
+  const spread = Math.max(...us) - Math.min(...us)
+  const worst = Math.max(...pts.map(([f, u]) => { const t = f - tm; return Math.abs(c[0] + c[1] * t + c[2] * t * t - u) }))
+  return worst < 4 + 0.02 * spread
+}
+function solve3(A: number[][], b: number[]): number[] | null {
+  const M = A.map((r, i) => [...r, b[i]])
+  for (let c = 0; c < 3; c++) {
+    let p = c; for (let r = c + 1; r < 3; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r
+    if (Math.abs(M[p][c]) < 1e-12) return null
+    ;[M[c], M[p]] = [M[p], M[c]]
+    for (let r = 0; r < 3; r++) if (r !== c) { const f = M[r][c] / M[c][c]; for (let k = c; k < 4; k++) M[r][k] -= f * M[c][k] }
+  }
+  return M.map((r, i) => r[3] / r[i])
 }
