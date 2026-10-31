@@ -5,9 +5,9 @@ import type { Track } from './video'
 import type { Tap, Obs, Result } from './fit'
 import type { Cam } from './geom'
 
-export type Stage = 'loading' | 'finding' | 'tracking' | 'measuring'
+export type Stage = 'uploading' | 'loading' | 'finding' | 'tracking' | 'measuring'
 export type Progress = { stage: Stage; done: number; total: number }
-export type Delivery = { track: BallTrack; obs: Obs[]; result: Result | null; tStart: number }
+export type Delivery = { track: BallTrack; obs: Obs[]; result: Result | null; tStart: number; shot?: import('./coach').Shot }
 export type Analysis = { cam: Cam; calibRms: number; deliveries: Delivery[]; fps: number; framesSeen: number }
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; onProgress?: (d: number, t: number) => void }
@@ -91,7 +91,16 @@ export async function analyse(file: File, track: Track, taps: Tap[], W: number, 
     // fit and a usable uncertainty (people walking about make chains too, but not ones like this)
     const deliveries = tracks.map((t, i) => ({ track: t, obs: balls[i], result: fit.results[i], tStart: times[t.frames[0][0]] }))
       .filter(d => isDelivery(d.result))
-    return { cam: fit.cam, calibRms: fit.calibRms, deliveries, fps, framesSeen: n }
+    // only one ball is in the air at a time: overlapping flights are pieces of the same delivery; keep the tighter one
+    const quality = (d: Delivery) => (d.result?.speedSd ?? 99) / Math.sqrt(Math.max(d.obs.length, 1))
+    const kept: Delivery[] = []
+    for (const d of deliveries.sort((a, b) => a.tStart - b.tStart)) {
+      const t0 = d.obs[0].t, t1 = d.obs[d.obs.length - 1].t
+      const k = kept.findIndex(o => !(t1 < o.obs[0].t || t0 > o.obs[o.obs.length - 1].t))
+      if (k < 0) kept.push(d)
+      else if (quality(d) < quality(kept[k])) kept[k] = d
+    }
+    return { cam: fit.cam, calibRms: fit.calibRms, deliveries: kept, fps, framesSeen: n }
   } finally {
     pool.close()
   }

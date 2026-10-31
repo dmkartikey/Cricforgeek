@@ -1305,3 +1305,22 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .nets-svg { width: 100%; max-height: 440px; display: block; color: var(--text); }
 .nets-actions { display: inline-flex; gap: 6px; }
 .table tr.sel td { background: var(--hover, rgba(127,127,127,.08)); }
+.nets-coach-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.nets-coach { display: flex; gap: 18px; align-items: center; margin-bottom: 12px; }
+.nets-coach h3 { margin: 0 0 4px; font-size: 18px; }
+.nets-coach p { margin: 0; font-size: 14px; }
+.nets-score { min-width: 86px; height: 86px; border-radius: 50%; border: 3px solid var(--s1); display: grid; place-content: center; text-align: center; }
+.nets-score b { font-size: 28px; line-height: 1; } .nets-score small { color: var(--text-2); }
+.nets-focus { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; background: var(--hover, rgba(127,127,127,.05)); }
+.nets-focus h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
+.nets-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.nets-note { border-left: 3px solid var(--line-2); padding: 6px 10px; }
+.nets-note.good { border-color: var(--s1); } .nets-note.work { border-color: var(--red); }
+.nets-note-h { display: flex; gap: 8px; align-items: baseline; }
+.nets-note p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); }
+.nets-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); }
+.nets-n { display: inline-grid; place-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 700; }
+.nets-drill { color: var(--text) !important; } .nets-drill span { font-weight: 700; margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--s1); }
+.nets-zones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; font-size: 12.5px; }
+.nets-zones span { border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; } .nets-zones span.on { border-color: var(--s1); }
+.nets-grid3 td, .nets-grid3 th { text-align: center; }

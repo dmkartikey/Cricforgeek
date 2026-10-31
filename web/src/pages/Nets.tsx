@@ -3,9 +3,11 @@ import { usePageMeta } from '../lib/meta';
 import { Panel, Seg } from '../components/ui';
 import { readMp4, decodeAll, procSize, webCodecsOk, Track } from '../nets/video';
 import { analyse, Analysis, Progress } from '../nets/analyse';
+import { CLOUD_API, analyseCloud, stillByVideo } from '../nets/cloud';
 import { PITCH, CREASE, STUMP_H, STUMP_W, RETURN_Y, V3, project } from '../nets/geom';
 import type { Tap } from '../nets/fit';
 import type { Frame } from '../nets/detect';
+import { coach, coachBatter, Hand, Kind, Insight } from '../nets/coach';
 
 // The points the user can mark, in pitch coordinates (x along the pitch from the bowler's stumps, y to the right as
 // the camera sees it, z up). Any four or more will do; points near the camera make the calibration much firmer.
@@ -28,7 +30,7 @@ const MARKS: Mark[] = [
   { key: 'nRb', group: "Bowler's end stumps", label: 'Right stump, bottom', X: [0, HALF, 0] },
 ];
 
-type Clip = { file: File; track: Track; W: number; H: number; still: ImageData; fpsFile: number; sample?: boolean; stillAt?: number };
+type Clip = { file: File; track: Track | null; W: number; H: number; still: ImageData; fpsFile: number; frames: number; sample?: boolean; stillAt?: number };
 const STILLS = [1 / 3, 0.02, 0.6, 0.85, 0.15];
 
 export default function Nets() {
@@ -45,15 +47,23 @@ export default function Nets() {
   const load = async (file: File, sample?: { taps: Record<string, [number, number]> }) => {
     setErr(null); setRes(null); setTaps({}); setBusy(true);
     try {
-      if (!webCodecsOk()) throw new Error('This browser cannot read video frame by frame. Please use a recent Chrome, Edge or Safari.');
-      const track = await readMp4(file);
-      if (!track) throw new Error('This file has no video track we can read. Phone videos (MP4 or MOV) work best.');
-      const { W, H } = procSize(track.width, track.height, track.rotation);
-      const n = track.times.length;
-      let still: ImageData | null = null;
-      await decodeAll(file, track, ({ frame }) => { still = toImage(frame); }, { from: Math.floor(n / 3), to: Math.floor(n / 3) + 1 });
-      if (!still) throw new Error('Could not read a frame from this video.');
-      setClip({ file, track, W, H, still, fpsFile: track.fpsNominal, sample: !!sample });
+      // the frame-exact reader when the browser has it; otherwise (cloud mode) a still from a plain <video>
+      const track = webCodecsOk() ? await readMp4(file).catch(() => null) : null;
+      if (track) {
+        const { W, H } = procSize(track.width, track.height, track.rotation);
+        const n = track.times.length;
+        let still: ImageData | null = null;
+        await decodeAll(file, track, ({ frame }) => { still = toImage(frame); }, { from: Math.floor(n / 3), to: Math.floor(n / 3) + 1 }).catch(() => null);
+        if (still) {
+          setClip({ file, track, W, H, still, fpsFile: track.fpsNominal, frames: n, sample: !!sample });
+          if (sample) setTaps(sample.taps);
+          setBusy(false);
+          return;
+        }
+      }
+      if (!CLOUD_API) throw new Error(track ? "This browser can't decode this video. Try Chrome or Safari." : 'This browser cannot read video frame by frame. Please use a recent Chrome, Edge or Safari.');
+      const s = await stillByVideo(file);
+      setClip({ file, track: null, W: s.w, H: s.h, still: s.img, fpsFile: 0, frames: 0, sample: !!sample });
       if (sample) setTaps(sample.taps);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     setBusy(false);
@@ -73,7 +83,9 @@ export default function Nets() {
     setErr(null); setRes(null); setBusy(true);
     try {
       const tapList: Tap[] = MARKS.filter(m => taps[m.key]).map(m => ({ u: taps[m.key][0], v: taps[m.key][1], X: m.X }));
-      const out = await analyse(clip.file, clip.track, tapList, clip.W, clip.H, { slow: Number(slow), lens, onProgress: setProg });
+      const opts = { slow: Number(slow), lens, onProgress: setProg };
+      const out = CLOUD_API ? await analyseCloud(clip.file, tapList, clip.W, clip.H, opts)
+        : await analyse(clip.file, clip.track!, tapList, clip.W, clip.H, opts);
       setRes(out);
       if (!out.deliveries.length) setErr('No deliveries were found in this clip. Check that the ball is visible against the background and the whole pitch is in shot.');
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -87,8 +99,9 @@ export default function Nets() {
         <div className="eyebrow">Nets lab · beta</div>
         <h1>Nets analyser</h1>
         <p className="sub" style={{ maxWidth: 780 }}>
-          Film the nets on your phone and get every ball's speed, length, line, swing, bounce and deviation off the pitch.
-          Everything runs on your device: the video is never uploaded.
+          Film the nets on your phone and get every ball's speed, length, line, swing, bounce and deviation off the pitch,
+          with coaching notes on the whole spell.{' '}
+          {CLOUD_API ? 'The clip is analysed on our server and deleted as soon as the analysis is done.' : 'Everything runs on your device: the video is never uploaded.'}
         </p>
       </section>
 
@@ -122,16 +135,18 @@ export default function Nets() {
           <Panel title="2. Mark the pitch" sub="Tap near a point to zoom in, then tap exactly on it. Mark at least four; the more spread out, the better."
             right={<span className="nets-actions">
               <button type="button" className="btn small" onClick={async () => {
-                const n = clip.track.times.length, k = ((clip.stillAt ?? 0) + 1) % STILLS.length;
+                const k = ((clip.stillAt ?? 0) + 1) % STILLS.length;
                 let still: ImageData | null = null;
-                const at = Math.min(n - 1, Math.floor(n * STILLS[k]));
-                await decodeAll(clip.file, clip.track, ({ frame }) => { still = toImage(frame); }, { from: at, to: at + 1 });
+                if (clip.track) {
+                  const n = clip.track.times.length, at = Math.min(n - 1, Math.floor(n * STILLS[k]));
+                  await decodeAll(clip.file, clip.track, ({ frame }) => { still = toImage(frame); }, { from: at, to: at + 1 });
+                } else still = (await stillByVideo(clip.file, STILLS[k])).img;
                 if (still) setClip({ ...clip, still, stillAt: k });
               }}>Show another frame</button>
               <button type="button" className="btn small" onClick={() => { setClip(null); setTaps({}); }}>Change video</button></span>}>
             <TapCanvas clip={clip} taps={taps} setTaps={setTaps} />
           </Panel>
-          <Panel title="3. Analyse" sub={`${clip.W}×${clip.H}, ${Math.round(clip.fpsFile)} fps, ${clip.track.times.length} frames.`}>
+          <Panel title="3. Analyse" sub={clip.track ? `${clip.W}×${clip.H}, ${Math.round(clip.fpsFile)} fps, ${clip.frames} frames.` : `${clip.W}×${clip.H}.`}>
             <div className="stack">
               <Seg label="Speed of the file" value={slow} onChange={setSlow}
                 options={[['1', 'Plays at real speed'], ['4', 'Slow motion ×4'], ['8', 'Slow motion ×8']]} />
@@ -159,7 +174,7 @@ function toImage(f: Frame): ImageData {
   return img;
 }
 
-const STAGES: Record<string, string> = { loading: 'Loading the ball model', finding: 'Finding the ball in every frame', tracking: 'Following each delivery', measuring: 'Measuring each ball' };
+const STAGES: Record<string, string> = { uploading: 'Uploading the clip', loading: 'Loading the ball model', finding: 'Finding the ball in every frame', tracking: 'Following each delivery', measuring: 'Measuring each ball' };
 function ProgressBar({ p }: { p: Progress }) {
   const f = p.total ? Math.min(1, p.done / p.total) : 0;
   return (
@@ -264,6 +279,7 @@ function Results({ clip, res, onBack }: { clip: Clip; res: Analysis; onBack: () 
         <Kpi label="Average speed" value={sp.length ? `${(sp.reduce((a, b) => a + b, 0) / sp.length).toFixed(1)} km/h` : '–'} />
         <Kpi label="Calibration fit" value={`${res.calibRms.toFixed(1)} px`} hint={res.calibRms > 4 ? 'Check the marked points' : 'Good'} />
       </div>
+      <CoachPanel res={res} />
       <div className="grid g2">
         <Panel title="Pitch map" sub="Where each ball landed, seen from above. Stumps at the top.">
           <PitchMap res={res} sel={sel} onSel={setSel} />
@@ -276,7 +292,7 @@ function Results({ clip, res, onBack }: { clip: Clip; res: Analysis; onBack: () 
         right={<span className="nets-actions"><button type="button" className="btn small" onClick={download}>Download CSV</button><button type="button" className="btn small" onClick={onBack}>Back</button></span>}>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>#</th><th>Speed</th><th>Length</th><th>Line at stumps</th><th>Height at stumps</th><th>Swing</th><th>Off the pitch</th></tr></thead>
+            <thead><tr><th>#</th><th>Speed</th><th>Length</th><th>Line at stumps</th><th>Height at stumps</th><th>Swing</th><th>Off the pitch</th>{ok.some(d => d.shot) && <th>Batter</th>}</tr></thead>
             <tbody>
               {ok.map((d, i) => { const r = d.result!; return (
                 <tr key={i} className={i === sel ? 'sel' : ''} onClick={() => setSel(i)}>
@@ -287,6 +303,7 @@ function Results({ clip, res, onBack }: { clip: Clip; res: Analysis; onBack: () 
                   <td>{r.heightZ !== undefined ? `${(100 * r.heightZ).toFixed(0)} cm` : '–'}</td>
                   <td>{r.swingM !== undefined ? `${Math.abs(100 * r.swingM).toFixed(0)} cm ${r.swingM < 0 ? 'left' : 'right'}` : '–'}</td>
                   <td>{r.lengthM !== undefined ? `${Math.abs(r.devDeg).toFixed(1)}° ${r.devDeg < 0 ? 'left' : 'right'}` : '–'}</td>
+                  {ok.some(x => x.shot) && <td>{shotText(d.shot)}</td>}
                 </tr>); })}
             </tbody>
           </table>
@@ -353,4 +370,87 @@ function Overlay({ clip, res, i }: { clip: Clip; res: Analysis; i: number }) {
     for (const o of d.obs) { ctx.beginPath(); ctx.arc(o.u, o.v, 2.2, 0, 2 * Math.PI); ctx.fill(); }
   }, [clip, res, i]);
   return <canvas ref={ref} width={clip.W} height={clip.H} className="nets-canvas" aria-label="Fitted flight over the video frame" />;
+}
+
+function shotText(s?: import('../nets/coach').Shot) {
+  if (!s) return '–';
+  const o: Record<string, string> = { attacking: 'Hit', defended: 'Defended', edged: 'Edged', 'not hit': 'Left / missed', left: 'Left', missed: 'Missed', bowled: 'Bowled', unclear: '–' };
+  return s.exitKmh && s.outcome === 'attacking' ? `${o[s.outcome]} ${s.exitKmh.toFixed(0)} km/h${s.inAir ? ', in the air' : ''}` : o[s.outcome] ?? s.outcome;
+}
+
+// ---------------------------------------------------------------- the coach
+function CoachPanel({ res }: { res: Analysis }) {
+  const [role, setRole] = useState<'bowler' | 'batter'>('bowler');
+  const [hand, setHand] = useState<Hand>('R');
+  const [kindSel, setKindSel] = useState<'auto' | Kind>('auto');
+  const ok = res.deliveries.filter(d => d.result);
+  const kind = kindSel === 'auto' ? undefined : kindSel;
+  const bowl = useMemo(() => coach(ok.map(d => d.result!), hand, kind), [res, hand, kindSel]);
+  const bat = useMemo(() => coachBatter(ok.map(d => ({ result: d.result!, shot: d.shot })), hand, kind), [res, hand, kindSel]);
+  const hasShots = ok.some(d => d.shot);
+  const rep = role === 'bowler' ? bowl : bat;
+  return (
+    <Panel title="Coach" eyebrow={role === 'bowler' ? 'For the bowler' : 'For the batter'}
+      sub={role === 'bowler' ? `Read as a ${bowl.kind === 'pace' ? 'pace' : 'spin'} bowler${bowl.kindAuto ? ' (from the speeds)' : ''}, bowling to a ${hand === 'R' ? 'right' : 'left'}-handed batter.` : `For a ${hand === 'R' ? 'right' : 'left'}-handed batter.`}
+      tools={<span className="nets-coach-tools">
+        <Seg label="Coach" value={role} onChange={setRole} options={[['bowler', 'Bowler'], ['batter', 'Batter']]} />
+        <Seg label="Batter" value={hand} onChange={setHand} options={[['R', 'Right-hander'], ['L', 'Left-hander']]} />
+        <Seg label="Bowling" value={kindSel} onChange={setKindSel} options={[['auto', 'Auto'], ['pace', 'Pace'], ['spin', 'Spin']]} />
+      </span>}>
+      <div className="nets-coach">
+        <div className="nets-score"><b>{rep.score}</b><small>/ 100</small></div>
+        <div><h3>{rep.headline}</h3>
+          {role === 'batter' && !hasShots && <p className="muted">Shot details (played, left, edged, how hard and where) come with the cloud analysis. Below is what you faced.</p>}
+          {role === 'bowler' && bowl.best && <p>Best ball: <b>ball {bowl.best.index + 1}</b>, {bowl.best.why}</p>}
+        </div>
+      </div>
+      {rep.focus.length > 0 && <div className="nets-focus"><h4>Focus for next session</h4>{rep.focus.map((f, i) => <Note key={i} f={f} n={i + 1} />)}</div>}
+      <div className="nets-notes">{rep.insights.filter(i => !rep.focus.includes(i)).map((f, i) => <Note key={i} f={f} />)}</div>
+      {role === 'bowler' && <div className="nets-zones">{bowl.zones.map(z => <span key={z.name} className={z.target ? 'on' : ''}>{z.name} <b>{z.count}</b></span>)}</div>}
+      {role === 'batter' && hasShots && <div className="grid g2"><Grid rep={bat} hand={hand} /><Wagon rep={bat} hand={hand} /></div>}
+    </Panel>
+  );
+}
+
+function Note({ f, n }: { f: Insight; n?: number }) {
+  return (
+    <div className={`nets-note ${f.tone}`}>
+      <div className="nets-note-h">{n ? <span className="nets-n">{n}</span> : <span className="nets-tag">{f.area}</span>}<b>{f.title}</b></div>
+      <p>{f.detail}</p>
+      {f.drill && <p className="nets-drill"><span>Drill</span>{f.drill}</p>}
+    </div>
+  );
+}
+
+function Grid({ rep, hand }: { rep: ReturnType<typeof coachBatter>; hand: Hand }) {
+  const lines = hand === 'R' ? ['Leg', 'Stumps', 'Off'] : ['Off', 'Stumps', 'Leg']; // as the camera sees it
+  return (
+    <div><small className="muted">Balls faced and hit hard, by length and line (as seen from the bowler's end)</small>
+      <table className="table nets-grid3"><thead><tr><th></th>{lines.map(l => <th key={l}>{l}</th>)}</tr></thead>
+        <tbody>{['Full', 'Good', 'Short'].map(len => <tr key={len}><th>{len}</th>{lines.map(line => {
+          const c = rep.grid.find(g => g.len === len && g.line === line)!;
+          return <td key={line} style={{ background: c.balls ? `color-mix(in srgb, var(--s1) ${Math.round(100 * c.hit / c.balls) * 0.6}%, transparent)` : undefined }}>
+            {c.balls ? <>{c.hit}/{c.balls}{c.avgExit ? <small> · {c.avgExit.toFixed(0)} km/h</small> : null}</> : '–'}</td>;
+        })}</tr>)}</tbody></table></div>
+  );
+}
+
+function Wagon({ rep, hand }: { rep: ReturnType<typeof coachBatter>; hand: Hand }) {
+  // seen from above with the batter at the centre and the bowler at the bottom; the off side on the batter's side
+  const R = 110, c = 130;
+  return (
+    <div><small className="muted">Where the attacking shots went (longer = harder)</small>
+      <svg viewBox="0 0 260 260" className="nets-svg" role="img" aria-label="Wagon wheel">
+        <circle cx={c} cy={c} r={R} fill="var(--s1)" opacity=".08" stroke="currentColor" strokeOpacity=".2" />
+        <line x1={c} y1={c - R} x2={c} y2={c + R} stroke="currentColor" opacity=".15" />
+        <text x={c} y={c + R + 14} fontSize="10" textAnchor="middle" fill="currentColor" opacity=".6">bowler</text>
+        <text x={hand === 'R' ? c + R - 6 : c - R + 6} y={c - R + 12} fontSize="10" textAnchor={hand === 'R' ? 'end' : 'start'} fill="currentColor" opacity=".6">off side</text>
+        <text x={hand === 'R' ? c - R + 6 : c + R - 6} y={c - R + 12} fontSize="10" textAnchor={hand === 'R' ? 'start' : 'end'} fill="currentColor" opacity=".6">leg side</text>
+        {rep.shots.map(s => {
+          const a = (s.az * Math.PI) / 180, L = Math.min(1, s.kmh / 120) * R;
+          // azimuth 0 = back past the bowler (down the page); +90 = the bowler's right (the page's right)
+          return <line key={s.i} x1={c} y1={c} x2={c + L * Math.sin(a)} y2={c + L * Math.cos(a)} stroke={s.air ? 'var(--red)' : 'var(--s1)'} strokeWidth="2.5" strokeLinecap="round"><title>{`Ball ${s.i + 1}: ${s.kmh.toFixed(0)} km/h${s.air ? ', in the air' : ''}`}</title></line>;
+        })}
+      </svg></div>
+  );
 }

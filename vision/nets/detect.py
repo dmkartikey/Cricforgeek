@@ -26,25 +26,49 @@ def gray(frame_bgr):
     return frame_bgr.astype(np.float32)
 
 
-def _shift_tolerant_diff(cur, other):
+_K3 = np.ones((3, 3), np.uint8)
+
+
+def _chmax(d):
+    """Largest of the colour channels (cv2 is much faster than numpy's max over an axis)."""
+    if d.ndim == 2:
+        return d
+    a, b, c = cv2.split(d)
+    return cv2.max(cv2.max(a, b), c)
+
+
+def prep(frame):
+    """Per-frame work, done once and reused: the 2x2 blur and its 3x3 max and min."""
+    c = cv2.blur(frame, (2, 2))
+    return c, cv2.dilate(c, _K3), cv2.erode(c, _K3)
+
+
+def _shift_tolerant_diff_p(c, other_p):
     """How far cur lies outside the range of `other` in a 3x3 neighbourhood: a small camera shake moves edges by
     under a pixel, which this ignores, while a ball that is not there in `other` still stands out."""
-    k = np.ones((3, 3), np.uint8)
-    hi, lo = cv2.dilate(other, k), cv2.erode(other, k)
-    d = np.maximum(np.maximum(cur - hi, lo - cur), 0.0)
-    return d.max(axis=2) if d.ndim == 3 else d
+    _, hi, lo = other_p
+    d = cv2.max(cv2.subtract(c, hi), cv2.subtract(lo, c))
+    return cv2.max(_chmax(d), 0.0)
 
 
-def motion_map(prev, cur, nxt):
-    c = cv2.blur(cur, (2, 2)); p = cv2.blur(prev, (2, 2)); n = cv2.blur(nxt, (2, 2))
-    return np.minimum(_shift_tolerant_diff(c, p), _shift_tolerant_diff(c, n))
+def _shift_tolerant_diff(cur, other):
+    return _shift_tolerant_diff_p(cur, prep_blurred(other))
 
 
-def candidates(prev, cur, nxt, max_n=40, min_sep=6):
+def prep_blurred(c):
+    return c, cv2.dilate(c, _K3), cv2.erode(c, _K3)
+
+
+def motion_map(prev, cur, nxt, preps=None):
+    pp, pc, pn = preps if preps is not None else (prep(prev), prep(cur), prep(nxt))
+    return cv2.min(_shift_tolerant_diff_p(pc[0], pp), _shift_tolerant_diff_p(pc[0], pn))
+
+
+def candidates(prev, cur, nxt, max_n=40, min_sep=6, preps=None):
     """The strongest local peaks of the motion map in `cur`: list of (u, v, strength, noise ratio). Deliberately
     permissive (a faint far-away ball must not be lost here); the network and the tracker throw out the rest."""
-    m = motion_map(prev, cur, nxt)
-    noise = 1.4826 * float(np.median(np.abs(cur[::4, ::4] - prev[::4, ::4]).max(axis=-1))) + 1.0
+    m = motion_map(prev, cur, nxt, preps)
+    noise = 1.4826 * float(np.median(_chmax(np.ascontiguousarray(np.abs(cur[::4, ::4] - prev[::4, ::4]))))) + 1.0
     ms = cv2.blur(m, (3, 3))
     peak = (ms >= cv2.dilate(ms, np.ones((2 * min_sep + 1, 2 * min_sep + 1), np.uint8))) & (ms > 0.8 * noise)
     vs, us = np.nonzero(peak)

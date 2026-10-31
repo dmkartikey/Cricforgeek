@@ -14,6 +14,8 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  HAS_GCP: ${{ secrets.GCP_SA_KEY != '' }}
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -112,6 +114,19 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      # The nets analyser's cloud address, when it has been set up (see vision/server/SETUP.md). Without it the
+      # analyser runs on the visitor's device.
+      - uses: google-github-actions/auth@v2
+        if: env.HAS_GCP == 'true'
+        with: { credentials_json: "${{ secrets.GCP_SA_KEY }}" }
+      - uses: google-github-actions/setup-gcloud@v2
+        if: env.HAS_GCP == 'true'
+      - name: Find the nets analyser
+        if: env.HAS_GCP == 'true'
+        run: |
+          URL=$(gcloud run services describe nets-api --region asia-south1 --project "${{ secrets.GCP_PROJECT_ID }}" --format='value(status.url)' 2>/dev/null || true)
+          if [ -n "$URL" ]; then echo "VITE_NETS_API=$URL" >> "$GITHUB_ENV"; echo "::notice::nets analyser: $URL"; else echo "::notice::nets analyser not deployed yet"; fi
 
       - name: Build site
         working-directory: web

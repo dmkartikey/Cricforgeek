@@ -1,0 +1,59 @@
+name: Nets analyser API
+# Builds the nets video analyser and runs it on Google Cloud Run. Needs two repository secrets:
+#   GCP_PROJECT_ID  the Google Cloud project's id
+#   GCP_SA_KEY      a service-account key (JSON) for that project (see vision/server/SETUP.md)
+# Without them the workflow does nothing and the website keeps analysing on the visitor's device.
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/nets-api.yml", "vision/nets/**", "vision/server/**", "vision/models/**", "vision/Dockerfile"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: { group: nets-api, cancel-in-progress: false }
+env:
+  REGION: asia-south1
+  SERVICE: nets-api
+  HAS_GCP: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Not set up yet
+        if: env.HAS_GCP != 'true'
+        run: |
+          echo "::notice::Google Cloud secrets not set, so skipping. The nets analyser runs on the visitor's device until they are."
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: env.HAS_GCP == 'true'
+      - uses: google-github-actions/auth@v2
+        if: env.HAS_GCP == 'true'
+        with: { credentials_json: "${{ secrets.GCP_SA_KEY }}" }
+      - uses: google-github-actions/setup-gcloud@v2
+        if: env.HAS_GCP == 'true'
+      - name: Services, storage and permissions
+        if: env.HAS_GCP == 'true'
+        env: { PROJECT: "${{ secrets.GCP_PROJECT_ID }}" }
+        run: |
+          gcloud config set project "$PROJECT" -q
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com iamcredentials.googleapis.com -q
+          BUCKET="$PROJECT-nets-clips"
+          gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1 || gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention -q
+          # clips are deleted by the analyser straight away; this rule removes anything left behind after a day
+          echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":1}}]}' > lifecycle.json
+          echo '[{"origin":["https://cricforgeek.site","https://www.cricforgeek.site"],"method":["PUT"],"responseHeader":["content-type"],"maxAgeSeconds":3600}]' > cors.json
+          gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=lifecycle.json --cors-file=cors.json -q
+          NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+          RUNTIME="$NUM-compute@developer.gserviceaccount.com"
+          gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$RUNTIME" --role=roles/storage.objectAdmin -q >/dev/null
+          # lets the analyser sign one-time upload links with its own identity (no key files on the server)
+          gcloud iam service-accounts add-iam-policy-binding "$RUNTIME" --member="serviceAccount:$RUNTIME" --role=roles/iam.serviceAccountTokenCreator -q >/dev/null
+          echo "BUCKET=$BUCKET" >> "$GITHUB_ENV"
+      - name: Build and deploy
+        if: env.HAS_GCP == 'true'
+        run: |
+          gcloud run deploy "$SERVICE" --source vision --region "$REGION" --allow-unauthenticated \
+            --cpu 8 --memory 8Gi --concurrency 1 --max-instances 3 --min-instances 0 --timeout 900 --cpu-boost \
+            --set-env-vars "NETS_BUCKET=$BUCKET,NETS_ORIGINS=https://cricforgeek.site,https://www.cricforgeek.site" -q
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')
+          curl -fsS "$URL/healthz" && echo "::notice::Nets analyser live at $URL"

@@ -239,7 +239,7 @@ def _fit_ball(cam, d, starts=None):
     return best
 
 
-def _results(p, rms, n):
+def _results(p, rms, n, with_path=False):
     P, V, cd, cs, e, k, dev = p[:3], p[3:6], p[6], p[7], p[8], p[9], p[10]
     # run the fitted flight from well before the first sighting to past the stumps
     ts = np.linspace(-0.6, 1.4, 2001)
@@ -259,6 +259,9 @@ def _results(p, rms, n):
     js = np.searchsorted(pos[:, 0], PITCH)
     if 0 < js < len(pos):
         out.update(line_y=float(pos[js, 1]), height_z=float(pos[js, 2]))
+    if with_path:
+        end = min(js + 40, len(pos)) if 0 < js < len(pos) else len(pos)
+        out["path"] = [[round(float(x), 3) for x in q] for q in pos[max(ic - 5, 0):end:8]]
     return out
 
 
@@ -441,6 +444,11 @@ def fit_session(points, balls, W, H, readout=0.0, hfov_deg=None, tap_px=2.0, det
     out = [None] * len(balls)
     for j, i in enumerate(idx):
         p = sol.x[7 + 11 * j: 18 + 11 * j]
-        r = _ball_res(cam, preps[i], p)[:2 * preps[i]["n"]]
-        out[i] = _results(p, float(np.sqrt(np.mean(r ** 2))), preps[i]["n"])
+        # one last fit of the ball alone with the final camera gives its curvature, hence the +- of its numbers
+        sb = _fit_ball(cam, preps[i], [p])
+        r = sb.fun[:2 * preps[i]["n"]]
+        out[i] = _results(sb.x, float(np.sqrt(np.mean(r ** 2))), preps[i]["n"], with_path=True)
+        out[i].update(_spread(cam, preps[i], sb))
+        out[i]["_params"] = [float(x) for x in sb.x]
+        out[i]["_t0"] = float(preps[i]["t0"])
     return cam, out
