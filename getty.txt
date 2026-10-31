@@ -1,0 +1,110 @@
+kattymandy/cricket-commentary-ball-data [] ['size_categories:100K<n<1M'] 29 []
+amarharolikar/ipl-international-cricket-ball-by-ball ['license:odc-by'] ['size_categories:10M<n<100M'] 83 []
+trainmatricx/cricket-bat-keypoint-detection ['license:mit'] ['size_categories:n<1K'] 489 ['task_categories:keypoint-detection', 'task_categories:object-detection']
+nirmalkumar/cricket-commentary [] ['size_categories:10K<n<100K'] 17 []
+Valarmathy/CricketData ['license:cc0-1.0'] ['size_categories:100K<n<1M'] 52 ['task_categories:summarization', 'task_categories:text-classification']
+Valarmathy/cricket_indvspak ['license:cc0-1.0'] ['size_categories:1K<n<10K'] 11 ['task_categories:table-question-answering', 'task_categories:tabular-classification']
+Ankush-Chander/cricket-wiki ['license:apache-2.0'] ['size_categories:10K<n<100K'] 47 ['task_categories:question-answering']
+bhuvaneshprasad/odi-cricket-dataset-1971-2014 [] [] 240 []
+bhuvaneshprasad/t20i-cricket-dataset-2005-2014 [] [] 206 []
+bhuvaneshprasad/test-cricket-dataset-1877-2014 [] [] 452 []
+ravimandala/cricket [] [] 2 []
+samhitmantrala/prsports_cricket [] [] 6 []
+samhitmantrala/prsports_cricket2 [] [] 4 []
+srivats666/cricket-rules [] ['size_categories:n<1K'] 5 []
+srivats666/cricket-rules-llama2 [] ['size_categories:n<1K'] 9 []
+samhitmantrala/cricket [] ['size_categories:1K<n<10K'] 2 []
+samhitmantrala/pr_cricket_01 [] ['size_categories:1K<n<10K'] 3 []
+samhitmantrala/pr_cricket_001 [] ['size_categories:n<1K'] 2 []
+samhitmantrala/prp_cricket_01 [] ['size_categories:1K<n<10K'] 2 []
+samhitmantrala/prp_cricket_001 [] ['size_categories:1K<n<10K'] 2 []
+samhitmantrala/hkpr_cricket_01 [] ['size_categories:n<1K'] 2 []
+samhitmantrala/hkpr_cricket_001 [] ['size_categories:n<1K'] 2 []
+lallantop/cricket [] ['size_categories:1K<n<10K'] 105 []
+samarpanrai/nepal-cricket-ODI-matches [] ['size_categories:n<1K'] 4 []
+lallantop/labelled_cricket [] ['size_categories:1K<n<10K'] 11 ['task_categories:text-classification']
+lallantop/cricket_labelled-2 [] ['size_categories:1K<n<10K'] 4 []
+pdp19/Cricket_Dataset [] [] 20 []
+deeprai08/cricket-information [] [] 2 []
+deeprai08/cricket-info [] ['size_categories:n<1K'] 2 []
+samhitmantrala/crickett [] ['size_categories:n<1K'] 2 []
+Fizza/cricketers [] ['size_categories:n<1K'] 7 []
+sahilml/cricket ['license:apache-2.0'] ['size_categories:n<1K'] 12 []
+rishika0704/cricket [] ['size_categories:n<1K'] 5 []
+SpiritOfJoy/cricket_worldcup_24 ['license:apache-2.0'] ['size_categories:n<1K'] 7 []
+Suchinthana/Test_Cricket_Data ['license:cc0-1.0'] ['size_categories:1K<n<10K'] 13 []
+krishnamishra8848/Nepal_Cricket_T20_Data_upto_December_2024 ['license:apache-2.0'] [] 6 []
+ABUHAMMAD/cricket_dataset ['license:llama3.2'] ['size_categories:n<1K'] 10 []
+ABUHAMMAD/cricket_data ['license:llama3.2'] [] 6 []
+ABUHAMMAD/cricket_rules ['license:llama3.2'] ['size_categories:n<1K'] 8 []
+Akshitha-M/cricket-dataset [] ['size_categories:n<1K'] 7 []
+srrthk/Cricket_transcription [] ['size_categories:1K<n<10K'] 68 []
+VinitT/Cricket-Commentary [] ['size_categories:10K<n<100K'] 37 []
+VinitT/Cricket-Commentary-Sample [] ['size_categories:10K<n<100K'] 19 []
+rokmr/cricket-shot ['license:apache-2.0'] ['size_categories:1K<n<10K'] 131 ['task_categories:video-classification']
+harsha193dsh/cricket.pi [] ['size_categories:n<1K'] 2 []
+DataDump1/Cricket_reddit [] ['size_categories:10M<n<100M'] 2 []
+gowrishankarv/cricket [] [] 4 []
+lohith-ashwa/cricket_analytics_dataset ['license:apache-2.0'] ['size_categories:10M<n<100M'] 50 []
+varshithkumar/llama-cricket-dataset [] ['size_categories:1K<n<10K'] 8 []
+mlnomad/imnet1k_cricket [] ['size_categories:1K<n<10K'] 9 []
+TanjimKIT/Cricket_Sentiment ['license:apache-2.0'] ['size_categories:1K<n<10K'] 19 ['task_categories:text-classification']
+nitv/cricket-data [] [] 3 []
+usmanalam82/cricket.information ['license:llama2'] ['size_categories:1K<n<10K'] 7 []
+bitwisemind/cricket-original-video ['license:mit'] ['size_categories:1K<n<10K'] 39 []
+bitwisemind/cricket-shot ['license:mit'] ['size_categories:n<1K'] 15 []
+bitwisemind/cricket_all_file [] [] 2 []
+bitwisemind/cricket_all_file_v2 ['license:mit'] [] 7 []
+catyung/cricket-qa-dataset [] ['size_categories:1K<n<10K'] 22 []
+taha1418/Cricket_Delivery_Videos [] ['size_categories:n<1K'] 447 []
+nimra868/cricket-shot1 ['license:apache-2.0'] ['size_categories:n<1K'] 14 ['task_categories:video-classification']
+archit-khanduja/ipl-cricket-data [] [] 14 []
+darshanbenthon/cricket-qa-dataset [] ['size_categories:1K<n<10K'] 8 []
+infactory-ai/ball-tracking ['license:cc-by-nc-4.0'] ['size_categories:1K<n<10K'] 722 ['task_categories:object-detection', 'task_categories:video-classification']
+bambezius/soccernet-v3-ball-tracking [] ['size_categories:10K<n<100K'] 31 ['task_categories:object-detection']
+Xense/Cup_Ball_Tracking_1028 ['license:apache-2.0'] ['size_categories:10K<n<100K'] 77 ['task_categories:robotics']
+Adit-jain/Soccana_player_ball_detection_v1 [] ['size_categories:10K<n<100K'] 357 ['task_categories:object-detection']
+0xkanazawa/soccer-player-ball-detection [] [] 14 []
+martinjolif/football-ball-detection ['license:cc-by-4.0'] ['size_categories:1K<n<10K'] 1483 ['task_categories:object-detection']
+kevinstotz/pool-ball-detection [] ['size_categories:1K<n<10K'] 39 []
+Project-AgML/CBDA_Cotton_Ball_Detection_Augmented ['license:cc-by-4.0'] ['size_categories:n<1K'] 253 ['task_categories:object-detection']
+MODEL smaranjitghose/cricket-baseball-smrn 7 image-classification
+MODEL world777cricketer/world777-cricketid.com 0 None
+MODEL cricketidpro/gamexchange 0 None
+MODEL Gaialance/cricket 0 None
+MODEL sai2002/cricket 0 None
+MODEL Alankar66/cricket-test 0 None
+MODEL Alankar66/cricket-test1 0 None
+MODEL Alankar66/cricket-testv2 0 None
+MODEL Alankar66/cricket-testv3 0 None
+MODEL mohitkash/cricketid 0 None
+MODEL Cricketidexch/CricketID 0 None
+MODEL tahawarsi360/videomae-base-finetuned-cricket-classification 10 video-classification
+MODEL tahawarsi360/videomae-base-finetuned-cricket-classification_alldata 15 video-classification
+MODEL AITony70100/CricketGreen 0 None
+MODEL tahawarsi360/videomae-base-finetuned-cricket-classification_alldata_50epochs 0 None
+MODEL yugant13/fav-cricketer 0 text-to-image
+MODEL Hazza1/CricketsAwkwardSilence 0 None
+MODEL Sannirappa/my-favourite-cricketer 12 text-to-image
+MODEL Narasimhappa/my-cricket-player 5 text-to-image
+MODEL nyalapatlasravya/my-favourite-cricketer 1 text-to-image
+MODEL Rigosaenz/cricketgreen 0 None
+MODEL Sahil0018/my-cricket-player-iop 1 text-to-image
+MODEL EthanRhys/Young-Cricket-Smooth-Moves 0 None
+MODEL varunchandra1982/icc_cricket_rules 0 None
+MODEL samhitmantrala/cricket 9 text-generation
+MODEL samhitmantrala/cricket2 13 text-generation
+MODEL samhitmantrala/cricket3 12 text-generation
+MODEL samhitmantrala/pr_cricket_01 9 text-generation
+MODEL samhitmantrala/pr_cricket_02 7 text-generation
+MODEL samhitmantrala/pr_cricket_03 0 None
+MODEL samhitmantrala/pr_cricket_001 0 None
+MODEL samhitmantrala/prp_cricket_001 0 None
+MODEL samhitmantrala/hkpr_cricket_001 7 text-generation
+MODEL samhitmantrala/hkpr_cricket_1 9 text-generation
+MODEL extremis/cricket_score_prediction 0 None
+MODEL EthanRhys/Young-Cricket-LA 0 None
+MODEL EthanRhys/Young-Cricket-Current 0 None
+MODEL metriccoders/fine-tuned-gpt2-wiki-indian-cricket 11 text-generation
+MODEL Yashwanth-07/cricket 0 None
+MODEL anup1814kumar/cricket_scorecard_predictor 0 None
