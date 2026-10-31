@@ -1279,3 +1279,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Grounds list on phones: the city under each ground's name ("County Ground" alone could be any of six) */
 .vn-city { display: none; }
 @media (max-width: 760px) { .vn-city { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; } }
+
+/* ---------------------------------------------------------------- nets analyser */
+.nets-pick { display: flex; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
+.nets-pick label.btn { cursor: pointer; }
+.nets-tips { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; color: var(--text-2); }
+.nets-tips b { color: var(--text); }
+.nets-err { border-color: var(--red); color: var(--text); padding: 12px 16px; }
+.nets-grid { grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); align-items: start; }
+@media (max-width: 900px) { .nets-grid { grid-template-columns: minmax(0, 1fr); } }
+.nets-canvas { width: 100%; height: auto; border-radius: 8px; display: block; cursor: crosshair; background: #000; touch-action: manipulation; }
+.nets-now { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.nets-marks { display: grid; gap: 10px; }
+.nets-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.nets-chip { border: 1px solid var(--line-2); background: var(--surface); color: var(--text); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
+.nets-chip.done { border-color: var(--s1); }
+.nets-chip.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+.btn.small { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn:disabled { opacity: .55; cursor: default; }
+.nets-prog { display: grid; gap: 6px; }
+.nets-prog-bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.nets-prog-bar i { display: block; height: 100%; background: var(--s1); transition: width .25s; }
+.nets-kpis .kpi { padding: 14px 16px; display: grid; gap: 2px; }
+.nets-kpis .kpi-v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nets-svg { width: 100%; max-height: 440px; display: block; color: var(--text); }
+.nets-actions { display: inline-flex; gap: 6px; }
+.table tr.sel td { background: var(--hover, rgba(127,127,127,.08)); }

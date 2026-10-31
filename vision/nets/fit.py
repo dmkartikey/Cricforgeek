@@ -26,7 +26,7 @@ def _rodrigues(w):
     return np.eye(3) + np.sin(th) * K + (1 - np.cos(th)) * K @ K
 
 
-def calibrate(points, W, H, hfov_deg=None):
+def calibrate(points, W, H, hfov_deg=None, sig_f=None):
     """points: list of (u, v, (x, y, z)) taps on known pitch features (stump tops/bases, crease corners).
     Returns (Camera, rms px). Weak priors describe a phone on a tripod behind the bowler (a typical lens width, a
     level horizon, a sensible height), so a handful of taps is enough; hfov_deg (from the phone's lens) tightens it."""
@@ -34,7 +34,7 @@ def calibrate(points, W, H, hfov_deg=None):
     X = np.array([p[2] for p in points], float)
     fov_c = hfov_deg or 62.0
     f_c = (W / 2) / np.tan(np.radians(fov_c) / 2)
-    sig_f = 0.08 if hfov_deg else 0.6        # in log focal length
+    sig_f = sig_f or (0.08 if hfov_deg else 0.6)  # in log focal length (0.12 for "the normal 1x lens")
     best = None
     for cx in (-2.0, -3.5, -5.5, -8.0):
         for fov in ((fov_c,) if hfov_deg else (34, 50, 68)):
@@ -138,6 +138,7 @@ def _ground_hit(cam, u, v, z=BALL_R):
 LO = np.array([-10, -5, 0, 5, -15, -15, 0.3, -0.4, 0.2, 0.6, -0.4])
 HI = np.array([25, 5, 4, 70, 15, 15, 0.6, 0.4, 0.95, 1.0, 0.4])
 N_PRI = 5
+LOSS = "soft_l1"
 
 
 def _prep(cam, obs, readout):
@@ -180,11 +181,18 @@ def _initial(cam, tt, u, v, keep=3):
         if pb is not None and 0.0 < pb[2] < 2.5:
             anchors.append((pb, tt[-1]))
     d0 = _ray(cam, u[0], v[0])
+    # general anchor (a part of the flight only, with no bounce or batter's end in view): the last sighting at a
+    # range of depths along its ray
+    d1 = _ray(cam, u[-1], v[-1])
+    for lam in np.linspace(3.0, 30.0, 19):
+        pb = cam.C + lam * d1
+        if 0.0 < pb[2] < 3.2 and -2 < pb[0] < PITCH + 3:
+            anchors.append((pb, tt[-1]))
     cands = []
     for pb, tb in anchors:
         if tb <= 0:
             continue
-        for lam in np.linspace(1.0, 16.0, 46):
+        for lam in np.linspace(1.0, 16.0, 31):
             P0 = cam.C + lam * d0
             if P0[2] < 0.3 or P0[2] > 3.2:
                 continue
@@ -224,7 +232,7 @@ def _ball_res(cam, d, p):
 def _fit_ball(cam, d, starts=None):
     best = None
     for p0 in (starts if starts is not None else d["p0"]):
-        sol = least_squares(lambda p: _ball_res(cam, d, p), p0, bounds=(LO, HI), loss="soft_l1", f_scale=1.5,
+        sol = least_squares(lambda p: _ball_res(cam, d, p), p0, bounds=(LO, HI), loss=LOSS, f_scale=1.5,
                             x_scale="jac", max_nfev=300)
         if best is None or sol.cost < best.cost:
             best = sol
@@ -274,13 +282,106 @@ def _spread(cam, d, sol, det_px=0.8):
     return {k + "_sd": float(np.sqrt(max(grads[k] @ cov @ grads[k], 0.0))) for k in keys if k in base}
 
 
-def fit_delivery(cam, obs, readout=0.0):
-    """obs: list of (t, u, v) for frames where the ball was detected (t = frame start time, seconds).
-    Returns a dict of results, or None when it can't be fitted."""
-    d = _prep(cam, obs, readout)
+def _predict_px(cam, d, sol, obs, readout):
+    """Pixel miss of the fitted flight at every sighting in obs (including ones it was not fitted to)."""
+    p = sol.x
+    tt = np.array([o[0] + readout * o[2] / cam.H - d["t0"] for o in obs])
+    pos, _ = flight(p[:3], p[3:6], tt, p[6], p[7], p[8], p[9], p[10])
+    pr, _ = cam.project(pos)
+    return np.hypot(pr[:, 0] - np.array([o[1] for o in obs]), pr[:, 1] - np.array([o[2] for o in obs]))
+
+
+def _core_grow(cam, obs, readout):
+    """A track can start with the ball still in the bowler's hand (it swings round with the arm for a few tenths of a
+    second) and end after it has hit the bat or the net. Fit the middle stretch first, then keep the longest run of
+    sightings around it that the flight explains, and fit that."""
+    n = len(obs)
+    if n < 16:
+        return None
+    a, b = int(0.35 * n), int(0.85 * n)
+    core = obs[a:b]
+    d = _prep(cam, core, readout)
     if d is None:
         return None
     sol = _fit_ball(cam, d)
+    rms = float(np.sqrt(np.mean(sol.fun[:2 * d["n"]] ** 2)))
+    miss = _predict_px(cam, d, sol, obs, readout)
+    ok = miss < max(3.0, 4.0 * rms)
+    # walk outwards from the core; stop at the first pair of misses in a row
+    lo = a
+    while lo > 0 and (ok[lo - 1] or (lo > 1 and ok[lo - 2])):
+        lo -= 1
+    hi = b
+    while hi < n and (ok[hi] or (hi + 1 < n and ok[hi + 1])):
+        hi += 1
+    kept = [o for o, k in zip(obs[lo:hi], ok[lo:hi]) if k]
+    return kept if len(kept) >= 6 else None
+
+
+def _trimmed(cam, obs, readout, rounds=2):
+    """Fit, then drop the sightings the flight can't explain (the ball still in the bowler's hand, a wrong pick by
+    the tracker) and fit again. Returns (prep, solution, kept obs)."""
+    obs = sorted(obs)
+    d = _prep(cam, obs, readout)
+    if d is None:
+        return None, None, obs
+    sol = _fit_ball(cam, d)
+    for _ in range(rounds):
+        n = d["n"]
+        res = np.hypot(sol.fun[0:2 * n:2], sol.fun[1:2 * n:2])
+        med = float(np.median(res))
+        keep = res < max(3.0, 4.0 * 1.4826 * med)
+        if keep.all() or keep.sum() < 6:
+            break
+        obs = [o for o, k in zip(obs, keep) if k]
+        d2 = _prep(cam, obs, readout)
+        if d2 is None:
+            break
+        d2["p0"] = [sol.x] + list(d2["p0"])
+        d, sol = d2, _fit_ball(cam, d2)
+    # The track can begin with the ball still in the bowler's hand or on the arm (dozens of frames in slow motion),
+    # or with the tracker on another moving thing; it can end on the batter or the net. A few such sightings together
+    # can bend the fit until each looks fine, so hold a block out instead: fit obs[m:], check the earlier sightings
+    # against that clean fit, and cut at the last one it can't explain. If the misfits reach right up to m, the block
+    # was too small: grow it. Then the same from the other end.
+    for side in ("start", "end"):
+        n0 = len(obs)
+        for m in (4, 8, 16, 24, 32, 48, 64, 96):
+            if d["n"] < 10 or m > int(0.6 * n0):
+                break
+            core = obs[m:] if side == "start" else obs[:n0 - m]
+            held = obs[:m] if side == "start" else obs[n0 - m:]
+            d2 = _prep(cam, core, readout)
+            if d2 is None:
+                break
+            s2 = _fit_ball(cam, d2)
+            rms2 = float(np.sqrt(np.mean(s2.fun[:2 * d2["n"]] ** 2)))
+            miss = _predict_px(cam, d2, s2, held, readout)
+            bad = np.nonzero(miss > max(3.0, 3.5 * rms2))[0]
+            if len(bad) == 0:
+                break
+            if side == "start":
+                j = int(bad[-1]) + 1                       # keep obs[j:]
+                reaches = j >= m
+                keep = obs[j:]
+            else:
+                j = int(bad[0])                            # keep obs[:n0 - m + j]
+                reaches = j == 0
+                keep = obs[:n0 - m + j]
+            if not reaches:
+                d3 = _prep(cam, keep, readout)
+                if d3 is not None:
+                    d, sol, obs = d3, _fit_ball(cam, d3, [s2.x] + list(d3["p0"])), keep
+                break
+    return d, sol, obs
+
+
+def fit_delivery(cam, obs, readout=0.0):
+    """obs: list of (t, u, v[, r]) for frames where the ball was detected (t = frame start time, seconds).
+    Returns a dict of results, or None when it can't be fitted."""
+    d, sol, _ = _trimmed(cam, obs, readout)
+    if d is None:
+        return None
     out = _results(sol.x, float(np.sqrt(np.mean(sol.fun[:2 * d["n"]] ** 2))), d["n"])
     out.update(_spread(cam, d, sol))
     return out
@@ -290,24 +391,25 @@ def _cam_from(p, base):
     return Camera(W=base.W, H=base.H, f=base.f * np.exp(p[6]), C=base.C + p[:3], R=_rodrigues(p[3:6]) @ base.R)
 
 
-def fit_session(points, balls, W, H, readout=0.0, hfov_deg=None, tap_px=2.0, det_px=1.0):
+def fit_session(points, balls, W, H, readout=0.0, hfov_deg=None, tap_px=2.0, det_px=1.0, sig_f=None):
     """Calibrate from the taps, then refine the camera together with every delivery of the session: gravity and the
     frame clock give each flight an absolute scale, and the flights cross the whole pitch, so together they pin down
     the camera far better than taps on distant stumps alone. balls: list of obs lists. Returns (camera, results)."""
-    cam0, rms = calibrate(points, W, H, hfov_deg)
+    cam0, rms = calibrate(points, W, H, hfov_deg, sig_f)
     uv = np.array([p[:2] for p in points], float)
     X = np.array([p[2] for p in points], float)
-    preps = [_prep(cam0, o, readout) for o in balls]
+    preps, sols = [], []
+    for o in balls:
+        d, sol, _ = _trimmed(cam0, o, readout)
+        preps.append(d); sols.append(sol)
     idx = [i for i, d in enumerate(preps) if d is not None]
     if not idx:
         return cam0, [None] * len(balls)
-    # each ball on its own first, then jointly (block structure keeps the finite-difference Jacobian cheap)
-    pb = []
-    for i in idx:
-        pb.append(_fit_ball(cam0, preps[i]).x)
+    # each ball on its own first (above), then jointly (block structure keeps the finite-difference Jacobian cheap)
+    pb = [sols[i].x for i in idx]
     nb = len(idx)
     fc = (W / 2) / np.tan(np.radians(hfov_deg or 62.0) / 2)
-    sig_f = 0.08 if hfov_deg else 0.6
+    sig_f = sig_f or (0.08 if hfov_deg else 0.6)
 
     def res(q):
         cam = _cam_from(q[:7], cam0)

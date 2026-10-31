@@ -277,6 +277,8 @@ page('/h2h', { title: 'Batter v bowler head to head', desc: 'Every ball a batter
   body: '<h1>Batter v bowler</h1><p>Pick a batter and a bowler to see every ball between them: runs, strike rate, dot balls, how often the bowler won and how the dismissals happened.</p>' });
 page('/play', { title: 'Cricket card battle', desc: 'A card game with real international stats: pick runs, average, strike rate, wickets or economy and beat the computer.',
   body: '<h1>Card battle</h1><p>Pick a stat on your top card. Higher wins, except economy and bowling average. Win the round and take both cards.</p>' });
+page('/nets', { title: 'Nets analyser: bowling speed, length and line from phone video', desc: 'Film the nets on your phone and get every ball\'s speed, length, line, swing and bounce. Runs on your device; the video is never uploaded.',
+  body: '<h1>Nets analyser</h1><p>Film a net session from behind the bowler\'s arm, mark the stumps and creases, and get every delivery\'s speed, length, line at the stumps, swing and deviation off the pitch. The analysis runs in your browser.</p>' });
 
 // ---------- 404, sitemaps, robots ----------
 writeFileSync(join(dist, '404.html'), template

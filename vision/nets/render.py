@@ -189,19 +189,28 @@ def draw_ball(img, samples, cam, colour, occ_mask=None):
 
 
 # ---------------------------------------------------------------- one delivery to video
-def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True):
+def setup(rng, W=1280, H=720, fps=None):
+    """The fixed part of a filming session: the phone, the net, the light, the ball and the players' kit."""
+    cam, cinfo = random_camera(rng, W, H, fps)
+    outdoor = cinfo["outdoor"]
+    st = dict(cam=cam, cinfo=cinfo, outdoor=outdoor, bg=scene(cam, rng, outdoor),
+              gain=rng.uniform(0.75, 1.25) * (1.0 if outdoor else rng.uniform(0.55, 0.9)),
+              wb=np.array([rng.uniform(0.92, 1.08), 1.0, rng.uniform(0.9, 1.1)], np.float32),
+              noise_sd=(rng.uniform(0.004, 0.012) if outdoor else rng.uniform(0.01, 0.03)),
+              ball_col=BALL_COLOURS[rng.choice(list(BALL_COLOURS), p=[0.45, 0.3, 0.17, 0.08])],
+              kit=tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.15, 0.25, 0.55], [0.1, 0.1, 0.1], [0.75, 0.2, 0.2], [0.2, 0.5, 0.3]])) * 1.0),
+              bat_kit=tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.2, 0.3, 0.6], [0.1, 0.1, 0.12]])) * 1.0))
+    return st
+
+
+def render_delivery(seed, out_dir, W=1280, H=720, fps=None, crf=None, write=True, st=None):
     rng = np.random.default_rng(seed)
     d = random_delivery(rng)
     ts, ps, info = simulate(d)
-    cam, cinfo = random_camera(rng, W, H, fps)
-    outdoor = cinfo["outdoor"]
-    bg = scene(cam, rng, outdoor)
-    gain = rng.uniform(0.75, 1.25) * (1.0 if outdoor else rng.uniform(0.55, 0.9))
-    wb = np.array([rng.uniform(0.92, 1.08), 1.0, rng.uniform(0.9, 1.1)], np.float32)
-    noise_sd = (rng.uniform(0.004, 0.012) if outdoor else rng.uniform(0.01, 0.03))
-    ball_col = BALL_COLOURS[rng.choice(list(BALL_COLOURS), p=[0.45, 0.3, 0.17, 0.08])]
-    kit = tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.15, 0.25, 0.55], [0.1, 0.1, 0.1], [0.75, 0.2, 0.2], [0.2, 0.5, 0.3]])) * 1.0)
-    bat_kit = tuple(np.array(rng.choice([[0.92, 0.92, 0.9], [0.2, 0.3, 0.6], [0.1, 0.1, 0.12]])) * 1.0)
+    if st is None:
+        st = setup(rng, W, H, fps)
+    cam, cinfo, outdoor, bg = st["cam"], st["cinfo"], st["outdoor"], st["bg"]
+    gain, wb, noise_sd, ball_col, kit, bat_kit = st["gain"], st["wb"], st["noise_sd"], st["ball_col"], st["kit"], st["bat_kit"]
 
     # bowler: runs in, gathers, releases at t = 0 with the hand at the release point
     side = np.sign(d.p0[1]) or 1.0

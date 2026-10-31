@@ -83,7 +83,13 @@ def main():
     tr, te, out = sys.argv[1], sys.argv[2], sys.argv[3]
     epochs = int(sys.argv[4]) if len(sys.argv) > 4 else 12
     torch.set_num_threads(4)
-    d = np.load(tr); X = torch.from_numpy(d["X"].astype(np.float32)); Y = torch.from_numpy(d["Y"])
+    # training patches stay in half precision in memory (large sets); each batch is converted as it is used
+    trs = tr.split(",")
+    Xs, Ys = [], []
+    for f in trs:
+        d = np.load(f); Xs.append(d["X"].astype(np.float16)); Ys.append(d["Y"])
+    X = torch.from_numpy(np.concatenate(Xs)); Y = torch.from_numpy(np.concatenate(Ys))
+    del Xs
     d = np.load(te); Xt = torch.from_numpy(d["X"].astype(np.float32)); Yt = torch.from_numpy(d["Y"])
     print("train", tuple(X.shape), "pos", int(Y[:, 0].sum()), "| test", tuple(Xt.shape), "pos", int(Yt[:, 0].sum()))
     net = BallNet()
@@ -98,7 +104,7 @@ def main():
         tot = 0.0
         for i in range(0, len(X) - 255, 256):
             b = perm[i:i + 256]
-            xb, yb = augment(X[b], Y[b], g)
+            xb, yb = augment(X[b].float(), Y[b], g)
             loss, _, _ = loss_fn(net(xb), yb)
             opt.zero_grad(); loss.backward(); opt.step(); sched.step()
             tot += float(loss)

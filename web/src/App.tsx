@@ -34,6 +34,7 @@ const Venues = page(() => import('./pages/Venues'));
 const Records = page(() => import('./pages/Records'));
 const H2H = page(() => import('./pages/H2H'));
 const Play = page(() => import('./pages/Play'));
+const Nets = page(() => import('./pages/Nets'));
 
 const I = (d: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
@@ -49,6 +50,7 @@ const NAV: [string, string, ReactNode][] = [
   ['/records', 'Records', I('M6 3h12v4a6 6 0 01-12 0V3zM9 21h6M12 13v8')],
   ['/h2h', 'Head to head', I('M7 7h10M7 7l3-3M7 7l3 3M17 17H7M17 17l-3-3M17 17l-3 3')],
   ['/play', 'Card battle', I('M5 4h9l5 5v11H5zM14 4v5h5')],
+  ['/nets', 'Nets analyser', I('M12 21a9 9 0 100-18 9 9 0 000 18zM8 5.5c2.5 3.5 2.5 9.5 0 13M16 5.5c-2.5 3.5-2.5 9.5 0 13')],
   ['/explore', 'Explorer', I('M4 6h16M7 12h10M10 18h4')],
   ['/pinboard', 'My pinboard', I('M9 3h6l-1 6 4 4H6l4-4-1-6zM12 13v8')],
   ['/methodology', 'Methodology', I('M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v.01M11 12h1v5h1')],
@@ -64,7 +66,7 @@ function Ball() {
 }
 
 const CRUMB: Record<string, string> = { '': 'Overview', player: 'Player', players: 'Players', compare: 'Compare', live: 'Live predictions', predictor: 'Live predictions', team: 'Team', teams: 'Teams',
-  league: 'Competition', competitions: 'Competitions', venue: 'Ground', venues: 'Grounds', records: 'Records', h2h: 'Head to head', play: 'Card battle', match: 'Match', matches: 'Matches', explore: 'Explorer', pinboard: 'My pinboard', methodology: 'Methodology' };
+  league: 'Competition', competitions: 'Competitions', venue: 'Ground', venues: 'Grounds', records: 'Records', h2h: 'Head to head', play: 'Card battle', match: 'Match', matches: 'Matches', explore: 'Explorer', nets: 'Nets analyser', pinboard: 'My pinboard', methodology: 'Methodology' };
 
 export default function App() {
   const loc = useLocation();
@@ -131,6 +133,7 @@ export default function App() {
             <Route path="/records" element={<Records />} />
             <Route path="/h2h" element={<H2H />} />
             <Route path="/play" element={<Play />} />
+            <Route path="/nets" element={<Nets />} />
             <Route path="/tests" element={<Navigate to="/" replace />} />
             <Route path="/explore" element={<Explorer />} />
             <Route path="/explorer" element={<Navigate to="/explore" replace />} />
