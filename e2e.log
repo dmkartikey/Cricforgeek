@@ -1,0 +1,28 @@
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/Cricforgeek/Cricforgeek/vision/nets/e2e.py", line 172, in run_one
+    sol = _fit_ball(cam, d)
+          ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/Cricforgeek/Cricforgeek/vision/nets/fit.py", line 234, in _fit_ball
+    for p0 in (starts if starts is not None else d["p0"]):
+                                                 ~^^^^^^
+TypeError: 'NoneType' object is not subscriptable
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/Cricforgeek/Cricforgeek/vision/nets/e2e.py", line 239, in <module>
+    main()
+  File "/home/runner/work/Cricforgeek/Cricforgeek/vision/nets/e2e.py", line 214, in main
+    rows = list(p.imap_unordered(run_one, files))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/multiprocessing/pool.py", line 873, in next
+    raise value
+TypeError: 'NoneType' object is not subscriptable
