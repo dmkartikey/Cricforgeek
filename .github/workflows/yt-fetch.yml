@@ -1,0 +1,31 @@
+name: Fetch a test clip (one-off)
+# Downloads a clip for a private analyser test. The file is encrypted to a key held only by the person running the
+# test (fetch/pub.pem) before it is stored, and the stored copy expires after a day.
+on:
+  push:
+    branches: [yt-fetch]
+    paths: [".github/workflows/yt-fetch.yml", "fetch/**"]
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download
+        run: |
+          pip install -q yt-dlp
+          mkdir -p out
+          yt-dlp --no-playlist -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b" --merge-output-format mp4 \
+            -o out/clip.mp4 --write-info-json "$(cat fetch/url.txt)" 2>&1 | tail -5
+          ls -la out
+      - name: Encrypt
+        run: |
+          openssl rand -out k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in out/clip.mp4 -out clip.enc -pass file:k.bin
+          openssl pkeyutl -encrypt -pubin -inkey fetch/pub.pem -in k.bin -out k.enc
+          python3 -c "import json;d=json.load(open('out/clip.info.json'));print(json.dumps({k:d.get(k) for k in ['title','duration','width','height','fps','vcodec','uploader']}))" > info.json
+          rm -f k.bin out/clip.mp4
+      - uses: actions/upload-artifact@v4
+        with: { name: clip, path: "clip.enc\nk.enc\ninfo.json", retention-days: 1 }
