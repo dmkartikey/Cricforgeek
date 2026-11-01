@@ -3,7 +3,7 @@ import { usePageMeta } from '../lib/meta';
 import { Panel, Seg } from '../components/ui';
 import { readMp4, decodeAll, procSize, webCodecsOk, Track } from '../nets/video';
 import { analyse, Analysis, Progress } from '../nets/analyse';
-import { CLOUD_API, analyseCloud, stillByVideo } from '../nets/cloud';
+import { CLOUD_API, analyseCloud, stillByVideo, fetchLink, platformOf } from '../nets/cloud';
 import { PITCH, CREASE, STUMP_H, STUMP_W, RETURN_Y, V3, project } from '../nets/geom';
 import type { Tap } from '../nets/fit';
 import type { Frame } from '../nets/detect';
@@ -30,7 +30,7 @@ const MARKS: Mark[] = [
   { key: 'nRb', group: "Bowler's end stumps", label: 'Right stump, bottom', X: [0, HALF, 0] },
 ];
 
-type Clip = { file: File; track: Track | null; W: number; H: number; still: ImageData; fpsFile: number; frames: number; sample?: boolean; stillAt?: number };
+type Clip = { file: File | null; job?: string; stills?: string[]; track: Track | null; W: number; H: number; still: ImageData; fpsFile: number; frames: number; sample?: boolean; stillAt?: number };
 const STILLS = [1 / 3, 0.02, 0.6, 0.85, 0.15];
 
 export default function Nets() {
@@ -69,6 +69,26 @@ export default function Nets() {
     setBusy(false);
   };
 
+  const [link, setLink] = useState('');
+  const [linkNote, setLinkNote] = useState<string | null>(null);
+  const loadLink = async () => {
+    setErr(null); setLinkNote(null);
+    const p = platformOf(link);
+    if (p) {
+      setLinkNote(`${p} doesn't allow other sites to download its videos, so we can't fetch that link. If it's your video, download the original${p === 'YouTube' ? ' (YouTube Studio → Content → ⋮ → Download)' : ''} and choose the file above, or put it on Google Drive or Dropbox, share it as "anyone with the link" and paste that link.`);
+      return;
+    }
+    if (!CLOUD_API) { setLinkNote('Links work once the cloud analyser is switched on. For now, choose the file from your device.'); return; }
+    setBusy(true);
+    try {
+      const c = await fetchLink(link);
+      const img = await imageFromDataUrl(c.stills[0], c.W, c.H);
+      setClip({ file: null, job: c.job, stills: c.stills, track: null, W: c.W, H: c.H, still: img, fpsFile: c.fps, frames: c.frames });
+      setTaps({});
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    setBusy(false);
+  };
+
   const loadSample = async () => {
     setBusy(true);
     try {
@@ -84,8 +104,8 @@ export default function Nets() {
     try {
       const tapList: Tap[] = MARKS.filter(m => taps[m.key]).map(m => ({ u: taps[m.key][0], v: taps[m.key][1], X: m.X }));
       const opts = { slow: Number(slow), lens, onProgress: setProg };
-      const out = CLOUD_API ? await analyseCloud(clip.file, tapList, clip.W, clip.H, opts)
-        : await analyse(clip.file, clip.track!, tapList, clip.W, clip.H, opts);
+      const out = CLOUD_API ? await analyseCloud(clip.file, tapList, clip.W, clip.H, { ...opts, job: clip.job })
+        : await analyse(clip.file!, clip.track!, tapList, clip.W, clip.H, opts);
       setRes(out);
       if (!out.deliveries.length) setErr('No deliveries were found in this clip. Check that the ball is visible against the background and the whole pitch is in shot.');
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -116,6 +136,14 @@ export default function Nets() {
               </label>
               <button type="button" className="btn" onClick={loadSample} disabled={busy}>Try a sample clip</button>
             </div>
+            <form className="nets-link" onSubmit={e => { e.preventDefault(); if (link.trim()) loadLink(); }}>
+              <label htmlFor="nets-url" className="muted">Or paste a link to the video (Google Drive, Dropbox, OneDrive or a direct link)</label>
+              <div className="nets-link-row">
+                <input id="nets-url" type="url" inputMode="url" placeholder="https://drive.google.com/file/d/…" value={link} onChange={e => { setLink(e.target.value); setLinkNote(null); }} disabled={busy} />
+                <button type="submit" className="btn" disabled={busy || !link.trim()}>{busy ? 'Fetching…' : 'Use link'}</button>
+              </div>
+              {linkNote && <p className="nets-link-note" role="status">{linkNote}</p>}
+            </form>
           </Panel>
           <Panel title="How to film" sub="A steady phone and a clear view are what make the numbers accurate.">
             <ul className="nets-tips">
@@ -137,10 +165,12 @@ export default function Nets() {
               <button type="button" className="btn small" onClick={async () => {
                 const k = ((clip.stillAt ?? 0) + 1) % STILLS.length;
                 let still: ImageData | null = null;
-                if (clip.track) {
+                if (clip.stills?.length) {
+                  still = await imageFromDataUrl(clip.stills[k % clip.stills.length], clip.W, clip.H);
+                } else if (clip.track) {
                   const n = clip.track.times.length, at = Math.min(n - 1, Math.floor(n * STILLS[k]));
-                  await decodeAll(clip.file, clip.track, ({ frame }) => { still = toImage(frame); }, { from: at, to: at + 1 });
-                } else still = (await stillByVideo(clip.file, STILLS[k])).img;
+                  await decodeAll(clip.file!, clip.track, ({ frame }) => { still = toImage(frame); }, { from: at, to: at + 1 });
+                } else if (clip.file) still = (await stillByVideo(clip.file, STILLS[k])).img;
                 if (still) setClip({ ...clip, still, stillAt: k });
               }}>Show another frame</button>
               <button type="button" className="btn small" onClick={() => { setClip(null); setTaps({}); }}>Change video</button></span>}>
@@ -453,4 +483,13 @@ function Wagon({ rep, hand }: { rep: ReturnType<typeof coachBatter>; hand: Hand 
         })}
       </svg></div>
   );
+}
+
+function imageFromDataUrl(src: string, W: number, H: number): Promise<ImageData> {
+  return new Promise((ok, bad) => {
+    const im = new Image();
+    im.onload = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d')!; x.drawImage(im, 0, 0, W, H); ok(x.getImageData(0, 0, W, H)); };
+    im.onerror = () => bad(new Error('Could not show a frame from that video.'));
+    im.src = src;
+  });
 }

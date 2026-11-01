@@ -1,6 +1,7 @@
 """Nets analyser API (runs on Google Cloud Run).
 
 POST /v1/upload   {size, type}                      -> {job, url}   a one-time link to upload the clip to private storage
+POST /v1/link     {url}                             -> {job, W, H, fps, frames, stills}  fetch a clip from a sharing link
 POST /v1/analyse  {job, taps, W, H, slow, lens}     -> a stream of JSON lines: progress, then the result
 The clip is deleted as soon as the analysis ends (and a storage rule removes anything left after a day).
 """
@@ -12,7 +13,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from nets.pipeline import analyse
+from nets.pipeline import analyse, probe, proc_size
+from server.links import fetch as fetch_link, stills as make_stills, LinkError
 
 BUCKET = os.environ.get("NETS_BUCKET", "")
 WEIGHTS = os.environ.get("NETS_WEIGHTS", os.path.join(os.path.dirname(__file__), "..", "models", "ballnet.json"))
@@ -73,6 +75,38 @@ async def upload(req: Request):
         raise HTTPException(415, "That doesn't look like a video file.")
     job = uuid.uuid4().hex
     return {"job": job, "url": _signed_put(f"clips/{job}", ctype), "type": ctype}
+
+
+@app.post("/v1/link")
+async def link(req: Request):
+    """Fetch a clip from a Google Drive / Dropbox / OneDrive / direct link into private storage, and send back a few
+    frames to mark the pitch on."""
+    _limit(req)
+    body = await req.json()
+    url = str(body.get("url", ""))[:2000]
+    job = uuid.uuid4().hex
+    fd, path = tempfile.mkstemp(suffix=".mp4", dir="/tmp")
+    os.close(fd)
+
+    def work():
+        fetch_link(url, path, MAX_BYTES)
+        w, h, times = probe(path)
+        W, H = proc_size(w, h)
+        pics = make_stills(path, W, H)
+        storage().bucket(BUCKET).blob(f"clips/{job}").upload_from_filename(path, content_type="video/mp4")
+        fps = (len(times) - 1) / max(times[-1] - times[0], 1e-6) if len(times) > 1 else 0
+        return {"job": job, "W": W, "H": H, "fps": fps, "frames": len(times), "stills": pics}
+    try:
+        return await asyncio.to_thread(work)
+    except LinkError as e:
+        raise HTTPException(422, str(e))
+    except Exception:
+        raise HTTPException(502, "That link couldn't be fetched. Check it's shared publicly and try again.")
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def _valid_taps(taps):

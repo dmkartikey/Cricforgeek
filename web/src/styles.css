@@ -1324,3 +1324,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .nets-zones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; font-size: 12.5px; }
 .nets-zones span { border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; } .nets-zones span.on { border-color: var(--s1); }
 .nets-grid3 td, .nets-grid3 th { text-align: center; }
+.nets-link { display: grid; gap: 6px; margin-top: 14px; font-size: 13px; }
+.nets-link-row { display: flex; gap: 8px; }
+.nets-link-row input { flex: 1; min-width: 0; height: 34px; border: 1px solid var(--line-2); border-radius: 6px; padding: 0 10px; background: var(--surface); color: var(--text); font: inherit; }
+.nets-link-note { margin: 2px 0 0; padding: 8px 10px; border-left: 3px solid var(--s2, var(--red)); background: var(--hover, rgba(127,127,127,.06)); color: var(--text); font-size: 13px; }

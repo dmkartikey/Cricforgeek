@@ -5,15 +5,44 @@ import type { Tap } from './fit'
 
 export const CLOUD_API = (import.meta.env.VITE_NETS_API as string | undefined) || ''
 
-export async function analyseCloud(file: File, taps: Tap[], W: number, H: number,
-  opts: { slow?: number; lens?: string; onProgress?: (p: Progress) => void; signal?: AbortSignal } = {}): Promise<Analysis> {
+export type LinkClip = { job: string; W: number; H: number; fps: number; frames: number; stills: string[] }
+
+/** Fetch a clip from a sharing link (Google Drive, Dropbox, OneDrive or a direct video link) on the server. */
+export async function fetchLink(url: string): Promise<LinkClip> {
+  const r = await fetch(`${CLOUD_API}/v1/link`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) })
+  if (!r.ok) throw new Error(await reason(r))
+  return r.json()
+}
+
+/** Platforms whose terms don't allow other sites to download their videos: said straight away, without a server trip. */
+export function platformOf(url: string): string | null {
+  try {
+    const h = new URL(url.trim()).hostname.toLowerCase()
+    const m: [string, string][] = [['youtube.com', 'YouTube'], ['youtu.be', 'YouTube'], ['instagram.com', 'Instagram'], ['tiktok.com', 'TikTok'],
+      ['facebook.com', 'Facebook'], ['fb.watch', 'Facebook'], ['x.com', 'X'], ['twitter.com', 'X'], ['vimeo.com', 'Vimeo']]
+    return m.find(([d]) => h === d || h.endsWith('.' + d))?.[1] ?? null
+  } catch { return null }
+}
+
+export async function analyseCloud(file: File | null, taps: Tap[], W: number, H: number,
+  opts: { slow?: number; lens?: string; job?: string; onProgress?: (p: Progress) => void; signal?: AbortSignal } = {}): Promise<Analysis> {
   const say = (stage: Progress['stage'], done: number, total: number) => opts.onProgress?.({ stage, done, total })
+  const job = opts.job ?? await uploadFile(file!, say, opts.signal)
+  return runJob(job, taps, W, H, opts, say)
+}
+
+async function uploadFile(file: File, say: (s: Progress['stage'], d: number, t: number) => void, signal?: AbortSignal) {
   say('uploading', 0, 1)
   const type = file.type && file.type.startsWith('video/') ? file.type : 'video/mp4'
-  const up = await fetch(`${CLOUD_API}/v1/upload`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ size: file.size, type }), signal: opts.signal })
+  const up = await fetch(`${CLOUD_API}/v1/upload`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ size: file.size, type }), signal })
   if (!up.ok) throw new Error(await reason(up))
   const { job, url } = await up.json() as { job: string; url: string }
-  await put(url, file, type, (d, t) => say('uploading', d, t), opts.signal)
+  await put(url, file, type, (d, t) => say('uploading', d, t), signal)
+  return job
+}
+
+async function runJob(job: string, taps: Tap[], W: number, H: number, opts: { slow?: number; lens?: string; signal?: AbortSignal },
+  say: (s: Progress['stage'], d: number, t: number) => void): Promise<Analysis> {
   const res = await fetch(`${CLOUD_API}/v1/analyse`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, signal: opts.signal,
     body: JSON.stringify({ job, taps, W, H, slow: opts.slow ?? 1, lens: opts.lens ?? 'normal' }),
