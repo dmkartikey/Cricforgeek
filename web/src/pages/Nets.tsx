@@ -4,6 +4,7 @@ import { Panel, Seg } from '../components/ui';
 import { readMp4, decodeAll, procSize, webCodecsOk, Track } from '../nets/video';
 import { analyse, Analysis, Progress } from '../nets/analyse';
 import { CLOUD_API, analyseCloud, stillByVideo, fetchLink, platformOf } from '../nets/cloud';
+import { youTubeId, captureSupported, embedUrl, YouTubePlayer, captureSegment, CaptureProgress } from '../nets/youtube';
 import { PITCH, CREASE, STUMP_H, STUMP_W, RETURN_Y, V3, project } from '../nets/geom';
 import type { Tap } from '../nets/fit';
 import type { Frame } from '../nets/detect';
@@ -71,8 +72,18 @@ export default function Nets() {
 
   const [link, setLink] = useState('');
   const [linkNote, setLinkNote] = useState<string | null>(null);
+  const [ytId, setYtId] = useState<string | null>(null);
   const loadLink = async () => {
     setErr(null); setLinkNote(null);
+    const yt = youTubeId(link);
+    if (yt) {
+      if (!captureSupported()) {
+        setLinkNote("YouTube videos are analysed by playing them here and capturing the player, which needs Chrome, Edge or Firefox on a computer (phone browsers can't capture the screen). Or download the original and choose the file above.");
+        return;
+      }
+      setYtId(yt);
+      return;
+    }
     const p = platformOf(link);
     if (p) {
       setLinkNote(`${p} doesn't allow other sites to download its videos, so we can't fetch that link. If it's your video, download the original${p === 'YouTube' ? ' (YouTube Studio → Content → ⋮ → Download)' : ''} and choose the file above, or put it on Google Drive or Dropbox, share it as "anyone with the link" and paste that link.`);
@@ -125,7 +136,10 @@ export default function Nets() {
         </p>
       </section>
 
-      {!clip && (
+      {!clip && ytId && <YouTubeCapture id={ytId} onCancel={() => setYtId(null)}
+        onCaptured={async f => { setYtId(null); await load(f); }} />}
+
+      {!clip && !ytId && (
         <div className="grid g2">
           <Panel title="1. Choose a video" sub="One clip can hold several deliveries.">
             <div className="nets-pick">
@@ -137,9 +151,9 @@ export default function Nets() {
               <button type="button" className="btn" onClick={loadSample} disabled={busy}>Try a sample clip</button>
             </div>
             <form className="nets-link" onSubmit={e => { e.preventDefault(); if (link.trim()) loadLink(); }}>
-              <label htmlFor="nets-url" className="muted">Or paste a link to the video (Google Drive, Dropbox, OneDrive or a direct link)</label>
+              <label htmlFor="nets-url" className="muted">Or paste a link: YouTube, Google Drive, Dropbox, OneDrive or a direct link to the video</label>
               <div className="nets-link-row">
-                <input id="nets-url" type="url" inputMode="url" placeholder="https://drive.google.com/file/d/…" value={link} onChange={e => { setLink(e.target.value); setLinkNote(null); }} disabled={busy} />
+                <input id="nets-url" type="url" inputMode="url" placeholder="https://youtu.be/…" value={link} onChange={e => { setLink(e.target.value); setLinkNote(null); }} disabled={busy} />
                 <button type="submit" className="btn" disabled={busy || !link.trim()}>{busy ? 'Fetching…' : 'Use link'}</button>
               </div>
               {linkNote && <p className="nets-link-note" role="status">{linkNote}</p>}
@@ -492,4 +506,75 @@ function imageFromDataUrl(src: string, W: number, H: number): Promise<ImageData>
     im.onerror = () => bad(new Error('Could not show a frame from that video.'));
     im.src = src;
   });
+}
+
+// ---------------------------------------------------------------- YouTube: play here, capture the player
+const fmtT = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+
+function YouTubeCapture({ id, onCaptured, onCancel }: { id: string; onCaptured: (f: File) => void; onCancel: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [player, setPlayer] = useState<YouTubePlayer | null>(null);
+  const [now, setNow] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const [prog, setProg] = useState<CaptureProgress | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    const f = frame.current; if (!f) return;
+    const p = new YouTubePlayer(f);
+    p.ready.then(() => setPlayer(p));
+    const tick = window.setInterval(() => { setNow(p.time()); setDur(p.duration()); }, 200);
+    return () => { window.clearInterval(tick); p.destroy(); };
+  }, [id]);
+  const [a, b] = range ?? [now, Math.min(now + 10, dur || now + 10)];
+  const capture = async () => {
+    if (!player || !box.current) return;
+    setErr(null);
+    try {
+      const c = await captureSegment(player, box.current, a, b, { onProgress: setProg });
+      onCaptured(c.file);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      setErr(/Permission|NotAllowed|denied/i.test(m) ? 'Capture needs your permission: choose "This tab" when the browser asks.' : m);
+    }
+    setProg(null);
+  };
+  return (
+    <div className="grid nets-grid">
+      <Panel title="Pick the deliveries" sub="Play the video, then set where the deliveries start and end (up to 20 seconds)."
+        right={<button type="button" className="btn small" onClick={onCancel}>Back</button>}>
+        <div ref={box} className="nets-yt">
+          <iframe ref={frame} src={embedUrl(id)} title="YouTube video" allow="autoplay; encrypted-media" referrerPolicy="strict-origin-when-cross-origin" />
+        </div>
+        <div className="nets-yt-bar">
+          <button type="button" className="btn small" disabled={!player || !!prog} onClick={() => (player!.playing() ? player!.pause() : player!.play())}>{player?.playing() ? 'Pause' : 'Play'}</button>
+          <input type="range" min={0} max={dur || 1} step={0.1} value={now} disabled={!player || !!prog} aria-label="Position in the video"
+            onChange={e => player?.seek(Number(e.target.value))} />
+          <span className="nets-yt-t">{fmtT(now)} / {fmtT(dur)}</span>
+        </div>
+        <div className="nets-yt-bar">
+          <button type="button" className="btn small" disabled={!player || !!prog} onClick={() => setRange([now, Math.max(b, now + 1)])}>Set start ({fmtT(a)})</button>
+          <button type="button" className="btn small" disabled={!player || !!prog} onClick={() => setRange([Math.min(a, Math.max(0, now - 1)), now])}>Set end ({fmtT(b)})</button>
+          <span className="muted">{(b - a).toFixed(1)} s selected</span>
+        </div>
+      </Panel>
+      <Panel title="Capture" sub="The stretch plays at quarter speed while this page records the player.">
+        <div className="stack">
+          <ul className="nets-tips">
+            <li>When the browser asks what to share, choose <b>this tab</b>.</li>
+            <li>Keep the mouse off the video and don't scroll until it's done.</li>
+            <li>Choose the highest quality in the video's settings first if you can (it plays in YouTube's own player).</li>
+          </ul>
+          <button type="button" className="btn primary" disabled={!player || !!prog || b - a < 0.5 || b - a > 20} onClick={capture}>
+            {prog ? 'Capturing…' : b - a > 20 ? 'Pick 20 seconds or less' : 'Capture this stretch'}
+          </button>
+          {prog && <div className="nets-prog" role="status"><div className="nets-prog-bar"><i style={{ width: `${Math.round(100 * Math.min(1, prog.done / Math.max(prog.total, 1e-6)))}%` }} /></div>
+            <small>{prog.stage === 'waiting' ? 'Starting the video…' : prog.stage === 'capturing' ? `Capturing · ${prog.done.toFixed(1)} of ${prog.total.toFixed(1)} s` : 'Making the clip…'}</small></div>}
+          {err && <p className="nets-link-note" role="alert">{err}</p>}
+          <small className="muted">Nothing is downloaded from YouTube: the page records what this tab shows, with your permission, and the clip stays on your device until you analyse it. Captured video is more compressed than the original, so the original file gives firmer numbers.</small>
+        </div>
+      </Panel>
+    </div>
+  );
 }

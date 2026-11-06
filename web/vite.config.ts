@@ -11,6 +11,7 @@ const CSP = [
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
   "worker-src 'self'",
+  "frame-src https://www.youtube-nocookie.com",
   `connect-src 'self' ${process.env.VITE_LIVE_API || 'https://cricforgeek-live.dmkartikey.workers.dev'}${process.env.VITE_NETS_API ? ` ${process.env.VITE_NETS_API} https://storage.googleapis.com` : ''}`,
   "manifest-src 'self'",
   "object-src 'none'",
